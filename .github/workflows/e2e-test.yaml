@@ -1,0 +1,17 @@
+name: e2e test
+run-name: E2E test steps for ${{ github.sha }} on ${{ github.ref_name }}
+
+on:
+  workflow_call:
+
+jobs:
+  e2e-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+      - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
+        with:
+          go-version: '1.25'
+
+      - name: Run E2E tests
+        run: make test-e2e

@@ -1,4 +1,4 @@
-.PHONY: help build test clean deps start-deps stop-deps setup-protogen protogen test-int coverage docker dev run mocks
+.PHONY: help release-manifest build test clean deps start-deps stop-deps setup-protogen protogen test-int coverage docker dev run mocks
 
 BUF=./bin/buf
 MAKEFLAGS += --no-print-directory
@@ -21,7 +21,11 @@ help:
 	@echo "  make dev          - Full dev setup (build + start deps + run)"
 	@echo ""
 
-build:
+release-manifest:
+	@VERSION=$$(sed -n 's/.*Version = "\(.*\)".*/\1/p' cmd/root.go); \
+	printf '{\n  ".": "%s"\n}\n' "$$VERSION" > .release-please-manifest.json
+
+build: release-manifest
 	@./scripts/build.sh
 
 mocks:
@@ -34,6 +38,9 @@ test: mocks
 test-int:
 	@echo "Running integration tests..."
 	@go test -v ./tests/integration/... -timeout 5m
+
+test-e2e:
+	@echo "Not implemented yet"
 
 coverage:
 	@echo "Generating coverage report..."

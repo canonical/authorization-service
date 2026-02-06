@@ -1,0 +1,48 @@
+name: TIOBE Quality Checks
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '0 7 1 * *'
+
+jobs:
+  TICS:
+    runs-on: [ self-hosted, amd64, tiobe, noble ]
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - name: Set up Go
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
+        with:
+          go-version: '1.25'
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@v0.6.1
+          go install github.com/axw/gocov/gocov@v1.1.0
+          go install github.com/AlekSi/gocov-xml@v1.1.0
+
+      # We could store a report from the regular run, but this is cheap to do and keeps this isolated.
+      - name: Test and generate coverage report
+        run: |
+          make test
+          gocov convert coverage.out > coverage.json
+          # Annoyingly, the coverage.xml file needs to be in a .coverage folder.
+          mkdir .coverage
+          gocov-xml < coverage.json > .coverage/coverage.xml
+
+      - name: Get repo name
+        run: echo "REPO_NAME=$(echo ${{ github.repository }} | cut -d'/' -f2)" >> $GITHUB_ENV
+      - name: TICS GitHub Action
+        uses: tiobe/tics-github-action@768de18bedf164ee461bc9ef5e2f2fa1a20b122a # v3
+        with:
+          mode: qserver
+          viewerUrl: https://canonical.tiobe.com/tiobeweb/TICS/api/cfg?name=GoProjects
+          ticsAuthToken: ${{ secrets.TICSAUTHTOKEN }}
+          project: ${{ env.REPO_NAME }}
+          installTics: true

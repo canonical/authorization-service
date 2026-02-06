@@ -1,0 +1,12 @@
+name: build rock
+run-name: Build and test the rock
+
+on:
+    workflow_call:
+
+jobs:
+  build:
+     name: Build rock
+     uses: canonical/identity-team/.github/workflows/_rock-build.yaml@6b27807be4ec7c25045d52ef09ac780d684f65a2 # v1.10.0
+     with:
+       structure-tests-enabled: true
