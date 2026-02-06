@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  authorization-service:
+    build:
+      context: ../..
+      dockerfile: docker/app/Dockerfile
+    container_name: authz-service
+    ports:
+      - "9090:9090"  # gRPC
+      - "8888:8888"  # REST Gateway
+    environment:
+      - GRPC_PORT=9090
+      - HTTP_PORT=8888
+      - SERVER_HOST=0.0.0.0
+      - OPENFGA_ENABLED=true
+      - OPENFGA_ADDRESS=openfga:8081
+      - NATS_URL=nats://nats:4222
+      - NATS_ENABLE_JETSTREAM=true
+      - VALKEY_ADDRESS=valkey:6379
+      - STS_ADDRESS=sts:9091
+      - LOG_LEVEL=debug
+      - LOG_FORMAT=json
+    networks:
+      - authz-network
+    depends_on:
+      openfga:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=:9090"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  authz-network:
+    external: true

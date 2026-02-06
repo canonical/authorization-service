@@ -1,0 +1,40 @@
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: external-authz
+  namespace: default
+spec:
+  rules:
+  - {}
+  provider:
+    name: "ext-authz"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ext-authz-config
+  namespace: default
+data:
+  address: "authorization-service.default.svc.cluster.local:9090"
+  timeout: "10s"
+  headersToDownstreamOnDeny:
+  - content-type
+  headersToDownstreamOnAllow:
+  - x-user-id
+  - x-user-name
+  headersToAdd:
+  - x-authz-service
+  withRequestBody: "false"
+  failureMode: deny
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ext-authz-provider
+  namespace: istio-system
+data:
+  ext-authz: |
+    name: ext-authz
+    service:
+      host: authorization-service.default.svc.cluster.local
+      port: 9090
