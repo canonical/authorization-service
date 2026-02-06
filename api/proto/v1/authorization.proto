@@ -1,0 +1,109 @@
+syntax = "proto3";
+
+package authorization.service.api.v1;
+
+option go_package = "github.com/canonical/authorization-service/api/proto/v1";
+
+import "google/rpc/status.proto";
+
+// Authorization service implements Envoy's External Authorization API
+// Based on https://www.envoyproxy.io/docs/envoy/v1.16.2/api-v3/service/auth/v3/external_auth.proto
+service Authorization {
+  // Check performs authorization check
+  rpc Check(CheckRequest) returns (CheckResponse);
+}
+
+message CheckRequest {
+  // The request attributes.
+  AttributeContext attributes = 1;
+}
+
+message CheckResponse {
+  // Status of the authorization check.
+  google.rpc.Status status = 1;
+
+  // Optional response metadata that will be added to the upstream request.
+  map<string, string> headers_to_add = 2;
+
+  // Optional response metadata that will be added to the downstream response.
+  map<string, string> response_headers_to_add = 3;
+
+  // Optional dynamic metadata that will be emitted to the stats sink.
+  map<string, string> dynamic_metadata = 4;
+}
+
+message AttributeContext {
+  // The source of a network activity, such as starting a TCP connection.
+  Peer source = 1;
+
+  // The destination of a network activity, such as accepting a TCP connection.
+  Peer destination = 2;
+
+  // Represents a network request, such as an HTTP request.
+  Request request = 3;
+
+  // The context of the request, such as the user identity.
+  ContextExtensions context_extensions = 4;
+
+  // Dynamic metadata associated with the request.
+  map<string, string> metadata_context = 5;
+}
+
+message Peer {
+  // The address of the peer.
+  Address address = 1;
+
+  // The canonical service name of the peer.
+  string service = 2;
+
+  // The labels associated with the peer.
+  map<string, string> labels = 3;
+
+  // The authenticated identity of the peer.
+  string principal = 4;
+
+  // The certificate properties.
+  map<string, string> certificate = 5;
+}
+
+message Address {
+  string address = 1;
+  uint32 port = 2;
+}
+
+message Request {
+  // The timestamp when the request was received.
+  string time = 1;
+
+  // The HTTP request headers.
+  map<string, string> headers = 2;
+
+  // The HTTP request method.
+  string method = 3;
+
+  // The HTTP request path.
+  string path = 4;
+
+  // The HTTP request host.
+  string host = 5;
+
+  // The HTTP request scheme.
+  string scheme = 6;
+
+  // The HTTP request protocol.
+  string protocol = 7;
+
+  // The HTTP request body.
+  string body = 8;
+
+  // The HTTP request size.
+  int64 size = 9;
+
+  // The HTTP request ID.
+  string id = 10;
+}
+
+message ContextExtensions {
+  // Additional context information.
+  map<string, string> extensions = 1;
+}
