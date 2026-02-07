@@ -1,0 +1,17 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: sts-gateway
+  namespace: default
+  labels:
+    gateway.networking.k8s.io/gateway-name: sts-gateway
+spec:
+  gatewayClassName: istio
+  listeners:
+  - name: http
+    hostname: "localhost"
+    port: 80
+    protocol: HTTP
+    allowedRoutes:
+      namespaces:
+        from: All

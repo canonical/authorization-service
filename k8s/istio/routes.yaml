@@ -1,0 +1,43 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: authorization-route
+  namespace: default
+spec:
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: sts-gateway
+    namespace: default
+  hostnames:
+  - "localhost"
+  - "iam.internal.io"
+  rules:
+  # Auth endpoints (/auth/login, /auth/callback, /auth/logout, /auth/sessions)
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /healthz
+    backendRefs:
+    - name: authorization-service
+      port: 8080
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GRPCRoute
+metadata:
+  name: authorization-mesh-grpc-route
+  namespace: default
+spec:
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: waypoint
+    namespace: default
+  rules:
+    - matches:
+        - method:
+            service: "envoy.service.auth.v3.Authorization"
+            method: "Check"
+      backendRefs:
+        - name: authorization-service 
+          port: 9090

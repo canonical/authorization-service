@@ -1,88 +1,68 @@
-.PHONY: help build test clean deps start-deps stop-deps setup-protogen protogen test-int coverage docker dev run mocks
+# Makefile for Authorization Service (Cerberus)
 
-BUF=./bin/buf
-MAKEFLAGS += --no-print-directory
+.PHONY: all build test clean run install-deps proto
 
-help:
-	@echo "Authorization Service - Available targets:"
-	@echo ""
-	@echo "  make build        - Build the binary"
-	@echo "  make test         - Run unit tests"
-	@echo "  make test-int     - Run integration tests"
-	@echo "  make coverage     - Generate coverage report"
-	@echo "  make protogen     - Generate protobuf code"
-	@echo "  make mocks        - Generate mocks using go:generate"
-	@echo "  make deps         - Download Go dependencies"
-	@echo "  make start-deps   - Start Docker dependencies"
-	@echo "  make stop-deps    - Stop Docker dependencies"
-	@echo "  make clean        - Clean build artifacts"
-	@echo "  make docker       - Build Docker image"
-	@echo "  make run          - Run service (requires dependencies)"
-	@echo "  make dev          - Full dev setup (build + start deps + run)"
-	@echo ""
+# Variables
+BINARY_NAME=app
+BINARY_PATH=bin/$(BINARY_NAME)
+CMD_PATH=./cmd/authz
+PROTO_PATH=api/proto/v1
+GOFLAGS?=-ldflags=-w -ldflags=-s -a -buildvcs
+CGO_ENABLED?=0
 
+# Default target
+all: build
+
+# Install Go dependencies
+install-deps:
+	go mod download
+	go mod tidy
+
+# Build the binary
 build:
-	@./scripts/build.sh
+	@echo "Building $(BINARY_NAME)..."
+	@mkdir -p bin
+	go build -o $(BINARY_PATH) $(CMD_PATH)
+	@echo "Build complete: $(BINARY_PATH)"
 
-mocks:
-	@echo "Generating mocks..."
-	@go generate ./internal/service/...
+# Run tests
+test:
+	@echo "Running tests..."
+	go test ./... -v -cover
 
-test: mocks
-	@./scripts/test.sh
+# Run tests with coverage
+test-coverage:
+	@echo "Running tests with coverage..."
+	go test ./... -coverprofile=coverage.out
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report generated: coverage.html"
 
-test-int:
-	@echo "Running integration tests..."
-	@go test -v ./tests/integration/... -timeout 5m
-
-coverage:
-	@echo "Generating coverage report..."
-	@go test -coverprofile=coverage.out ./...
-	@go tool cover -html=coverage.out -o coverage.html
-	@echo "Coverage report: coverage.html"
-
-setup-protogen:
-	@./scripts/setup-protogen.sh
-
-protogen:
-	@echo "Updating Buf dependencies..."
-	@$(BUF) dep update
-	@echo "Generating protobuf code..."
-	@$(BUF) generate api/proto
-
-deps:
-	@echo "Downloading dependencies..."
-	@go mod download
-	@go mod tidy
-
-start-deps:
-	@./scripts/start-deps.sh
-
-stop-deps:
-	@./scripts/stop-deps.sh
-
-clean:
-	@echo "Cleaning build artifacts..."
-	@rm -rf bin/
-	@rm -f coverage.out coverage.html
-	@go clean
-
-docker:
-	@echo "Building Docker image..."
-	@docker build -f docker/app/Dockerfile -t authorization-service:latest .
-
+# Run the service
 run: build
-	@echo "Starting service..."
-	@./bin/authz-service serve
+	@echo "Starting $(BINARY_NAME)..."
+	./$(BINARY_PATH)
 
-dev: build start-deps
-	@echo "Starting service in development mode..."
-	@LOG_LEVEL=debug ./bin/authz-service serve
+# Clean build artifacts
+clean:
+	@echo "Cleaning..."
+	rm -rf bin/
+	rm -f coverage.out coverage.html
+	rm -rf keys/
+	@echo "Clean complete"
 
-openapi-v3:
-	cd openapi && go mod tidy && go run convert.go
-.PHONY: openapi-v3
+# Generate protobuf code (requires protoc)
+proto:
+	@echo "Generating protobuf code..."
+	protoc --go_out=. --go_opt=paths=source_relative \
+		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
+		$(PROTO_PATH)/sts.proto
+	@echo "Protobuf generation complete"
 
+# Format code
+fmt:
+	go fmt ./...
 
-.DEFAULT_GOAL := help
+# Lint code (requires golangci-lint)
+lint:
+	golangci-lint run
 

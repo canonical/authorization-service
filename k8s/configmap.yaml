@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authorization-service-config
+  labels:
+    app: authorization-service
+data:
+  # Server Configuration
+  GRPC_PORT: "9090"
+  HTTP_PORT: "8080"
+  SERVER_HOST: "0.0.0.0"
+  
+  # Logging
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+  
+  # Service Dependencies
+  OPENFGA_ENABLED: "false"
+  OPENFGA_ADDRESS: "openfga.data.svc.cluster.local:8081"
+  NATS_ENABLED: "false"
+  NATS_URL: "nats://nats.data.svc.cluster.local:4222"
+  VALKEY_ENABLED: "false"
+  VALKEY_ADDRESS: "valkey-primary.data.svc.cluster.local:6379"
+  STS_ADDRESS: "secure-token-service.default.svc.cluster.local:9090"
+  
+  # Service Metadata
+  SERVICE_NAME: "authorization-service"
+  SERVICE_VERSION: "1.0.0"

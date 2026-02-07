@@ -2,89 +2,37 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: authorization-service
-  namespace: default
   labels:
     app: authorization-service
-    version: v1
+    istio.io/use-waypoint: "true"
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: authorization-service
-      version: v1
   template:
     metadata:
       labels:
         app: authorization-service
-        version: v1
     spec:
+      serviceAccountName: authorization-service
       containers:
-      - name: authz-service
-        image: authorization-service:latest
-        imagePullPolicy: IfNotPresent
+      - name: authorization-service
+        image: authorization-service
+        command: ["/usr/bin/app"]
+        args: ["serve"]
         ports:
-        - name: grpc
-          containerPort: 9090
-          protocol: TCP
-        - name: http
-          containerPort: 8888
-          protocol: TCP
-        env:
-        - name: GRPC_PORT
-          value: "9090"
-        - name: HTTP_PORT
-          value: "8888"
-        - name: SERVER_HOST
-          value: "0.0.0.0"
-        - name: LOG_LEVEL
-          value: "info"
-        - name: LOG_FORMAT
-          value: "json"
-        - name: OPENFGA_ENABLED
-          value: "true"
-        - name: OPENFGA_ADDRESS
-          value: "openfga:8081"
-        - name: NATS_URL
-          value: "nats://nats:4222"
-        - name: VALKEY_ADDRESS
-          value: "valkey:6379"
-        - name: STS_ADDRESS
-          value: "sts:9091"
-        livenessProbe:
-          grpc:
-            port: 9090
-          initialDelaySeconds: 10
-          periodSeconds: 10
-        readinessProbe:
-          grpc:
-            port: 9090
-          initialDelaySeconds: 5
-          periodSeconds: 5
+        - containerPort: 8080
+          name: http
+        - containerPort: 9090
+          name: grpc
+        envFrom:
+        - configMapRef:
+            name: authorization-service-config
+        - secretRef:
+            name: authorization-service-secret
         resources:
-          requests:
-            cpu: 100m
-            memory: 128Mi
           limits:
-            cpu: 500m
-            memory: 512Mi
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: authorization-service
-  namespace: default
-  labels:
-    app: authorization-service
-spec:
-  ports:
-  - name: grpc
-    port: 9090
-    targetPort: 9090
-    protocol: TCP
-  - name: http
-    port: 8888
-    targetPort: 8888
-    protocol: TCP
-  selector:
-    app: authorization-service
-  type: ClusterIP
+            memory: "128Mi"
+            cpu: "500m"
+
