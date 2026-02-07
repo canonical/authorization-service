@@ -1,4 +1,4 @@
-package cmd
+package main
 
 import (
 	"context"
@@ -26,6 +26,7 @@ Configuration is loaded from environment variables.`,
 }
 
 func init() {
+	rootCmd.AddCommand(serveCmd)
 	serveCmd.Flags().StringP("config-file", "c", "", "Path to configuration file (optional)")
 }
 

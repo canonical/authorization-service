@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	stsv1 "github.com/canonical/authorization-service/api/proto/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -72,6 +73,11 @@ func (c *Client) ValidateToken(ctx context.Context, token string) (*TokenInfo, e
 		Subject:   "user:example",
 		ExpiresAt: time.Now().Add(time.Hour),
 	}, nil
+}
+
+// GetClient returns the SecurityTokenServiceClient for gRPC calls
+func (c *Client) GetClient() stsv1.SecurityTokenServiceClient {
+	return stsv1.NewSecurityTokenServiceClient(c.conn)
 }
 
 // TokenInfo represents information about a validated token

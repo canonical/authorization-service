@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net"
 
+	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -25,7 +26,14 @@ type Server struct {
 
 // Services holds all gRPC service implementations
 type Services interface {
-	// Add service interfaces here as they are implemented
+	// GetEnvoyAuthz returns the Envoy authorization service
+	GetEnvoyAuthz() AuthorizationService
+}
+
+// AuthorizationService defines the authorization service interface
+type AuthorizationService interface {
+	// Embed the official Envoy authorization server interface
+	authv3.AuthorizationServer
 }
 
 // NewServer creates a new gRPC server
@@ -50,9 +58,13 @@ func NewServer(cfg ServerConfig, services Services, logger *slog.Logger) (*Serve
 	// Register reflection service for development
 	reflection.Register(grpcServer)
 
-	// TODO: Register application services when proto is generated
-	// authzv1.RegisterPermissionsServiceServer(grpcServer, permissionsServer)
-	// authzv1.RegisterAuthorizationServer(grpcServer, authzServer)
+	// Register authorization services if provided
+	if services != nil {
+		if authzSvc := services.GetEnvoyAuthz(); authzSvc != nil {
+			logger.Info("Registering Envoy authorization service")
+			authv3.RegisterAuthorizationServer(grpcServer, authzSvc)
+		}
+	}
 
 	return &Server{
 		grpcServer: grpcServer,

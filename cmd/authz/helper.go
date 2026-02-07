@@ -1,4 +1,4 @@
-package cmd
+package main
 
 import (
 	"fmt"
@@ -41,7 +41,7 @@ func (i *Integrations) initializeServices(serviceLogger *slog.Logger) *Services 
 	return &Services{
 		Permissions: permissions.NewService(i.Valkey, i.NATS, serviceLogger),
 		Authz:       authz.NewService(i.OpenFGA, i.STS, i.Valkey, serviceLogger),
-		envoyAuthz:  authorization.NewEnvoyAuthzService(serviceLogger),
+		envoyAuthz:  authorization.NewEnvoyAuthzService(i.STS.GetClient(), serviceLogger),
 	}
 }
 
@@ -69,39 +69,47 @@ func initializeIntegrations(cfg *config.Config, logger *slog.Logger) (*Integrati
 	}
 
 	// Initialize NATS
-	integrations.NATS, err = nats.NewClient(
-		nats.Config{
-			URL:             cfg.NATS.URL,
-			ClusterID:       cfg.NATS.ClusterID,
-			ClientID:        cfg.NATS.ClientID,
-			EnableJetStream: cfg.NATS.EnableJetStream,
-			StreamName:      cfg.NATS.StreamName,
-			MaxReconnects:   cfg.NATS.MaxReconnects,
-			ReconnectWait:   cfg.NATS.ReconnectWait,
-			Timeout:         cfg.NATS.Timeout,
-		},
-		logger,
-	)
+	if cfg.NATS.Enabled {
+		integrations.NATS, err = nats.NewClient(
+			nats.Config{
+				URL:             cfg.NATS.URL,
+				ClusterID:       cfg.NATS.ClusterID,
+				ClientID:        cfg.NATS.ClientID,
+				EnableJetStream: cfg.NATS.EnableJetStream,
+				StreamName:      cfg.NATS.StreamName,
+				MaxReconnects:   cfg.NATS.MaxReconnects,
+				ReconnectWait:   cfg.NATS.ReconnectWait,
+				Timeout:         cfg.NATS.Timeout,
+			},
+			logger,
+		)
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to create NATS client: %w", err)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create NATS client: %w", err)
+		}
+	} else {
+		logger.Info("NATS disabled, skipping NATS client initialization")
 	}
 
 	// Initialize Valkey
-	integrations.Valkey, err = valkey.NewClient(
-		valkey.Config{
-			Address:  cfg.Valkey.Address,
-			Password: cfg.Valkey.Password,
-			DB:       cfg.Valkey.DB,
-			PoolSize: cfg.Valkey.PoolSize,
-			Timeout:  cfg.Valkey.Timeout,
-			UseTLS:   cfg.Valkey.UseTLS,
-		},
-		logger,
-	)
+	if cfg.Valkey.Enabled {
+		integrations.Valkey, err = valkey.NewClient(
+			valkey.Config{
+				Address:  cfg.Valkey.Address,
+				Password: cfg.Valkey.Password,
+				DB:       cfg.Valkey.DB,
+				PoolSize: cfg.Valkey.PoolSize,
+				Timeout:  cfg.Valkey.Timeout,
+				UseTLS:   cfg.Valkey.UseTLS,
+			},
+			logger,
+		)
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Valkey client: %w", err)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create Valkey client: %w", err)
+		}
+	} else {
+		logger.Info("Valkey disabled, skipping Valkey client initialization")
 	}
 
 	// Initialize STS
