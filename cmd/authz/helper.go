@@ -9,6 +9,8 @@ import (
 	"github.com/canonical/authorization-service/internal/integrations/openfga"
 	"github.com/canonical/authorization-service/internal/integrations/sts"
 	"github.com/canonical/authorization-service/internal/integrations/valkey"
+	"github.com/canonical/authorization-service/internal/server/grpc"
+	"github.com/canonical/authorization-service/internal/service/authorization"
 	"github.com/canonical/authorization-service/internal/service/authz"
 	"github.com/canonical/authorization-service/internal/service/permissions"
 )
@@ -17,6 +19,12 @@ import (
 type Services struct {
 	Permissions *permissions.Service
 	Authz       *authz.Service
+	envoyAuthz  grpc.AuthorizationService
+}
+
+// GetEnvoyAuthz returns the Envoy authorization service
+func (s *Services) GetEnvoyAuthz() grpc.AuthorizationService {
+	return s.envoyAuthz
 }
 
 // Integrations holds all external service clients
@@ -33,6 +41,7 @@ func (i *Integrations) initializeServices(serviceLogger *slog.Logger) *Services 
 	return &Services{
 		Permissions: permissions.NewService(i.Valkey, i.NATS, serviceLogger),
 		Authz:       authz.NewService(i.OpenFGA, i.STS, i.Valkey, serviceLogger),
+		envoyAuthz:  authorization.NewEnvoyAuthzService(serviceLogger),
 	}
 }
 
