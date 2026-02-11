@@ -9,27 +9,49 @@ import (
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
-)
 
-// ServerConfig represents server configuration
-type ServerConfig interface {
-	GetGRPCAddress() string
-}
+	"github.com/canonical/authorization-service/internal/config"
+	"github.com/canonical/authorization-service/internal/service/authz"
+	"github.com/canonical/authorization-service/internal/service/permissions"
+)
 
 // Server represents the gRPC server
 type Server struct {
-	grpcServer *grpc.Server
-	listener   net.Listener
-	logger     *slog.Logger
+	grpcServer         *grpc.Server
+	listener           net.Listener
+	permissionsService *permissions.Service
+	authzService       *authz.Service
+	externalAuthz      *authz.ExternalAuthzService
+
+	logger *slog.Logger
 }
 
-// Services holds all gRPC service implementations
-type Services interface {
-	// Add service interfaces here as they are implemented
+// ServerOption is a functional option for configuring the Server
+type ServerOption func(*Server)
+
+// WithPermissionsService sets the permissions service
+func WithPermissionsService(svc *permissions.Service) ServerOption {
+	return func(s *Server) {
+		s.permissionsService = svc
+	}
+}
+
+// WithAuthzService sets the authorization service
+func WithAuthzService(svc *authz.Service) ServerOption {
+	return func(s *Server) {
+		s.authzService = svc
+	}
+}
+
+// WithExternalAuthz sets the external authorization service
+func WithExternalAuthz(svc *authz.ExternalAuthzService) ServerOption {
+	return func(s *Server) {
+		s.externalAuthz = svc
+	}
 }
 
 // NewServer creates a new gRPC server
-func NewServer(cfg ServerConfig, services Services, logger *slog.Logger) (*Server, error) {
+func NewServer(cfg *config.ServerConfig, logger *slog.Logger, opts ...ServerOption) (*Server, error) {
 	listener, err := net.Listen("tcp", cfg.GetGRPCAddress())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create listener: %w", err)
@@ -42,23 +64,31 @@ func NewServer(cfg ServerConfig, services Services, logger *slog.Logger) (*Serve
 		),
 	)
 
-	// Register health check service
+	server := &Server{
+		grpcServer: grpcServer,
+		listener:   listener,
+		logger:     logger,
+	}
+
+	for _, opt := range opts {
+		opt(server)
+	}
+
+	// Health check service
 	healthServer := health.NewServer()
 	grpc_health_v1.RegisterHealthServer(grpcServer, healthServer)
 	healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
 
-	// Register reflection service for development
-	reflection.Register(grpcServer)
+	if cfg.Development {
+		reflection.Register(grpcServer)
+	}
 
-	// TODO: Register application services when proto is generated
-	// authzv1.RegisterPermissionsServiceServer(grpcServer, permissionsServer)
-	// authzv1.RegisterAuthorizationServer(grpcServer, authzServer)
+	if server.externalAuthz != nil {
+		server.externalAuthz.Register(grpcServer)
+		logger.Info("Registered Envoy External Authorization service")
+	}
 
-	return &Server{
-		grpcServer: grpcServer,
-		listener:   listener,
-		logger:     logger,
-	}, nil
+	return server, nil
 }
 
 // Start starts the gRPC server
