@@ -25,10 +25,6 @@ Configuration is loaded from environment variables.`,
 	RunE: serve,
 }
 
-func init() {
-	serveCmd.Flags().StringP("config-file", "c", "", "Path to configuration file (optional)")
-}
-
 // serve is the main serve command handler
 func serve(cmd *cobra.Command, args []string) error {
 	// Load configuration from environment variables
@@ -41,6 +37,12 @@ func serve(cmd *cobra.Command, args []string) error {
 	logger := cfg.Logging.SetupLogger()
 	logger.Info("Starting Authorization Service", "version", Version)
 
+	tracer, tracerShutdown, err := cfg.Telemetry.SetupTelemetry(cmd.Context(), logger)
+	if err != nil {
+		logger.Error("Failed to setup telemetry", "error", err)
+		return fmt.Errorf("telemetry setup failed: %w", err)
+	}
+
 	// Initialize integrations
 	integrations, err := initializeIntegrations(cfg, logger)
 	if err != nil {
@@ -51,10 +53,16 @@ func serve(cmd *cobra.Command, args []string) error {
 	defer integrations.cleanupIntegrations()
 
 	// Initialize services
-	services := integrations.initializeServices(logger)
+	services := integrations.initializeServices(tracer, logger)
 
-	// Start gRPC server
-	grpcServer, err := grpc.NewServer(cfg.Server, services, logger)
+	// Start gRPC server with functional options
+	grpcServer, err := grpc.NewServer(
+		cfg.Server,
+		logger,
+		grpc.WithPermissionsService(services.Permissions),
+		grpc.WithAuthzService(services.Authz),
+		grpc.WithExternalAuthz(services.ExternalAuthz),
+	)
 	if err != nil {
 		logger.Error("Failed to create gRPC server", "error", err)
 		return fmt.Errorf("gRPC server creation failed: %w", err)
@@ -96,6 +104,11 @@ func serve(cmd *cobra.Command, args []string) error {
 
 	// Graceful shutdown
 	logger.Info("Shutting down servers...")
+
+	if err := tracerShutdown(cmd.Context()); err != nil {
+		return fmt.Errorf("Error while shutting down tracer: %w", err)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.Server.GracefulShutdownTimeout)
 	defer cancel()
 

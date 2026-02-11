@@ -1,12 +1,20 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
 	"time"
 
 	"github.com/go-playground/validator/v10"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Config represents the application configuration
@@ -26,6 +34,7 @@ type ServerConfig struct {
 	HTTPPort                int           `validate:"required,min=1,max=65535" env:"HTTP_PORT" default:"8080"`
 	Host                    string        `validate:"required" env:"SERVER_HOST" default:"0.0.0.0"`
 	GracefulShutdownTimeout time.Duration `validate:"" env:"SERVER_SHUTDOWN_TIMEOUT" default:"15s"`
+	Development             bool          `validate:"required" env:"DEV" default:"false"`
 }
 
 // GetGRPCAddress returns the full gRPC server address
@@ -50,6 +59,7 @@ type OpenFGAConfig struct {
 
 // NATSConfig contains NATS configuration
 type NATSConfig struct {
+	Enabled         bool          `validate:"" env:"NATS_ENABLED" default:"true"`
 	URL             string        `validate:"required" env:"NATS_URL" default:"nats://localhost:4222"`
 	ClusterID       string        `validate:"" env:"NATS_CLUSTER_ID" default:"authz-cluster"`
 	ClientID        string        `validate:"" env:"NATS_CLIENT_ID" default:"authz-service"`
@@ -62,6 +72,7 @@ type NATSConfig struct {
 
 // ValkeyConfig contains Valkey (Redis-compatible) configuration
 type ValkeyConfig struct {
+	Enabled  bool          `validate:"" env:"VALKEY_ENABLED" default:"true"`
 	Address  string        `validate:"required" env:"VALKEY_ADDRESS" default:"localhost:6379"`
 	Password string        `validate:"" env:"VALKEY_PASSWORD"`
 	DB       int           `validate:"min=0,max=15" env:"VALKEY_DB" default:"0"`
@@ -85,6 +96,7 @@ func (c *LoggingConfig) SetupLogger() *slog.Logger {
 
 // STSConfig contains Secure Token Service configuration
 type STSConfig struct {
+	Enabled bool          `validate:"" env:"STS_ENABLED" default:"true"`
 	Address string        `validate:"required" env:"STS_ADDRESS" default:"localhost:9091"`
 	UseTLS  bool          `validate:"" env:"STS_USE_TLS" default:"false"`
 	Timeout time.Duration `validate:"" env:"STS_TIMEOUT" default:"10s"`
@@ -104,7 +116,51 @@ type TelemetryConfig struct {
 	ServiceVersion string `validate:"required" env:"OTEL_SERVICE_VERSION" default:"v1.0.0"`
 }
 
-// Validate validates the configuration using the validator
+func (t *TelemetryConfig) SetupTelemetry(ctx context.Context, logger *slog.Logger) (trace.Tracer, func(context.Context) error, error) {
+	if !t.Enabled {
+		logger.Info("Telemetry is disabled")
+		return otel.Tracer(t.ServiceName), func(context.Context) error { return nil }, nil
+	}
+
+	res, err := resource.New(ctx,
+		resource.WithAttributes(
+			semconv.ServiceNameKey.String(t.ServiceName),
+			semconv.ServiceVersionKey.String(t.ServiceVersion),
+		),
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create resource: %w", err)
+	}
+
+	traceExporter, err := otlptrace.New(ctx,
+		otlptracegrpc.NewClient(
+			otlptracegrpc.WithEndpoint(t.OTLPEndpoint),
+			otlptracegrpc.WithInsecure(), // WithTLSCredentials()
+		),
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create trace exporter: %w", err)
+	}
+
+	traceProvider := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(traceExporter),
+		sdktrace.WithResource(res),
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+	)
+
+	otel.SetTracerProvider(traceProvider)
+
+	tracer := traceProvider.Tracer(t.ServiceName)
+	shutdown := func(ctx context.Context) error {
+		if err := traceProvider.Shutdown(ctx); err != nil {
+			return fmt.Errorf("failed to shutdown trace provider: %w", err)
+		}
+		return nil
+	}
+
+	return tracer, shutdown, nil
+}
+
 func (c *Config) Validate() error {
 	validate := validator.New()
 	if err := validate.Struct(c); err != nil {

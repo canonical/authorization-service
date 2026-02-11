@@ -19,8 +19,6 @@ type Service struct {
 	logger *slog.Logger
 }
 
-// ...existing code...
-
 // NewService creates a new authorization service
 func NewService(fga openfga.Client, stsClient sts.TokenClient, cache valkey.CacheClient, logger *slog.Logger) *Service {
 	return &Service{

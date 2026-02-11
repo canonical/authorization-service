@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log/slog"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/canonical/authorization-service/internal/config"
 	"github.com/canonical/authorization-service/internal/integrations/nats"
 	"github.com/canonical/authorization-service/internal/integrations/openfga"
@@ -15,8 +17,9 @@ import (
 
 // Services holds all business logic services
 type Services struct {
-	Permissions *permissions.Service
-	Authz       *authz.Service
+	Permissions   *permissions.Service
+	Authz         *authz.Service
+	ExternalAuthz *authz.ExternalAuthzService
 }
 
 // Integrations holds all external service clients
@@ -29,10 +32,11 @@ type Integrations struct {
 	logger *slog.Logger
 }
 
-func (i *Integrations) initializeServices(serviceLogger *slog.Logger) *Services {
+func (i *Integrations) initializeServices(tracer trace.Tracer, serviceLogger *slog.Logger) *Services {
 	return &Services{
-		Permissions: permissions.NewService(i.Valkey, i.NATS, serviceLogger),
-		Authz:       authz.NewService(i.OpenFGA, i.STS, i.Valkey, serviceLogger),
+		Permissions:   permissions.NewService(i.Valkey, i.NATS, serviceLogger),
+		Authz:         authz.NewService(i.OpenFGA, i.STS, i.Valkey, serviceLogger),
+		ExternalAuthz: authz.NewExternalAuthzService(serviceLogger, tracer),
 	}
 }
 
