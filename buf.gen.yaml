@@ -1,12 +1,6 @@
 version: v2
 managed:
   enabled: true
-#  override:
-#    - file_option: go_package_prefix
-#      value: github.com/canonical/authorization-service
-#      except:
-#        - buf.build/googleapis/googleapis
-#        - buf.build/grpc-ecosystem/grpc-gateway
 plugins:
   - local: protoc-gen-go
     out: api

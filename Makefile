@@ -1,4 +1,4 @@
-.PHONY: help release-manifest build test clean deps start-deps stop-deps setup-protogen protogen test-int coverage docker dev run mocks
+.PHONY: help release-manifest build test clean deps start-deps stop-deps setup-protogen buf-update protogen protogen-client test-int coverage docker dev run mocks
 
 BUF=./bin/buf
 MAKEFLAGS += --no-print-directory
@@ -51,11 +51,17 @@ coverage:
 setup-protogen:
 	@./scripts/setup-protogen.sh
 
-protogen:
+buf-update:
 	@echo "Updating Buf dependencies..."
 	@$(BUF) dep update
-	@echo "Generating protobuf code..."
+
+protogen: buf-update
+	@echo "Generating protobuf server code..."
 	@$(BUF) generate api/proto
+
+protogen-client: buf-update
+	@echo "Generating protobuf client code..."
+	@$(BUF) generate client/proto --template ./buf.gen.client.yaml
 
 deps:
 	@echo "Downloading dependencies..."
