@@ -1,95 +1,109 @@
 package sts
 
 import (
-	"context"
-	"crypto/tls"
-	"fmt"
-	"log/slog"
-	"time"
+    "context"
+    "fmt"
+    "log/slog"
+    "time"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
+    "go.opentelemetry.io/otel/attribute"
+    "go.opentelemetry.io/otel/codes"
+    "go.opentelemetry.io/otel/trace"
+    "google.golang.org/grpc"
+
+    stsv1 "github.com/canonical/authorization-service/client/v1/sts"
 )
 
-// TokenClient defines the interface for token validation operations
-type TokenClient interface {
-	ValidateToken(ctx context.Context, token string) (*TokenInfo, error)
-	Close() error
+var _ stsv1.SecurityTokenServiceClient = (*STSClientWrapper)(nil)
+
+// STSClientWrapper wraps the SecurityTokenServiceClient with tracing and logging
+type STSClientWrapper struct {
+    delegate stsv1.SecurityTokenServiceClient
+    logger   *slog.Logger
+    tracer   trace.Tracer
 }
 
-// Client represents the STS (Secure Token Service) gRPC client
-type Client struct {
-	conn   *grpc.ClientConn
-	logger *slog.Logger
+func NewSTSClientWrapper(client stsv1.SecurityTokenServiceClient, logger *slog.Logger, tracer trace.Tracer) *STSClientWrapper {
+    return &STSClientWrapper{
+        delegate: client,
+        logger:   logger,
+        tracer:   tracer,
+    }
 }
 
-// Config holds STS client configuration
-type Config struct {
-	Address string
-	UseTLS  bool
-	Timeout time.Duration
+func (w *STSClientWrapper) ExchangeSession(ctx context.Context, in *stsv1.ExchangeRequest, opts ...grpc.CallOption) (*stsv1.ExchangeResponse, error) {
+    ctx, span := w.tracer.Start(ctx, "service.sts.ExchangeSession")
+    defer span.End()
+
+    start := time.Now()
+    w.logger.Debug("Calling STS ExchangeSession",
+        "session_cookie", in.GetSessionCookie(),
+    )
+
+    resp, err := w.delegate.ExchangeSession(ctx, in, opts...)
+    duration := time.Since(start)
+
+    if err != nil {
+        span.RecordError(err)
+        span.SetStatus(codes.Error, err.Error())
+        w.logger.Error("STS ExchangeSession failed",
+            "error", err,
+            "duration_ms", duration.Milliseconds(),
+        )
+        return nil, err
+    }
+
+    span.SetAttributes(
+        attribute.String("access_token_present", fmt.Sprintf("%t", resp.GetAccessToken() != "")),
+        attribute.Int64("expires_in", resp.GetExpiresIn()),
+    )
+    span.SetStatus(codes.Ok, "Success")
+
+    w.logger.Debug("STS ExchangeSession succeeded",
+        "expires_in", resp.GetExpiresIn(),
+        "duration_ms", duration.Milliseconds(),
+    )
+
+    return resp, nil
 }
 
-// NewClient creates a new STS client
-func NewClient(cfg Config, logger *slog.Logger) (*Client, error) {
-	var opts []grpc.DialOption
+func (w *STSClientWrapper) RevokeUserSessions(ctx context.Context, in *stsv1.RevokeUserRequest, opts ...grpc.CallOption) (*stsv1.RevokeUserResponse, error) {
+    ctx, span := w.tracer.Start(ctx, "service.sts.RevokeUserSessions",
+        trace.WithAttributes(
+            attribute.String("user_id", in.GetUserId()),
+        ),
+    )
+    defer span.End()
 
-	if cfg.UseTLS {
-		tlsConfig := &tls.Config{
-			MinVersion: tls.VersionTLS12,
-		}
-		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
-	} else {
-		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	}
+    start := time.Now()
+    w.logger.Debug("Calling STS RevokeUserSessions",
+        "user_id", in.GetUserId(),
+    )
 
-	ctx, cancel := context.WithTimeout(context.Background(), cfg.Timeout)
-	defer cancel()
+    resp, err := w.delegate.RevokeUserSessions(ctx, in, opts...)
+    duration := time.Since(start)
 
-	conn, err := grpc.DialContext(ctx, cfg.Address, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to STS: %w", err)
-	}
+    if err != nil {
+        span.RecordError(err)
+        span.SetStatus(codes.Error, err.Error())
+        w.logger.Error("STS RevokeUserSessions failed",
+            "error", err,
+            "user_id", in.GetUserId(),
+            "duration_ms", duration.Milliseconds(),
+        )
+        return nil, err
+    }
 
-	logger.Info("STS client connected", "address", cfg.Address, "tls", cfg.UseTLS)
+    span.SetAttributes(
+        attribute.Bool("success", resp.GetSuccess()),
+    )
+    span.SetStatus(codes.Ok, "Success")
 
-	return &Client{
-		conn:   conn,
-		logger: logger,
-	}, nil
-}
+    w.logger.Info("STS RevokeUserSessions succeeded",
+        "user_id", in.GetUserId(),
+        "success", resp.GetSuccess(),
+        "duration_ms", duration.Milliseconds(),
+    )
 
-// ValidateToken validates a token with the STS
-// This is a placeholder - actual implementation will depend on the STS proto definition
-func (c *Client) ValidateToken(ctx context.Context, token string) (*TokenInfo, error) {
-	// TODO: Implement when STS proto is available
-	c.logger.Debug("ValidateToken called", "token_length", len(token))
-
-	// Placeholder implementation
-	return &TokenInfo{
-		Valid:     true,
-		Subject:   "user:example",
-		ExpiresAt: time.Now().Add(time.Hour),
-	}, nil
-}
-
-// TokenInfo represents information about a validated token
-type TokenInfo struct {
-	Valid     bool
-	Subject   string
-	ExpiresAt time.Time
-	Claims    map[string]interface{}
-}
-
-// Close closes the STS client connection
-func (c *Client) Close() error {
-	if c.conn != nil {
-		err := c.conn.Close()
-		if err != nil {
-			return fmt.Errorf("failed to close STS client: %w", err)
-		}
-		c.logger.Info("STS connection closed")
-	}
-	return nil
+    return resp, nil
 }

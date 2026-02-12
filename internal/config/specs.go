@@ -2,6 +2,7 @@ package config
 
 import (
     "context"
+    "crypto/tls"
     "fmt"
     "log/slog"
     "os"
@@ -15,6 +16,12 @@ import (
     sdktrace "go.opentelemetry.io/otel/sdk/trace"
     semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
     "go.opentelemetry.io/otel/trace"
+    "google.golang.org/grpc"
+    "google.golang.org/grpc/credentials"
+    "google.golang.org/grpc/credentials/insecure"
+
+    stsv1 "github.com/canonical/authorization-service/client/v1/sts"
+    "github.com/canonical/authorization-service/internal/service/authz"
 )
 
 // Config represents the application configuration
@@ -100,6 +107,44 @@ type STSConfig struct {
     Address string        `validate:"required" env:"STS_ADDRESS" default:"localhost:9091"`
     UseTLS  bool          `validate:"" env:"STS_USE_TLS" default:"false"`
     Timeout time.Duration `validate:"" env:"STS_TIMEOUT" default:"10s"`
+}
+
+func (s *STSConfig) SetupSTSClient(logger *slog.Logger, tracer trace.Tracer) (stsv1.SecurityTokenServiceClient, error) {
+    var (
+        opts           []grpc.DialOption
+        credentialsOpt grpc.DialOption
+    )
+
+    if s.UseTLS {
+        credentialsOpt = grpc.WithTransportCredentials(
+            credentials.NewTLS(
+                &tls.Config{
+                    MinVersion: tls.VersionTLS12,
+                },
+            ),
+        )
+    } else {
+        credentialsOpt = grpc.WithTransportCredentials(insecure.NewCredentials())
+    }
+
+    opts = append(opts, credentialsOpt)
+
+    conn, err := grpc.NewClient(s.Address, opts...)
+    if err != nil {
+        return nil, fmt.Errorf("failed to create STS client for %s: %w", s.Address, err)
+    }
+
+    logger.Info("STS client created",
+        "address", s.Address,
+        "tls", s.UseTLS,
+        "timeout", s.Timeout,
+    )
+
+    return authz.NewSTSClientWrapper(
+        stsv1.NewSecurityTokenServiceClient(conn),
+        logger,
+        tracer,
+    ), nil
 }
 
 // LoggingConfig contains logging configuration
