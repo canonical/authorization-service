@@ -6,21 +6,30 @@ import (
     "log/slog"
     "time"
 
+    stsv1 "github.com/canonical/authorization-service/client/v1/sts"
     "github.com/canonical/authorization-service/internal/integrations/openfga"
-    "github.com/canonical/authorization-service/internal/integrations/sts"
     "github.com/canonical/authorization-service/internal/integrations/valkey"
 )
 
+type ServiceInterface interface {
+    Check(ctx context.Context, user, resource, action string) (*CheckResponse, error)
+    GrantAccess(ctx context.Context, user, resource, action string) error
+    RevokeAccess(ctx context.Context, user, resource, action string) error
+}
+
+// Compile-time check to ensure Service implements ServiceInterface
+var _ ServiceInterface = (*Service)(nil)
+
 // Service handles authorization checks
 type Service struct {
-    fga    openfga.Client
-    sts    sts.TokenClient
-    cache  valkey.CacheClient
+    fga   openfga.ClientInterface
+    sts   stsv1.SecurityTokenServiceClient
+    cache valkey.CacheClientInterface
     logger *slog.Logger
 }
 
 // NewService creates a new authorization service
-func NewService(fga openfga.Client, stsClient sts.TokenClient, cache valkey.CacheClient, logger *slog.Logger) *Service {
+func NewService(fga openfga.ClientInterface, stsClient stsv1.SecurityTokenServiceClient, cache valkey.CacheClientInterface, logger *slog.Logger) *Service {
     return &Service{
         fga:    fga,
         sts:    stsClient,
