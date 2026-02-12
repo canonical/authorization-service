@@ -10,7 +10,8 @@
 
 # Binaries for development setup
 bin
-# Test binary, built with `go test -c`
+# Mocks, test binary, built with `go test -c`
+mock_*.go
 *.test
 
 # Code coverage profiles and other test artifacts
