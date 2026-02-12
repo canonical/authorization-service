@@ -19,9 +19,6 @@ import (
     "google.golang.org/grpc"
     "google.golang.org/grpc/credentials"
     "google.golang.org/grpc/credentials/insecure"
-
-    stsv1 "github.com/canonical/authorization-service/client/v1/sts"
-    "github.com/canonical/authorization-service/internal/service/authz"
 )
 
 // Config represents the application configuration
@@ -109,7 +106,8 @@ type STSConfig struct {
     Timeout time.Duration `validate:"" env:"STS_TIMEOUT" default:"10s"`
 }
 
-func (s *STSConfig) SetupSTSClient(logger *slog.Logger, tracer trace.Tracer) (stsv1.SecurityTokenServiceClient, error) {
+// CreateSTSConnection creates a gRPC connection to the STS service
+func (s *STSConfig) CreateSTSConnection() (*grpc.ClientConn, error) {
     var (
         opts           []grpc.DialOption
         credentialsOpt grpc.DialOption
@@ -131,20 +129,10 @@ func (s *STSConfig) SetupSTSClient(logger *slog.Logger, tracer trace.Tracer) (st
 
     conn, err := grpc.NewClient(s.Address, opts...)
     if err != nil {
-        return nil, fmt.Errorf("failed to create STS client for %s: %w", s.Address, err)
+        return nil, fmt.Errorf("failed to create STS connection for %s: %w", s.Address, err)
     }
 
-    logger.Info("STS client created",
-        "address", s.Address,
-        "tls", s.UseTLS,
-        "timeout", s.Timeout,
-    )
-
-    return authz.NewSTSClientWrapper(
-        stsv1.NewSecurityTokenServiceClient(conn),
-        logger,
-        tracer,
-    ), nil
+    return conn, nil
 }
 
 // LoggingConfig contains logging configuration
@@ -200,6 +188,7 @@ func (t *TelemetryConfig) SetupTelemetry(ctx context.Context, logger *slog.Logge
         if err := traceProvider.Shutdown(ctx); err != nil {
             return fmt.Errorf("failed to shutdown trace provider: %w", err)
         }
+
         return nil
     }
 
@@ -211,6 +200,7 @@ func (c *Config) Validate() error {
     if err := validate.Struct(c); err != nil {
         return fmt.Errorf("configuration validation failed: %w", err)
     }
+
     return nil
 }
 
