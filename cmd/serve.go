@@ -44,13 +44,13 @@ func serve(cmd *cobra.Command, args []string) error {
     }
 
     // Initialize integrations
-    integrations, err := initializeIntegrations(cfg, logger)
+    integrations, err := initializeIntegrations(cfg, logger, tracer)
     if err != nil {
         logger.Error("Failed to initialize integrations", "error", err)
         return fmt.Errorf("integration initialization failed: %w", err)
     }
 
-    defer integrations.cleanupIntegrations()
+    defer integrations.cleanupIntegrations(logger)
 
     // Initialize services
     services := integrations.initializeServices(tracer, logger)
