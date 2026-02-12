@@ -5,201 +5,201 @@
 package authz
 
 import (
-	"context"
-	"errors"
-	"io"
-	"log/slog"
-	"testing"
+    "context"
+    "errors"
+    "io"
+    "log/slog"
+    "testing"
 
-	gomock "go.uber.org/mock/gomock"
+    gomock "go.uber.org/mock/gomock"
 
-	"github.com/canonical/authorization-service/internal/integrations/openfga"
-	"github.com/canonical/authorization-service/internal/service/authz/mocks"
+    "github.com/canonical/authorization-service/internal/integrations/openfga"
+    "github.com/canonical/authorization-service/internal/service/authz/mocks"
 )
 
 func testLogger(t *testing.T) *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
+    return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
 func TestServiceCheckAuthorizationAllowed(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+    ctrl := gomock.NewController(t)
+    defer ctrl.Finish()
 
-	mockFGA := mocks.NewMockClient(ctrl)
-	mockFGA.EXPECT().
-		Check(gomock.Any(), gomock.Any()).
-		Return(&openfga.CheckResponse{Allowed: true}, nil).
-		Times(1)
+    mockFGA := mocks.NewMockClient(ctrl)
+    mockFGA.EXPECT().
+        Check(gomock.Any(), gomock.Any()).
+        Return(&openfga.CheckResponse{Allowed: true}, nil).
+        Times(1)
 
-	mockCache := mocks.NewMockCacheClient(ctrl)
-	mockCache.EXPECT().
-		Get(gomock.Any(), gomock.Any()).
-		Return("", errors.New("cache-error")).
-		Times(1) // Cache miss
-	mockCache.EXPECT().
-		Set(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil).
-		Times(1) // Cache the result
+    mockCache := mocks.NewMockCacheClient(ctrl)
+    mockCache.EXPECT().
+        Get(gomock.Any(), gomock.Any()).
+        Return("", errors.New("cache-error")).
+        Times(1) // Cache miss
+    mockCache.EXPECT().
+        Set(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+        Return(nil).
+        Times(1) // Cache the result
 
-	svc := NewService(mockFGA, nil, mockCache, testLogger(t))
+    svc := NewService(mockFGA, mockCache, testLogger(t))
 
-	var (
-		reqUser     = "user:alice"
-		reqResource = "resource:doc1"
-		reqAction   = "read"
-	)
+    var (
+        reqUser     = "user:alice"
+        reqResource = "resource:doc1"
+        reqAction   = "read"
+    )
 
-	resp, err := svc.Check(context.Background(), reqUser, reqResource, reqAction)
+    resp, err := svc.Check(context.Background(), reqUser, reqResource, reqAction)
 
-	if err != nil {
-		t.Fatalf("Check failed: %v", err)
-	}
-	if !resp.Allowed {
-		t.Error("expected authorization to be allowed")
-	}
-	if resp.Reason != "evaluated" {
-		t.Errorf("expected reason %q, got %q", "evaluated", resp.Reason)
-	}
+    if err != nil {
+        t.Fatalf("Check failed: %v", err)
+    }
+    if !resp.Allowed {
+        t.Error("expected authorization to be allowed")
+    }
+    if resp.Reason != "evaluated" {
+        t.Errorf("expected reason %q, got %q", "evaluated", resp.Reason)
+    }
 }
 
 func TestServiceCheckAuthorizationDenied(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+    ctrl := gomock.NewController(t)
+    defer ctrl.Finish()
 
-	mockFGA := mocks.NewMockClient(ctrl)
-	mockFGA.EXPECT().
-		Check(gomock.Any(), gomock.Any()).
-		Return(&openfga.CheckResponse{Allowed: false}, nil).
-		Times(1)
+    mockFGA := mocks.NewMockClient(ctrl)
+    mockFGA.EXPECT().
+        Check(gomock.Any(), gomock.Any()).
+        Return(&openfga.CheckResponse{Allowed: false}, nil).
+        Times(1)
 
-	mockCache := mocks.NewMockCacheClient(ctrl)
-	mockCache.EXPECT().
-		Get(gomock.Any(), gomock.Any()).
-		Return("", errors.New("cache-error")).
-		Times(1) // Cache miss
-	mockCache.EXPECT().
-		Set(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil).
-		Times(1) // Cache the result
+    mockCache := mocks.NewMockCacheClient(ctrl)
+    mockCache.EXPECT().
+        Get(gomock.Any(), gomock.Any()).
+        Return("", errors.New("cache-error")).
+        Times(1) // Cache miss
+    mockCache.EXPECT().
+        Set(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+        Return(nil).
+        Times(1) // Cache the result
 
-	svc := NewService(mockFGA, nil, mockCache, testLogger(t))
+    svc := NewService(mockFGA, mockCache, testLogger(t))
 
-	var (
-		reqUser     = "user:bob"
-		reqResource = "resource:secret"
-		reqAction   = "admin"
-	)
+    var (
+        reqUser     = "user:bob"
+        reqResource = "resource:secret"
+        reqAction   = "admin"
+    )
 
-	resp, err := svc.Check(context.Background(), reqUser, reqResource, reqAction)
+    resp, err := svc.Check(context.Background(), reqUser, reqResource, reqAction)
 
-	if err != nil {
-		t.Fatalf("Check failed: %v", err)
-	}
-	if resp.Allowed {
-		t.Error("expected authorization to be denied")
-	}
+    if err != nil {
+        t.Fatalf("Check failed: %v", err)
+    }
+    if resp.Allowed {
+        t.Error("expected authorization to be denied")
+    }
 }
 
 func TestServiceGrantAccess(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+    ctrl := gomock.NewController(t)
+    defer ctrl.Finish()
 
-	mockFGA := mocks.NewMockClient(ctrl)
-	mockFGA.EXPECT().
-		Write(gomock.Any(), gomock.Any()).
-		Do(func(ctx context.Context, req *openfga.WriteRequest) {
-			if len(req.Writes) != 1 {
-				t.Errorf("expected 1 write, got %d", len(req.Writes))
-			}
-			if req.Writes[0].User != "user:alice" {
-				t.Errorf("expected user %q, got %q", "user:alice", req.Writes[0].User)
-			}
-			if req.Writes[0].Object != "resource:doc1" {
-				t.Errorf("expected object %q, got %q", "resource:doc1", req.Writes[0].Object)
-			}
-			if req.Writes[0].Relation != "read" {
-				t.Errorf("expected relation %q, got %q", "read", req.Writes[0].Relation)
-			}
-		}).
-		Return(&openfga.WriteResponse{Success: true}, nil).
-		Times(1)
+    mockFGA := mocks.NewMockClient(ctrl)
+    mockFGA.EXPECT().
+        Write(gomock.Any(), gomock.Any()).
+        Do(func(ctx context.Context, req *openfga.WriteRequest) {
+            if len(req.Writes) != 1 {
+                t.Errorf("expected 1 write, got %d", len(req.Writes))
+            }
+            if req.Writes[0].User != "user:alice" {
+                t.Errorf("expected user %q, got %q", "user:alice", req.Writes[0].User)
+            }
+            if req.Writes[0].Object != "resource:doc1" {
+                t.Errorf("expected object %q, got %q", "resource:doc1", req.Writes[0].Object)
+            }
+            if req.Writes[0].Relation != "read" {
+                t.Errorf("expected relation %q, got %q", "read", req.Writes[0].Relation)
+            }
+        }).
+        Return(&openfga.WriteResponse{Success: true}, nil).
+        Times(1)
 
-	mockCache := mocks.NewMockCacheClient(ctrl)
+    mockCache := mocks.NewMockCacheClient(ctrl)
 
-	svc := NewService(mockFGA, nil, mockCache, testLogger(t))
+    svc := NewService(mockFGA, mockCache, testLogger(t))
 
-	err := svc.GrantAccess(context.Background(), "user:alice", "resource:doc1", "read")
+    err := svc.GrantAccess(context.Background(), "user:alice", "resource:doc1", "read")
 
-	if err != nil {
-		t.Fatalf("GrantAccess failed: %v", err)
-	}
+    if err != nil {
+        t.Fatalf("GrantAccess failed: %v", err)
+    }
 }
 
 func TestServiceRevokeAccess(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+    ctrl := gomock.NewController(t)
+    defer ctrl.Finish()
 
-	mockFGA := mocks.NewMockClient(ctrl)
-	mockFGA.EXPECT().
-		Write(gomock.Any(), gomock.Any()).
-		Do(func(ctx context.Context, req *openfga.WriteRequest) {
-			if len(req.Deletes) != 1 {
-				t.Errorf("expected 1 delete, got %d", len(req.Deletes))
-			}
-			if req.Deletes[0].User != "user:alice" {
-				t.Errorf("expected user %q, got %q", "user:alice", req.Deletes[0].User)
-			}
-			if req.Deletes[0].Object != "resource:doc1" {
-				t.Errorf("expected object %q, got %q", "resource:doc1", req.Deletes[0].Object)
-			}
-		}).
-		Return(&openfga.WriteResponse{Success: true}, nil).
-		Times(1)
+    mockFGA := mocks.NewMockClient(ctrl)
+    mockFGA.EXPECT().
+        Write(gomock.Any(), gomock.Any()).
+        Do(func(ctx context.Context, req *openfga.WriteRequest) {
+            if len(req.Deletes) != 1 {
+                t.Errorf("expected 1 delete, got %d", len(req.Deletes))
+            }
+            if req.Deletes[0].User != "user:alice" {
+                t.Errorf("expected user %q, got %q", "user:alice", req.Deletes[0].User)
+            }
+            if req.Deletes[0].Object != "resource:doc1" {
+                t.Errorf("expected object %q, got %q", "resource:doc1", req.Deletes[0].Object)
+            }
+        }).
+        Return(&openfga.WriteResponse{Success: true}, nil).
+        Times(1)
 
-	mockCache := mocks.NewMockCacheClient(ctrl)
+    mockCache := mocks.NewMockCacheClient(ctrl)
 
-	svc := NewService(mockFGA, nil, mockCache, testLogger(t))
+    svc := NewService(mockFGA, mockCache, testLogger(t))
 
-	err := svc.RevokeAccess(context.Background(), "user:alice", "resource:doc1", "read")
+    err := svc.RevokeAccess(context.Background(), "user:alice", "resource:doc1", "read")
 
-	if err != nil {
-		t.Fatalf("RevokeAccess failed: %v", err)
-	}
+    if err != nil {
+        t.Fatalf("RevokeAccess failed: %v", err)
+    }
 }
 
 func TestServiceCheckCacheHit(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+    ctrl := gomock.NewController(t)
+    defer ctrl.Finish()
 
-	mockFGA := mocks.NewMockClient(ctrl)
-	// Should NOT call FGA on cache hit
-	mockFGA.EXPECT().
-		Check(gomock.Any(), gomock.Any()).
-		Times(0)
+    mockFGA := mocks.NewMockClient(ctrl)
+    // Should NOT call FGA on cache hit
+    mockFGA.EXPECT().
+        Check(gomock.Any(), gomock.Any()).
+        Times(0)
 
-	mockCache := mocks.NewMockCacheClient(ctrl)
-	mockCache.EXPECT().
-		Get(gomock.Any(), gomock.Any()).
-		Return("true", nil). // Cache hit with positive result
-		Times(1)
+    mockCache := mocks.NewMockCacheClient(ctrl)
+    mockCache.EXPECT().
+        Get(gomock.Any(), gomock.Any()).
+        Return("true", nil). // Cache hit with positive result
+        Times(1)
 
-	svc := NewService(mockFGA, nil, mockCache, testLogger(t))
+    svc := NewService(mockFGA, mockCache, testLogger(t))
 
-	var (
-		reqUser     = "user:alice"
-		reqResource = "resource:doc1"
-		reqAction   = "read"
-	)
+    var (
+        reqUser     = "user:alice"
+        reqResource = "resource:doc1"
+        reqAction   = "read"
+    )
 
-	resp, err := svc.Check(context.Background(), reqUser, reqResource, reqAction)
+    resp, err := svc.Check(context.Background(), reqUser, reqResource, reqAction)
 
-	if err != nil {
-		t.Fatalf("Check failed: %v", err)
-	}
-	if !resp.Allowed {
-		t.Error("expected authorization to be allowed from cache")
-	}
-	if resp.Reason != "cached" {
-		t.Errorf("expected reason %q, got %q", "cached", resp.Reason)
-	}
+    if err != nil {
+        t.Fatalf("Check failed: %v", err)
+    }
+    if !resp.Allowed {
+        t.Error("expected authorization to be allowed from cache")
+    }
+    if resp.Reason != "cached" {
+        t.Errorf("expected reason %q, got %q", "cached", resp.Reason)
+    }
 }

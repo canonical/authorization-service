@@ -22,9 +22,9 @@ var _ ServiceInterface = (*Service)(nil)
 
 // Service handles authorization checks
 type Service struct {
-    fga   openfga.ClientInterface
-    sts   stsv1.SecurityTokenServiceClient
-    cache valkey.CacheClientInterface
+    fga    openfga.ClientInterface
+    sts    stsv1.SecurityTokenServiceClient
+    cache  valkey.CacheClientInterface
     logger *slog.Logger
 }
 
