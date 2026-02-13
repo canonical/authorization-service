@@ -4,9 +4,7 @@ import (
     "context"
     "fmt"
     "log/slog"
-    "time"
 
-    stsv1 "github.com/canonical/authorization-service/client/v1/sts"
     "github.com/canonical/authorization-service/internal/integrations/openfga"
     "github.com/canonical/authorization-service/internal/integrations/valkey"
 )
@@ -23,16 +21,14 @@ var _ ServiceInterface = (*Service)(nil)
 // Service handles authorization checks
 type Service struct {
     fga    openfga.ClientInterface
-    sts    stsv1.SecurityTokenServiceClient
     cache  valkey.CacheClientInterface
     logger *slog.Logger
 }
 
 // NewService creates a new authorization service
-func NewService(fga openfga.ClientInterface, stsClient stsv1.SecurityTokenServiceClient, cache valkey.CacheClientInterface, logger *slog.Logger) *Service {
+func NewService(fga openfga.ClientInterface, cache valkey.CacheClientInterface, logger *slog.Logger) *Service {
     return &Service{
         fga:    fga,
-        sts:    stsClient,
         cache:  cache,
         logger: logger,
     }
@@ -51,13 +47,6 @@ func (s *Service) Check(ctx context.Context, user, resource, action string) (*Ch
         "action", action,
     )
 
-    // Check cache first
-    cacheKey := fmt.Sprintf("authz:%s:%s:%s", user, resource, action)
-    if cached, err := s.cache.Get(ctx, cacheKey); err == nil {
-        s.logger.Debug("Cache hit", "key", cacheKey)
-        return &CheckResponse{Allowed: cached == "true", Reason: "cached"}, nil
-    }
-
     // Perform OpenFGA check
     fgaReq := &openfga.CheckRequest{
         User:     user,
@@ -70,13 +59,6 @@ func (s *Service) Check(ctx context.Context, user, resource, action string) (*Ch
         s.logger.Error("OpenFGA check failed", "error", err)
         return nil, fmt.Errorf("authorization check failed: %w", err)
     }
-
-    // Cache the result
-    cacheValue := "false"
-    if fgaResp.Allowed {
-        cacheValue = "true"
-    }
-    _ = s.cache.Set(ctx, cacheKey, cacheValue, 5*time.Minute)
 
     return &CheckResponse{
         Allowed: fgaResp.Allowed,

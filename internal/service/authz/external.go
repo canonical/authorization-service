@@ -11,6 +11,8 @@ import (
     "google.golang.org/genproto/googleapis/rpc/status"
     "google.golang.org/grpc"
     "google.golang.org/grpc/codes"
+
+    stsv1 "github.com/canonical/authorization-service/client/v1/sts"
 )
 
 type ExternalAuthzServiceInterface interface {
@@ -24,12 +26,14 @@ var _ ExternalAuthzServiceInterface = (*ExternalAuthzService)(nil)
 type ExternalAuthzService struct {
     envoyAuth.UnimplementedAuthorizationServer
 
+    sts stsv1.SecurityTokenServiceClient
+
     logger *slog.Logger
     tracer trace.Tracer
 }
 
-func NewExternalAuthzService(logger *slog.Logger, tracer trace.Tracer) *ExternalAuthzService {
-    return &ExternalAuthzService{logger: logger, tracer: tracer}
+func NewExternalAuthzService(sts stsv1.SecurityTokenServiceClient, logger *slog.Logger, tracer trace.Tracer) *ExternalAuthzService {
+    return &ExternalAuthzService{sts: sts, logger: logger, tracer: tracer}
 }
 
 // Register registers the service with the gRPC server
@@ -71,10 +75,14 @@ func (s *ExternalAuthzService) Check(ctx context.Context, req *envoyAuth.CheckRe
     }, nil
 }
 
+func isAuthorized(authHeader string) bool {
+    return authHeader == "Bearer valid-token"
+}
+
 func denyResponse(body string) *envoyAuth.CheckResponse {
     return &envoyAuth.CheckResponse{
         Status: &status.Status{
-            Code: int32(codes.PermissionDenied),
+            Code: int32(codes.Unauthenticated),
         },
         HttpResponse: &envoyAuth.CheckResponse_DeniedResponse{
             DeniedResponse: &envoyAuth.DeniedHttpResponse{
@@ -94,8 +102,4 @@ func denyResponse(body string) *envoyAuth.CheckResponse {
             },
         },
     }
-}
-
-func isAuthorized(authHeader string) bool {
-    return authHeader == "Bearer valid-token"
 }
