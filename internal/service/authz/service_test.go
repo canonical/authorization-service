@@ -1,6 +1,6 @@
-//go:generate mockgen -source=../../integrations/openfga/client.go -destination=mocks/mock_openfga.go -package=mocks Client
-//go:generate mockgen -source=../../integrations/valkey/client.go -destination=mocks/mock_valkey.go -package=mocks CacheClient
-//go:generate mockgen -source=../../integrations/sts/client.go -destination=mocks/mock_sts.go -package=mocks TokenClient
+//go:generate mockgen -source=../../integrations/openfga/client.go -destination=mocks/mock_openfga.go -package=authz
+//go:generate mockgen -source=../../integrations/valkey/client.go -destination=mocks/mock_valkey.go -package=authz
+//go:generate mockgen -source=../../integrations/sts/client.go -destination=mocks/mock_sts.go -package=authz
 
 package authz
 
@@ -14,7 +14,7 @@ import (
     gomock "go.uber.org/mock/gomock"
 
     "github.com/canonical/authorization-service/internal/integrations/openfga"
-    "github.com/canonical/authorization-service/internal/service/authz/mocks"
+    authz "github.com/canonical/authorization-service/internal/service/authz/mocks"
 )
 
 func testLogger(t *testing.T) *slog.Logger {
@@ -25,13 +25,13 @@ func TestServiceCheckAuthorizationAllowed(t *testing.T) {
     ctrl := gomock.NewController(t)
     defer ctrl.Finish()
 
-    mockFGA := mocks.NewMockClient(ctrl)
+    mockFGA := authz.NewMockClientInterface(ctrl)
     mockFGA.EXPECT().
         Check(gomock.Any(), gomock.Any()).
         Return(&openfga.CheckResponse{Allowed: true}, nil).
         Times(1)
 
-    mockCache := mocks.NewMockCacheClient(ctrl)
+    mockCache := authz.NewMockCacheClientInterface(ctrl)
     mockCache.EXPECT().
         Get(gomock.Any(), gomock.Any()).
         Return("", errors.New("cache-error")).
@@ -66,13 +66,13 @@ func TestServiceCheckAuthorizationDenied(t *testing.T) {
     ctrl := gomock.NewController(t)
     defer ctrl.Finish()
 
-    mockFGA := mocks.NewMockClient(ctrl)
+    mockFGA := authz.NewMockClientInterface(ctrl)
     mockFGA.EXPECT().
         Check(gomock.Any(), gomock.Any()).
         Return(&openfga.CheckResponse{Allowed: false}, nil).
         Times(1)
 
-    mockCache := mocks.NewMockCacheClient(ctrl)
+    mockCache := authz.NewMockCacheClientInterface(ctrl)
     mockCache.EXPECT().
         Get(gomock.Any(), gomock.Any()).
         Return("", errors.New("cache-error")).
@@ -104,7 +104,7 @@ func TestServiceGrantAccess(t *testing.T) {
     ctrl := gomock.NewController(t)
     defer ctrl.Finish()
 
-    mockFGA := mocks.NewMockClient(ctrl)
+    mockFGA := authz.NewMockClientInterface(ctrl)
     mockFGA.EXPECT().
         Write(gomock.Any(), gomock.Any()).
         Do(func(ctx context.Context, req *openfga.WriteRequest) {
@@ -124,7 +124,7 @@ func TestServiceGrantAccess(t *testing.T) {
         Return(&openfga.WriteResponse{Success: true}, nil).
         Times(1)
 
-    mockCache := mocks.NewMockCacheClient(ctrl)
+    mockCache := authz.NewMockCacheClientInterface(ctrl)
 
     svc := NewService(mockFGA, mockCache, testLogger(t))
 
@@ -139,7 +139,7 @@ func TestServiceRevokeAccess(t *testing.T) {
     ctrl := gomock.NewController(t)
     defer ctrl.Finish()
 
-    mockFGA := mocks.NewMockClient(ctrl)
+    mockFGA := authz.NewMockClientInterface(ctrl)
     mockFGA.EXPECT().
         Write(gomock.Any(), gomock.Any()).
         Do(func(ctx context.Context, req *openfga.WriteRequest) {
@@ -156,7 +156,7 @@ func TestServiceRevokeAccess(t *testing.T) {
         Return(&openfga.WriteResponse{Success: true}, nil).
         Times(1)
 
-    mockCache := mocks.NewMockCacheClient(ctrl)
+    mockCache := authz.NewMockCacheClientInterface(ctrl)
 
     svc := NewService(mockFGA, mockCache, testLogger(t))
 
@@ -171,13 +171,13 @@ func TestServiceCheckCacheHit(t *testing.T) {
     ctrl := gomock.NewController(t)
     defer ctrl.Finish()
 
-    mockFGA := mocks.NewMockClient(ctrl)
+    mockFGA := authz.NewMockClientInterface(ctrl)
     // Should NOT call FGA on cache hit
     mockFGA.EXPECT().
         Check(gomock.Any(), gomock.Any()).
         Times(0)
 
-    mockCache := mocks.NewMockCacheClient(ctrl)
+    mockCache := authz.NewMockCacheClientInterface(ctrl)
     mockCache.EXPECT().
         Get(gomock.Any(), gomock.Any()).
         Return("true", nil). // Cache hit with positive result

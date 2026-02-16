@@ -29,6 +29,10 @@ build: release-manifest
 	@./scripts/build.sh
 
 mocks:
+	@command -v mockgen > /dev/null || ( \
+    		echo "Installing mockgen..." && \
+    		go install go.uber.org/mock/mockgen@v0.6.0 \
+    	)
 	@echo "Generating mocks..."
 	@go generate ./internal/service/...
 
