@@ -1,5 +1,5 @@
 syntax = "proto3";
-
+// version v1.0.0
 package sts.v1;
 
 import "google/protobuf/timestamp.proto";

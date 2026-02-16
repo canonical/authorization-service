@@ -53,7 +53,7 @@ func (s *ServerConfig) GetHTTPAddress() string {
 
 // OpenFGAConfig contains OpenFGA configuration
 type OpenFGAConfig struct {
-    Enabled bool          `validate:"" env:"OPENFGA_ENABLED" default:"true"`
+    Enabled bool          `validate:"" env:"OPENFGA_ENABLED" default:"false"`
     Address string        `validate:"required_if=Enabled true" env:"OPENFGA_ADDRESS" default:"localhost:8081"`
     StoreID string        `validate:"" env:"OPENFGA_STORE_ID"`
     AuthKey string        `validate:"" env:"OPENFGA_AUTH_KEY"`
@@ -63,7 +63,7 @@ type OpenFGAConfig struct {
 
 // NATSConfig contains NATS configuration
 type NATSConfig struct {
-    Enabled         bool          `validate:"" env:"NATS_ENABLED" default:"true"`
+    Enabled         bool          `validate:"" env:"NATS_ENABLED" default:"false"`
     URL             string        `validate:"required" env:"NATS_URL" default:"nats://localhost:4222"`
     ClusterID       string        `validate:"" env:"NATS_CLUSTER_ID" default:"authz-cluster"`
     ClientID        string        `validate:"" env:"NATS_CLIENT_ID" default:"authz-service"`
@@ -76,7 +76,7 @@ type NATSConfig struct {
 
 // ValkeyConfig contains Valkey (Redis-compatible) configuration
 type ValkeyConfig struct {
-    Enabled  bool          `validate:"" env:"VALKEY_ENABLED" default:"true"`
+    Enabled  bool          `validate:"" env:"VALKEY_ENABLED" default:"false"`
     Address  string        `validate:"required" env:"VALKEY_ADDRESS" default:"localhost:6379"`
     Password string        `validate:"" env:"VALKEY_PASSWORD"`
     DB       int           `validate:"min=0,max=15" env:"VALKEY_DB" default:"0"`
@@ -100,7 +100,7 @@ func (c *LoggingConfig) SetupLogger() *slog.Logger {
 
 // STSConfig contains Secure Token Service configuration
 type STSConfig struct {
-    Enabled bool          `validate:"" env:"STS_ENABLED" default:"true"`
+    Enabled bool          `validate:"" env:"STS_ENABLED" default:"false"`
     Address string        `validate:"required" env:"STS_ADDRESS" default:"localhost:9091"`
     UseTLS  bool          `validate:"" env:"STS_USE_TLS" default:"false"`
     Timeout time.Duration `validate:"" env:"STS_TIMEOUT" default:"10s"`
