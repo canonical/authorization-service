@@ -17,6 +17,7 @@ import (
     semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
     "go.opentelemetry.io/otel/trace"
     "google.golang.org/grpc"
+    "google.golang.org/grpc/connectivity"
     "google.golang.org/grpc/credentials"
     "google.golang.org/grpc/credentials/insecure"
 )
@@ -100,10 +101,11 @@ func (c *LoggingConfig) SetupLogger() *slog.Logger {
 
 // STSConfig contains Secure Token Service configuration
 type STSConfig struct {
-    Enabled bool          `validate:"" env:"STS_ENABLED" default:"false"`
-    Address string        `validate:"required" env:"STS_ADDRESS" default:"localhost:9091"`
-    UseTLS  bool          `validate:"" env:"STS_USE_TLS" default:"false"`
-    Timeout time.Duration `validate:"" env:"STS_TIMEOUT" default:"10s"`
+    Enabled              bool          `validate:"" env:"STS_ENABLED" default:"false"`
+    Address              string        `validate:"required" env:"STS_ADDRESS" default:"localhost:9091"`
+    UseTLS               bool          `validate:"" env:"STS_USE_TLS" default:"false"`
+    Timeout              time.Duration `validate:"" env:"STS_TIMEOUT" default:"10s"`
+    EagerConnectionCheck bool          `validate:"" env:"STS_EAGER_CONNECTION_CHECK" default:"false"`
 }
 
 // CreateSTSConnection creates a gRPC connection to the STS service
@@ -132,7 +134,35 @@ func (s *STSConfig) CreateSTSConnection() (*grpc.ClientConn, error) {
         return nil, fmt.Errorf("failed to create STS connection for %s: %w", s.Address, err)
     }
 
+    if s.EagerConnectionCheck {
+        err = s.waitForConnectionReady(conn)
+        if err != nil {
+            return nil, err
+        }
+    }
+
     return conn, nil
+}
+
+func (s *STSConfig) waitForConnectionReady(conn *grpc.ClientConn) error {
+    conn.Connect()
+
+    dialCtx, cancel := context.WithTimeout(context.Background(), s.Timeout)
+    defer cancel()
+
+    for {
+        state := conn.GetState()
+        if state == connectivity.Ready {
+            break
+        }
+
+        if !conn.WaitForStateChange(dialCtx, state) {
+            _ = conn.Close()
+            return fmt.Errorf("timeout waiting for STS connection to %s: %w", s.Address, dialCtx.Err())
+        }
+    }
+
+    return nil
 }
 
 // LoggingConfig contains logging configuration
