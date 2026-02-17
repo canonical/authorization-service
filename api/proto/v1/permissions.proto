@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package authorization.service.api.v1;
+
+option go_package = "github.com/canonical/authorization-service/api/proto/v1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+service PermissionsService {
+  // RegisterPermissions registers or updates permissions for a service
+  rpc RegisterPermissions(RegisterPermissionsRequest) returns (RegisterPermissionsResponse) {
+    option (google.api.http) = {
+      post: "/v1/permissions"
+      body: "*"
+    };
+  }
+
+  // GetPermissions retrieves permissions for a service
+  rpc GetPermissions(GetPermissionsRequest) returns (GetPermissionsResponse) {
+    option (google.api.http) = {
+      get: "/v1/permissions/{service_id}"
+    };
+  }
+
+  // ListPermissions lists all registered permissions
+  rpc ListPermissions(ListPermissionsRequest) returns (ListPermissionsResponse) {
+    option (google.api.http) = {
+      get: "/v1/permissions"
+    };
+  }
+
+  // DeletePermissions removes permissions for a service
+  rpc DeletePermissions(DeletePermissionsRequest) returns (DeletePermissionsResponse) {
+    option (google.api.http) = {
+      delete: "/v1/permissions/{service_id}"
+    };
+  }
+}
+
+message RegisterPermissionsRequest {
+  string service_id = 1;
+  string service_name = 2;
+  google.protobuf.Struct permissions = 3;
+  string version = 4;
+}
+
+message RegisterPermissionsResponse {
+  string id = 1;
+  google.protobuf.Timestamp registered_at = 2;
+}
+
+message GetPermissionsRequest {
+  string service_id = 1;
+  string version = 2;
+}
+
+message GetPermissionsResponse {
+  string service_id = 1;
+  string service_name = 2;
+  google.protobuf.Struct permissions = 3;
+  string version = 4;
+  google.protobuf.Timestamp registered_at = 5;
+}
+
+message ListPermissionsRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListPermissionsResponse {
+  repeated GetPermissionsResponse permissions = 1;
+  string next_page_token = 2;
+}
+
+message DeletePermissionsRequest {
+  string service_id = 1;
+}
+
+message DeletePermissionsResponse {
+  bool success = 1;
+}

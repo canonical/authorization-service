@@ -1,0 +1,53 @@
+// Copyright 2025 Canonical Ltd.
+// SPDX-License-Identifier: AGPL-3.0
+
+syntax = "proto3";
+package authorization.service.api.v1;
+option go_package = "github.com/canonical/authorization-service/api/proto/v1";
+
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
+  info: {
+    title: "Authorization Service API"
+    description: "REST API for managing authorization policies and access controls"
+    version: "1.0"
+    contact: {
+      name: "Canonical Authorization Service"
+      url: "https://github.com/canonical/authorization-service"
+    }
+    license: {
+      name: "AGPL-3.0"
+      url: "https://github.com/canonical/authorization-service/blob/main/LICENSE"
+    }
+  }
+  external_docs: {
+    url: "https://github.com/canonical/authorization-service/blob/main/API.md";
+    description: "REST API documentation for the Authorization Service";
+  };
+  schemes: HTTPS
+  consumes: "application/json"
+  produces: "application/json"
+  security_definitions: {
+    security: {
+      key: "OAuth2"
+      value: {
+        type: TYPE_OAUTH2
+        flow: FLOW_ACCESS_CODE
+        authorization_url: "https://auth.canonical.com/oauth/authorize"
+        token_url: "https://auth.canonical.com/oauth/token"
+        scopes: {
+          scope: {
+            key: "openid"
+          }
+          scope: {
+            key: "profile"
+          }
+          scope: {
+            key: "email"
+          }
+        }
+      }
+    }
+  }
+};
