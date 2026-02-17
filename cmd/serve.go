@@ -102,15 +102,14 @@ func serve(cmd *cobra.Command, args []string) error {
         logger.Info("Received signal, shutting down", "signal", sig)
     }
 
-    // Graceful shutdown
     logger.Info("Shutting down servers...")
-
-    if err := tracerShutdown(cmd.Context()); err != nil {
-        return fmt.Errorf("Error while shutting down tracer: %w", err)
-    }
 
     ctx, cancel := context.WithTimeout(context.Background(), cfg.Server.GracefulShutdownTimeout)
     defer cancel()
+
+    if err := tracerShutdown(ctx); err != nil {
+        return fmt.Errorf("Error while shutting down tracer: %w", err)
+    }
 
     grpcServer.GracefulStop()
     if err := restGateway.Shutdown(ctx); err != nil {
