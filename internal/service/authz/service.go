@@ -6,7 +6,6 @@ import (
     "log/slog"
 
     "github.com/canonical/authorization-service/internal/integrations/openfga"
-    "github.com/canonical/authorization-service/internal/integrations/valkey"
 )
 
 type ServiceInterface interface {
@@ -21,15 +20,13 @@ var _ ServiceInterface = (*Service)(nil)
 // Service handles authorization checks
 type Service struct {
     fga    openfga.ClientInterface
-    cache  valkey.CacheClientInterface
     logger *slog.Logger
 }
 
 // NewService creates a new authorization service
-func NewService(fga openfga.ClientInterface, cache valkey.CacheClientInterface, logger *slog.Logger) *Service {
+func NewService(fga openfga.ClientInterface, logger *slog.Logger) *Service {
     return &Service{
         fga:    fga,
-        cache:  cache,
         logger: logger,
     }
 }

@@ -42,7 +42,7 @@ type Integrations struct {
 func (i *Integrations) initializeServices(tracer trace.Tracer, serviceLogger *slog.Logger) *Services {
     return &Services{
         Permissions:   permissions.NewService(i.Valkey, i.NATS, serviceLogger),
-        Authz:         authz.NewService(i.OpenFGA, i.Valkey, serviceLogger),
+        Authz:         authz.NewService(i.OpenFGA, serviceLogger),
         ExternalAuthz: authz.NewExternalAuthzService(i.STS, serviceLogger, tracer),
     }
 }
