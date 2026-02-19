@@ -1,6 +1,6 @@
 //go:generate mockgen -source=../../integrations/openfga/client.go -destination=mocks/mock_openfga.go -package=authz
 //go:generate mockgen -source=../../integrations/valkey/client.go -destination=mocks/mock_valkey.go -package=authz
-//go:generate mockgen -source=../../integrations/sts/client.go -destination=mocks/mock_sts.go -package=authz
+//go:generate mockgen -source=../../../client/v1/sts/sts_grpc.pb.go -destination=mocks/mock_sts.go -package=authz
 
 package authz
 
