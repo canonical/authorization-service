@@ -1,0 +1,34 @@
+name: ci
+run-name: CI for ${{ github.sha }} on ${{ github.ref_name }}
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "main"
+      - "release-**"
+    tags:
+      - "v**"
+  pull_request:
+    branches:
+      - "*"
+
+jobs:
+  unit-test:
+    uses: ./.github/workflows/unittest.yaml
+  e2e-test:
+    uses: ./.github/workflows/e2e-test.yaml
+  build:
+    uses: ./.github/workflows/build-rock.yaml
+  gh-publish:
+    if: ${{ (github.ref == 'refs/heads/main') || (github.ref_type == 'tag') }}
+    needs: [ build, unit-test ]
+    uses: canonical/identity-team/.github/workflows/_rock-gh-publish.yaml@6b27807be4ec7c25045d52ef09ac780d684f65a2 # v1.10.0
+    with:
+      rock: "secure-token-service"
+  scan:
+    if: ${{ (github.ref == 'refs/heads/main') || (github.ref_type == 'tag') }}
+    needs: gh-publish
+    uses: canonical/identity-team/.github/workflows/_rock-scan.yaml@6b27807be4ec7c25045d52ef09ac780d684f65a2 # v1.10.0
+    with:
+      image: ${{ needs.gh-publish.outputs.image }}

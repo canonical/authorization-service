@@ -1,0 +1,5 @@
+project:
+  name: authorization-service
+  tz: Europe/Rome
+  adrFolder: ./adr
+  packages: []

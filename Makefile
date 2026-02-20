@@ -1,4 +1,4 @@
-.PHONY: help build test clean deps start-deps stop-deps setup-protogen protogen test-int coverage docker dev run mocks
+.PHONY: help release-manifest build test clean deps start-deps stop-deps setup-protogen buf-update protogen protogen-client test-int coverage docker dev run mocks
 
 BUF=./bin/buf
 MAKEFLAGS += --no-print-directory
@@ -21,10 +21,18 @@ help:
 	@echo "  make dev          - Full dev setup (build + start deps + run)"
 	@echo ""
 
-build:
+release-manifest:
+	@VERSION=$$(sed -n 's/.*Version = "\(.*\)".*/\1/p' cmd/root.go); \
+	printf '{\n  ".": "%s"\n}\n' "$$VERSION" > .release-please-manifest.json
+
+build: release-manifest
 	@./scripts/build.sh
 
 mocks:
+	@command -v mockgen > /dev/null || ( \
+    		echo "Installing mockgen..." && \
+    		go install go.uber.org/mock/mockgen@v0.6.0 \
+    	)
 	@echo "Generating mocks..."
 	@go generate ./internal/service/...
 
@@ -35,6 +43,9 @@ test-int:
 	@echo "Running integration tests..."
 	@go test -v ./tests/integration/... -timeout 5m
 
+test-e2e:
+	@echo "Not implemented yet"
+
 coverage:
 	@echo "Generating coverage report..."
 	@go test -coverprofile=coverage.out ./...
@@ -44,11 +55,17 @@ coverage:
 setup-protogen:
 	@./scripts/setup-protogen.sh
 
-protogen:
+buf-update:
 	@echo "Updating Buf dependencies..."
 	@$(BUF) dep update
-	@echo "Generating protobuf code..."
+
+protogen: buf-update
+	@echo "Generating protobuf server code..."
 	@$(BUF) generate api/proto
+
+protogen-client: buf-update
+	@echo "Generating protobuf client code..."
+	@$(BUF) generate client/proto --template ./buf.gen.client.yaml
 
 deps:
 	@echo "Downloading dependencies..."

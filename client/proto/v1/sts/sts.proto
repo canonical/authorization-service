@@ -1,0 +1,33 @@
+syntax = "proto3";
+// version v1.0.0
+package sts.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/canonical/authorization-service/api/proto/v1;stsv1";
+
+// SecurityTokenService defines the interface for the Session Service (Janus).
+service SecurityTokenService {
+  // ExchangeSession swaps an opaque session_id for a customized internal JWT.
+  rpc ExchangeSession(ExchangeRequest) returns (ExchangeResponse);
+
+  // RevokeUserSessions forces a logout for a specific user, invalidating all sessions.
+  rpc RevokeUserSessions(RevokeUserRequest) returns (RevokeUserResponse);
+}
+
+message ExchangeRequest {
+  string session_cookie = 1;
+}
+
+message ExchangeResponse {
+  string access_token = 1; // Signed Internal JWT
+  int64 expires_in = 2;    // Seconds until expiration
+}
+
+message RevokeUserRequest {
+  string user_id = 1;
+}
+
+message RevokeUserResponse {
+  bool success = 1;
+}

@@ -9,7 +9,7 @@ import (
 
 const (
 	// Version is the application version
-	Version = "v0.1.0-alpha"
+	Version = "v0.0.1-alpha"
 )
 
 // rootCmd represents the base command when called without any subcommands

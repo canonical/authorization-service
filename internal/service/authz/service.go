@@ -1,120 +1,106 @@
 package authz
 
 import (
-	"context"
-	"fmt"
-	"log/slog"
-	"time"
+    "context"
+    "fmt"
+    "log/slog"
 
-	"github.com/canonical/authorization-service/internal/integrations/openfga"
-	"github.com/canonical/authorization-service/internal/integrations/sts"
-	"github.com/canonical/authorization-service/internal/integrations/valkey"
+    "github.com/canonical/authorization-service/internal/integrations/openfga"
 )
+
+type ServiceInterface interface {
+    Check(ctx context.Context, user, resource, action string) (*CheckResponse, error)
+    GrantAccess(ctx context.Context, user, resource, action string) error
+    RevokeAccess(ctx context.Context, user, resource, action string) error
+}
+
+// Compile-time check to ensure Service implements ServiceInterface
+var _ ServiceInterface = (*Service)(nil)
 
 // Service handles authorization checks
 type Service struct {
-	fga    openfga.Client
-	sts    sts.TokenClient
-	cache  valkey.CacheClient
-	logger *slog.Logger
+    fga    openfga.ClientInterface
+    logger *slog.Logger
 }
 
-// ...existing code...
-
 // NewService creates a new authorization service
-func NewService(fga openfga.Client, stsClient sts.TokenClient, cache valkey.CacheClient, logger *slog.Logger) *Service {
-	return &Service{
-		fga:    fga,
-		sts:    stsClient,
-		cache:  cache,
-		logger: logger,
-	}
+func NewService(fga openfga.ClientInterface, logger *slog.Logger) *Service {
+    return &Service{
+        fga:    fga,
+        logger: logger,
+    }
 }
 
 type CheckResponse struct {
-	Allowed bool   `json:"allowed"`
-	Reason  string `json:"reason"`
+    Allowed bool   `json:"allowed"`
+    Reason  string `json:"reason"`
 }
 
 // Check performs an authorization check
 func (s *Service) Check(ctx context.Context, user, resource, action string) (*CheckResponse, error) {
-	s.logger.Debug("Authorization check",
-		"user", user,
-		"resource", resource,
-		"action", action,
-	)
+    s.logger.Debug("Authorization check",
+        "user", user,
+        "resource", resource,
+        "action", action,
+    )
 
-	// Check cache first
-	cacheKey := fmt.Sprintf("authz:%s:%s:%s", user, resource, action)
-	if cached, err := s.cache.Get(ctx, cacheKey); err == nil {
-		s.logger.Debug("Cache hit", "key", cacheKey)
-		return &CheckResponse{Allowed: cached == "true", Reason: "cached"}, nil
-	}
+    // Perform OpenFGA check
+    fgaReq := &openfga.CheckRequest{
+        User:     user,
+        Relation: action,
+        Object:   resource,
+    }
 
-	// Perform OpenFGA check
-	fgaReq := &openfga.CheckRequest{
-		User:     user,
-		Relation: action,
-		Object:   resource,
-	}
+    fgaResp, err := s.fga.Check(ctx, fgaReq)
+    if err != nil {
+        s.logger.Error("OpenFGA check failed", "error", err)
+        return nil, fmt.Errorf("authorization check failed: %w", err)
+    }
 
-	fgaResp, err := s.fga.Check(ctx, fgaReq)
-	if err != nil {
-		s.logger.Error("OpenFGA check failed", "error", err)
-		return nil, fmt.Errorf("authorization check failed: %w", err)
-	}
-
-	// Cache the result
-	cacheValue := "false"
-	if fgaResp.Allowed {
-		cacheValue = "true"
-	}
-	_ = s.cache.Set(ctx, cacheKey, cacheValue, 5*time.Minute)
-
-	return &CheckResponse{
-		Allowed: fgaResp.Allowed,
-		Reason:  "evaluated",
-	}, nil
+    return &CheckResponse{
+        Allowed: fgaResp.Allowed,
+        Reason:  "evaluated",
+    }, nil
 }
 
 // GrantAccess grants access to a user for a resource
 func (s *Service) GrantAccess(ctx context.Context, user, resource, action string) error {
-	tuple := openfga.Tuple{
-		User:     user,
-		Relation: action,
-		Object:   resource,
-	}
+    tuple := openfga.Tuple{
+        User:     user,
+        Relation: action,
+        Object:   resource,
+    }
 
-	req := &openfga.WriteRequest{
-		Writes: []openfga.Tuple{tuple},
-	}
+    req := &openfga.WriteRequest{
+        Writes: []openfga.Tuple{tuple},
+    }
 
-	_, err := s.fga.Write(ctx, req)
-	if err != nil {
-		return fmt.Errorf("failed to grant access: %w", err)
-	}
+    _, err := s.fga.Write(ctx, req)
+    if err != nil {
+        return fmt.Errorf("failed to grant access: %w", err)
+    }
 
-	s.logger.Info("Access granted", "user", user, "resource", resource, "action", action)
-	return nil
+    s.logger.Info("Access granted", "user", user, "resource", resource, "action", action)
+    return nil
 }
 
 // RevokeAccess revokes access from a user for a resource
 func (s *Service) RevokeAccess(ctx context.Context, user, resource, action string) error {
-	tuple := openfga.Tuple{
-		User:     user,
-		Relation: action,
-		Object:   resource,
-	}
+    tuple := openfga.Tuple{
+        User:     user,
+        Relation: action,
+        Object:   resource,
+    }
 
-	req := &openfga.WriteRequest{
-		Deletes: []openfga.Tuple{tuple},
-	}
+    req := &openfga.WriteRequest{
+        Deletes: []openfga.Tuple{tuple},
+    }
 
-	_, err := s.fga.Write(ctx, req)
-	if err != nil {
-		return fmt.Errorf("failed to revoke access: %w", err)
-	}
+    _, err := s.fga.Write(ctx, req)
+    if err != nil {
+        return fmt.Errorf("failed to revoke access: %w", err)
+    }
 
-	s.logger.Info("Access revoked", "user", user, "resource", resource, "action", action)
-	return nil
+    s.logger.Info("Access revoked", "user", user, "resource", resource, "action", action)
+    return nil
 }
