@@ -3,7 +3,7 @@ kind: CronJob
 metadata:
   name: authz-migration
   labels:
-    app: authoriza tion-service
+    app: authorization-service
     component: migration
 spec:
   # Suspended by default - set to false to enable automatic scheduling
@@ -21,7 +21,7 @@ spec:
   jobTemplate:
     metadata:
       labels:
-        app: authoriza tion-service
+        app: authorization-service
         component: migration
     spec:
       # Don't retry on failure - migrations should be idempotent
@@ -33,7 +33,7 @@ spec:
       template:
         metadata:
           labels:
-            app: authoriza tion-service
+            app: authorization-service
             component: migration
         spec:
           serviceAccountName: authorization-service
@@ -61,7 +61,7 @@ spec:
           
           containers:
           - name: migrate
-            image: authoriza tion-service
+            image: authorization-service
             command: ["/usr/bin/app"]
             args: ["migrate"]
             envFrom:
