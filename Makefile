@@ -13,7 +13,7 @@ GO?=go
 GO_TEST_PARALLEL?=10
 
 release-manifest:
-	@VERSION=$$(sed -n 's/.*Version = "\(.*\)".*/\1/p' cmd/root.go); \
+	@VERSION=$$(sed -n 's/.*Version = "\(.*\)".*/\1/p' version/const.go); \
 	printf '{\n  ".": "%s"\n}\n' "$$VERSION" > .release-please-manifest.json
 
 # Build the binary
