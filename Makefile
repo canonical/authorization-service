@@ -3,19 +3,26 @@
 .PHONY: all build test clean run install-deps proto
 
 # Variables
-BINARY_NAME=app
-BINARY_PATH=bin/$(BINARY_NAME)
-CMD_PATH=./cmd/authz
+GO_BIN?=app
+BINARY_PATH=bin/$(GO_BIN)
+CMD_PATH=./
 PROTO_PATH=api/proto/v1
 GOFLAGS?=-ldflags=-w -ldflags=-s -a -buildvcs
 CGO_ENABLED?=0
+GO?=go
+GO_TEST_PARALLEL?=10
 
 release-manifest:
 	@VERSION=$$(sed -n 's/.*Version = "\(.*\)".*/\1/p' cmd/root.go); \
 	printf '{\n  ".": "%s"\n}\n' "$$VERSION" > .release-please-manifest.json
 
-build: release-manifest
-	@./scripts/build.sh
+# Build the binary
+build:
+	@echo "Building $(GO_BIN)..."
+	@mkdir -p bin
+	$(GO) build -o $(BINARY_PATH) $(CMD_PATH)
+	@echo "Build complete: $(CMD_PATH)"
+.PHONY: build
 
 mocks:
 	@command -v mockgen > /dev/null || ( \
