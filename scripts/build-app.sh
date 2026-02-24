@@ -11,14 +11,13 @@ APP_BINARY_PATH="bin/app"
 
 echo -e "${PURPLE}🔨 Building Authorization Service...${NC}"
 echo -e "${BLUE}📦 Generating Protocol Buffers...${NC}"
-make protogen
 
 echo ""
 echo -e "${BLUE}🏗️ Building binary...${NC}"
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags "-X main.Version=$(git describe --tags --always 2>/dev/null || echo 'dev')" \
-    -o $APP_BINARY_PATH \
-    ./cmd
+    -a -buildvcs \
+    -ldflags "-s -w -X main.Version=$(git describe --tags --always 2>/dev/null || echo 'dev')" \
+    -o $APP_BINARY_PATH
 
 echo -e "${BLUE}📊 Binary size: $(du -h $APP_BINARY_PATH | cut -f1)${NC}"
 

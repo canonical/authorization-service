@@ -23,7 +23,7 @@ parts:
     build-snaps:
       - go/1.25/stable
     build-environment:
-      - CGO_ENABLED: "0"      
+      - CGO_ENABLED: "0"
     build-packages:
       - make
       - git

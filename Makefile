@@ -36,7 +36,7 @@ release-manifest:
 	printf '{\n  ".": "%s"\n}\n' "$$VERSION" > .release-please-manifest.json
 
 # Build the binary
-build: release-manifest protogen protogen-client bin-folder
+build: release-manifest
 	@./scripts/build-app.sh
 
 mocks:
@@ -63,10 +63,8 @@ coverage:
 	@go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
 
-bin-folder:
-	@mkdir -p ./bin
 
-setup-protogen: bin-folder
+setup-protogen:
 	@./scripts/setup-protogen.sh
 
 buf-update: setup-protogen
