@@ -1,7 +1,3 @@
-.PHONY: help release-manifest build test clean deps start-deps stop-deps setup-protogen buf-update protogen protogen-client test-int coverage docker dev run mocks
-
-.PHONY: all build test clean run install-deps proto
-
 # Variables
 GO_BIN?=app
 BINARY_PATH=bin/$(GO_BIN)
@@ -11,18 +7,37 @@ GOFLAGS?=-ldflags=-w -ldflags=-s -a -buildvcs
 CGO_ENABLED?=0
 GO?=go
 GO_TEST_PARALLEL?=10
+BUF=./bin/buf
+
+MAKEFLAGS += --no-print-directory
+# Every target is PHONY
+MAKEFLAGS += --always-make
+
+help:
+	@echo "Authorization Service - Available targets:"
+	@echo ""
+	@echo "  make build        - Build the binary"
+	@echo "  make test         - Run unit tests"
+	@echo "  make test-int     - Run integration tests"
+	@echo "  make coverage     - Generate coverage report"
+	@echo "  make protogen     - Generate protobuf code"
+	@echo "  make mocks        - Generate mocks using go:generate"
+	@echo "  make deps         - Download Go dependencies"
+	@echo "  make start-deps   - Start Docker dependencies"
+	@echo "  make stop-deps    - Stop Docker dependencies"
+	@echo "  make clean        - Clean build artifacts"
+	@echo "  make docker       - Build Docker image"
+	@echo "  make run          - Run service (requires dependencies)"
+	@echo "  make dev          - Full dev setup (build + start deps + run)"
+	@echo ""
 
 release-manifest:
-	@VERSION=$$(sed -n 's/.*Version = "\(.*\)".*/\1/p' version/const.go); \
+	@VERSION=$$(sed -n 's/.*Version = "\(.*\)".*/\1/p' internal/version/const.go); \
 	printf '{\n  ".": "%s"\n}\n' "$$VERSION" > .release-please-manifest.json
 
 # Build the binary
-build:
-	@echo "Building $(GO_BIN)..."
-	@mkdir -p bin
-	$(GO) build -o $(BINARY_PATH) $(CMD_PATH)
-	@echo "Build complete: $(CMD_PATH)"
-.PHONY: build
+build: release-manifest protogen protogen-client bin-folder
+	@./scripts/build-app.sh
 
 mocks:
 	@command -v mockgen > /dev/null || ( \
@@ -30,7 +45,7 @@ mocks:
     		go install go.uber.org/mock/mockgen@v0.6.0 \
     	)
 	@echo "Generating mocks..."
-	@go generate ./internal/service/...
+	@go generate ./...
 
 test: mocks
 	@./scripts/test.sh
@@ -48,10 +63,13 @@ coverage:
 	@go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
 
-setup-protogen:
+bin-folder:
+	@mkdir -p ./bin
+
+setup-protogen: bin-folder
 	@./scripts/setup-protogen.sh
 
-buf-update:
+buf-update: setup-protogen
 	@echo "Updating Buf dependencies..."
 	@$(BUF) dep update
 
@@ -64,7 +82,7 @@ protogen-client: buf-update
 	@$(BUF) generate client/proto --template ./buf.gen.client.yaml
 
 deps:
-	@echo "Downloading dependencies..."
+	@echo "Downloading Go dependencies..."
 	@go mod download
 	@go mod tidy
 
@@ -89,13 +107,10 @@ run: build
 	@echo "Starting $(BINARY_NAME)..."
 	./$(BINARY_PATH)
 
-# Clean build artifacts
-clean:
-	@echo "Cleaning..."
-	rm -rf bin/
-	rm -f coverage.out coverage.html
-	rm -rf keys/
-	@echo "Clean complete"
+dev: build start-deps
+	@echo "Starting service in development mode..."
+	@LOG_LEVEL=debug ./$(BINARY_PATH) serve
+
 
 # Generate protobuf code (requires protoc)
 proto:
@@ -105,11 +120,11 @@ proto:
 		$(PROTO_PATH)/sts.proto
 	@echo "Protobuf generation complete"
 
-# Format code
-fmt:
-	go fmt ./...
+openapi-v3:
+	cd openapi && go mod tidy && go run convert.go
 
 # Lint code (requires golangci-lint)
 lint:
 	golangci-lint run
 
+.DEFAULT_GOAL := help
