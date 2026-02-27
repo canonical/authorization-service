@@ -31,7 +31,7 @@ git checkout -b fix/issue-number-description
 ```
 ### 2. Make Your Changes
 Follow these guidelines:
-- **Code Style**: Use `go fmt` and `go vet`
+- **Code Style**: Use `go vet` (don't use `go fmt` as it uses tabs instead of spaces)
 - **Naming**: Follow Go naming conventions
   - Packages: `lowercase`
   - Types: `PascalCase`

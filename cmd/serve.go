@@ -13,6 +13,7 @@ import (
     "github.com/canonical/authorization-service/internal/config"
     "github.com/canonical/authorization-service/internal/server/grpc"
     "github.com/canonical/authorization-service/internal/server/rest"
+    "github.com/canonical/authorization-service/internal/version"
 )
 
 // serveCmd represents the serve command
@@ -35,7 +36,7 @@ func serve(cmd *cobra.Command, args []string) error {
 
     // Setup logger
     logger := cfg.Logging.SetupLogger()
-    logger.Info("Starting Authorization Service", "version", Version)
+    logger.Info("Starting Authorization Service", "version", version.Version)
 
     tracer, tracerShutdown, err := cfg.Telemetry.SetupTelemetry(cmd.Context(), logger)
     if err != nil {

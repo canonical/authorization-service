@@ -1,0 +1,76 @@
+apiVersion: skaffold/v4beta1
+kind: Config
+build:
+  artifacts:
+  - image: authorization-service
+    sync:
+    custom:
+      buildCommand: ./build.sh
+      dependencies:
+        paths:
+          - rockcraft.yaml
+    platforms: ["linux/amd64"]
+test:
+- image: "authorization-service"
+  structureTests:
+    - './structure-tests.yaml'
+manifests:
+  kustomize:
+    paths:
+    - k8s
+deploy:
+  kubectl: {}
+profiles:
+- name: istio
+  manifests:
+    kustomize:
+      paths:
+      - k8s/istio
+  deploy:
+    helm:
+      hooks:
+        before:
+          - host:
+              command: ["kubectl", "apply", "--server-side", "-f", "https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.0/experimental-install.yaml"]
+      releases:
+        # 1. Base CRDs
+        - name: istio-base
+          remoteChart: base
+          repo: https://istio-release.storage.googleapis.com/charts
+          namespace: istio-system
+          createNamespace: true
+          wait: true
+
+        # 2. Control Plane (set to ambient profile)
+        - name: istiod
+          remoteChart: istiod
+          repo: https://istio-release.storage.googleapis.com/charts
+          namespace: istio-system
+          setValues:
+            profile: ambient
+          wait: true
+
+        # 3. CNI Node Agent (required for ambient mode traffic)
+        - name: istio-cni
+          remoteChart: cni
+          repo: https://istio-release.storage.googleapis.com/charts
+          namespace: istio-system
+          setValues:
+            profile: ambient
+          wait: true
+
+        # 4. Ztunnel (the node-level proxy)
+        - name: ztunnel
+          remoteChart: ztunnel
+          repo: https://istio-release.storage.googleapis.com/charts
+          namespace: istio-system
+          wait: true        
+    kubectl: {}
+
+- name: echoserver
+  manifests:
+    kustomize:
+      paths:
+      - k8s/echoserver
+  deploy:
+    kubectl: {}

@@ -70,12 +70,12 @@ func TestExternalAuthzService_Check_Success(t *testing.T) {
         t.Fatal("expected OkResponse, got nil")
     }
 
-    if len(okResp.ResponseHeadersToAdd) != 1 {
-        t.Fatalf("expected 1 header, got %d", len(okResp.ResponseHeadersToAdd))
+    if len(okResp.Headers) != 1 {
+        t.Fatalf("expected 1 header, got %d", len(okResp.Headers))
     }
 
-    authHeader := okResp.ResponseHeadersToAdd[0].Header
-    if authHeader.Key != "Authorization" {
+    authHeader := okResp.Headers[0].Header
+    if authHeader.Key != "authorization" {
         t.Errorf("expected header key 'Authorization', got %q", authHeader.Key)
     }
 
@@ -275,11 +275,11 @@ func TestExternalAuthzService_Check_MultipleCookies(t *testing.T) {
         t.Fatal("expected OkResponse, got nil")
     }
 
-    if len(okResp.ResponseHeadersToAdd) != 1 {
+    if len(okResp.Headers) != 1 {
         t.Fatalf("expected 1 header, got %d", len(okResp.ResponseHeadersToAdd))
     }
 
-    authHeader := okResp.ResponseHeadersToAdd[0].Header
+    authHeader := okResp.Headers[0].Header
     expectedValue := "Bearer " + expectedToken
     if authHeader.Value != expectedValue {
         t.Errorf("expected header value %q, got %q", expectedValue, authHeader.Value)

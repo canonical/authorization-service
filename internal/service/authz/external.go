@@ -6,7 +6,7 @@ import (
     "log/slog"
     "strings"
 
-    envoyCore "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+    corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
     envoyAuth "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
     envoyType "github.com/envoyproxy/go-control-plane/envoy/type/v3"
     "go.opentelemetry.io/otel/trace"
@@ -89,18 +89,15 @@ func (s *ExternalAuthzService) Check(ctx context.Context, req *envoyAuth.CheckRe
         },
         HttpResponse: &envoyAuth.CheckResponse_OkResponse{
             OkResponse: &envoyAuth.OkHttpResponse{
-                Headers:         nil,
-                HeadersToRemove: nil,
-                ResponseHeadersToAdd: []*envoyCore.HeaderValueOption{
+                Headers: []*corev3.HeaderValueOption{
                     {
-                        Header: &envoyCore.HeaderValue{
-                            Key:   "Authorization",
+                        Header: &corev3.HeaderValue{
+                            Key:   "authorization",
                             Value: fmt.Sprintf("Bearer %s", exchangeResp.AccessToken),
                         },
                     },
                 },
-                QueryParametersToSet:    nil,
-                QueryParametersToRemove: nil,
+                HeadersToRemove: nil,
             },
         },
     }, nil

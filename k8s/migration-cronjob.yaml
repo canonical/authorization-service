@@ -1,0 +1,78 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: authz-migration
+  labels:
+    app: authorization-service
+    component: migration
+spec:
+  # Suspended by default - set to false to enable automatic scheduling
+  # Or create a Job manually from this template
+  suspend: true
+  
+  # Schedule: Run at 2 AM daily (adjust as needed)
+  # Format: "minute hour day month weekday"
+  schedule: "0 2 * * *"
+  
+  # Keep last 3 successful and 1 failed job for debugging
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  
+  jobTemplate:
+    metadata:
+      labels:
+        app: authorization-service
+        component: migration
+    spec:
+      # Don't retry on failure - migrations should be idempotent
+      backoffLimit: 0
+      
+      # Clean up completed jobs after 1 hour
+      ttlSecondsAfterFinished: 3600
+      
+      template:
+        metadata:
+          labels:
+            app: authorization-service
+            component: migration
+        spec:
+          serviceAccountName: authorization-service
+          restartPolicy: Never
+          
+          # Wait for PostgreSQL to be ready
+          initContainers:
+          - name: wait-for-postgres
+            image: postgres:16-alpine
+            command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h postgresql -p 5432 -U authzuser; do
+                echo "Waiting for PostgreSQL..."
+                sleep 2
+              done
+              echo "PostgreSQL is ready!"
+            env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: authorization-service-secret
+                  key: DATABASE_URL
+          
+          containers:
+          - name: migrate
+            image: authorization-service
+            command: ["/usr/bin/app"]
+            args: ["migrate"]
+            envFrom:
+            - configMapRef:
+                name: authorization-service-config
+            - secretRef:
+                name: authorization-service-secret
+            resources:
+              requests:
+                memory: "64Mi"
+                cpu: "100m"
+              limits:
+                memory: "128Mi"
+                cpu: "500m"
