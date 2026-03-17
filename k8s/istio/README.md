@@ -51,9 +51,6 @@ These remain internal (not exposed via gateway):
 ```bash
 # From project root
 kubectl apply -k k8s/istio/
-
-# Or individually
-kubectl apply -f k8s/istio/
 ```
 
 ### Verify
@@ -69,7 +66,7 @@ kubectl get httproute -n default
 kubectl get referencegrant -n default
 
 # Get gateway external IP
-kubectl get svc -n istio-system | grep sts-gateway
+kubectl get svc -n istio-system | grep cerberus-gateway
 ```
 
 ## Testing
@@ -78,10 +75,10 @@ kubectl get svc -n istio-system | grep sts-gateway
 
 ```bash
 # For LoadBalancer
-GATEWAY_IP=$(kubectl get svc -n istio-system sts-gateway-istio -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+GATEWAY_IP=$(kubectl get svc -n istio-system cerberus-gateway-istio -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 
 # For NodePort (local testing)
-GATEWAY_PORT=$(kubectl get svc -n istio-system sts-gateway-istio -o jsonpath='{.spec.ports[0].nodePort}')
+GATEWAY_PORT=$(kubectl get svc -n istio-system cerberus-gateway-istio -o jsonpath='{.spec.ports[0].nodePort}')
 NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[0].address}')
 ```
 
@@ -150,10 +147,10 @@ kubectl create secret tls sts-tls-cert \
 
 ```bash
 # Check gateway status
-kubectl describe gateway sts-gateway -n istio-system
+kubectl describe gateway cerberus-gateway -n istio-system
 
 # Check gateway pods
-kubectl get pods -n istio-system -l gateway.networking.k8s.io/gateway-name=sts-gateway
+kubectl get pods -n istio-system -l gateway.networking.k8s.io/gateway-name=cerberus-gateway
 ```
 
 ### HTTPRoute not working
