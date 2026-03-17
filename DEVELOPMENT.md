@@ -110,6 +110,10 @@ make build
 # Start dependencies
 make start-deps
 ```
+
+### Start istio infra for external authorization
+Refer to [the doc](k8s/dev-setup/development.md).
+
 ### 2. Running Locally
 ```bash
 # Start the service
