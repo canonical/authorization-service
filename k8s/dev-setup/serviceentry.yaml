@@ -1,0 +1,16 @@
+apiVersion: networking.istio.io/v1
+kind: ServiceEntry
+metadata:
+  name: cerberus
+  namespace: istio-system
+spec:
+  hosts:
+  - cerberus.dev.external
+  location: MESH_EXTERNAL
+  ports:
+  - number: 9090
+    name: grpc
+    protocol: GRPC
+  resolution: STATIC
+  endpoints:
+  - address: 0.0.0.0 # Kustomize will replace this with the bridge IP you specify in k8s-bridge.env
