@@ -1,7 +1,7 @@
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
-  name: echoserver-ztunnel
+  name: echoserver-ztunnel-policy
   namespace: default
 spec:
   selector:
@@ -12,7 +12,7 @@ spec:
   - from:
     - source:
         principals:
-        - cluster.local/ns/default/sa/sts-gateway-istio
+        - cluster.local/ns/default/sa/cerberus-gateway-istio
         - cluster.local/ns/default/sa/waypoint
 ---
 apiVersion: security.istio.io/v1
@@ -25,25 +25,17 @@ spec:
   targetRef:
     group: gateway.networking.k8s.io
     kind: Gateway
-    name: sts-gateway
-    # name: waypoint
+    name: cerberus-gateway
   # Default action is to require external authorization
   action: CUSTOM
   provider:
-    name: "cerberos"
+    name: "cerberus"
   
   rules:
-  # Rule 1: Allow public access to /health endpoint (no external authz needed)
   - to:
     - operation:
-        notPaths: ["/auth/*", "/health", "/echo/health", "/", "/.well-known/jwks.json"]
-        methods: ["POST","GET"]
-  
-  # # Rule 2: Require external authorization for all other requests
-  # # This is the default behavior when using CUSTOM action with ext-authz provider
-  # - to:
-  #   - operation:
-  #       paths: ["/echo", "/echo/*"]
+        paths: ["/echo", "/echo/*"]
+        notPaths: ["/echo/health"]
 ---
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
@@ -51,12 +43,12 @@ metadata:
   name: echoserver-allow-health
   namespace: default
 spec:
-  # Target the waypoint gateway for L7 policy enforcement
-  targetRef:
-    group: gateway.networking.k8s.io
-    kind: Gateway
-    # name: sts-gateway
-    name: waypoint
+  # Target the whole chain up to the echoserver or the request will be denied after the gateway
+  # Client -> Gateway -> Waypoint Proxy -> Ztunnel -> Pod
+  # Ztunnel needs to know about allowing the request to the echoserver
+  selector:
+    matchLabels:
+      app: echoserver
   # Allow unauthenticated access to /health
   action: ALLOW
   rules:

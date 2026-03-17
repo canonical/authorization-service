@@ -64,9 +64,9 @@ kubectl get authorizationpolicy echoserver-ext-authz
 
 ## Gateway Exposure
 
-The echoserver is exposed on the `/echo` path via the Istio gateway (`sts-gateway`):
+The echoserver is exposed on the `/echo` path via the Istio gateway (`cerberus-gateway`):
 
-- **Gateway:** `sts-gateway` (in istio-system namespace)
+- **Gateway:** `cerberus-gateway` (in istio-system namespace)
 - **Path:** `/echo` (PathPrefix match)
 - **Hostnames:** `localhost`, `iam.internal.io`
 
