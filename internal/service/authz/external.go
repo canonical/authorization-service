@@ -18,7 +18,7 @@ import (
 )
 
 const (
-    sessionCookieName             = "session-id"
+    sessionCookieName             = "session"
     sessionCookieNamePrefix       = sessionCookieName + "="
     sessionCookieNamePrefixLength = len(sessionCookieNamePrefix)
 )
@@ -59,17 +59,17 @@ func (s *ExternalAuthzService) Check(ctx context.Context, req *envoyAuth.CheckRe
 
     // Extract the session cookie from the request headers
     headers := req.GetAttributes().GetRequest().GetHttp().GetHeaders()
-    sessionCookie, ok := headers["cookie"]
+    cookies, ok := headers["cookie"]
     if !ok {
         s.logger.Debug("No cookie header found in request")
-        return denyResponse("No session cookie provided"), nil
+        return unauthorized("No session cookie provided"), nil
     }
 
     // Parse the cookie header to extract the "session" cookie value
-    sessionValue := extractSessionCookie(sessionCookie)
+    sessionValue := extractSessionCookie(cookies)
     if sessionValue == "" {
         s.logger.Debug("Session cookie not found in cookie header")
-        return denyResponse("Session cookie not found"), nil
+        return unauthorized("Session cookie not found"), nil
     }
 
     // Exchange the session cookie for a JWT token
@@ -79,7 +79,7 @@ func (s *ExternalAuthzService) Check(ctx context.Context, req *envoyAuth.CheckRe
 
     if err != nil {
         s.logger.Debug("Failed to exchange session-id cookie", "error", err)
-        return denyResponse(err.Error()), nil
+        return forbidden(err.Error()), nil
     }
 
     // Return successful response with JWT as bearer token in ResponseHeadersToAdd
@@ -145,7 +145,15 @@ func splitCookies(cookieHeader string) []string {
     return cookies
 }
 
-func denyResponse(body string) *envoyAuth.CheckResponse {
+func unauthorized(body string) *envoyAuth.CheckResponse {
+    return denyResponse(body, envoyType.StatusCode_Unauthorized)
+}
+
+func forbidden(body string) *envoyAuth.CheckResponse {
+    return denyResponse(body, envoyType.StatusCode_Forbidden)
+}
+
+func denyResponse(body string, code envoyType.StatusCode) *envoyAuth.CheckResponse {
     return &envoyAuth.CheckResponse{
         Status: &status.Status{
             Code: int32(codes.Unauthenticated),
@@ -153,7 +161,7 @@ func denyResponse(body string) *envoyAuth.CheckResponse {
         HttpResponse: &envoyAuth.CheckResponse_DeniedResponse{
             DeniedResponse: &envoyAuth.DeniedHttpResponse{
                 Status: &envoyType.HttpStatus{
-                    Code: envoyType.StatusCode_Unauthorized,
+                    Code: code,
                 },
                 Body: body,
             },

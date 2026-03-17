@@ -48,7 +48,7 @@ func TestExternalAuthzService_Check_Success(t *testing.T) {
             Request: &envoyAuth.AttributeContext_Request{
                 Http: &envoyAuth.AttributeContext_HttpRequest{
                     Headers: map[string]string{
-                        "cookie": "session-id=abc123xyz",
+                        "cookie": "session=abc123xyz",
                     },
                 },
             },
@@ -201,7 +201,7 @@ func TestExternalAuthzService_Check_ExchangeSessionError(t *testing.T) {
             Request: &envoyAuth.AttributeContext_Request{
                 Http: &envoyAuth.AttributeContext_HttpRequest{
                     Headers: map[string]string{
-                        "cookie": "session-id=invalid-session",
+                        "cookie": "session=invalid-session",
                     },
                 },
             },
@@ -221,6 +221,11 @@ func TestExternalAuthzService_Check_ExchangeSessionError(t *testing.T) {
     deniedResp := resp.GetDeniedResponse()
     if deniedResp == nil {
         t.Fatal("expected DeniedResponse, got nil")
+    }
+
+    // Exchange errors now return Forbidden status
+    if deniedResp.Status.Code != envoyType.StatusCode_Forbidden {
+        t.Errorf("expected HTTP status %d, got %d", envoyType.StatusCode_Forbidden, deniedResp.Status.Code)
     }
 
     if deniedResp.Body != expectedError.Error() {
@@ -253,7 +258,7 @@ func TestExternalAuthzService_Check_MultipleCookies(t *testing.T) {
             Request: &envoyAuth.AttributeContext_Request{
                 Http: &envoyAuth.AttributeContext_HttpRequest{
                     Headers: map[string]string{
-                        "cookie": "foo=bar; session-id=mysessionvalue; baz=qux",
+                        "cookie": "foo=bar; session=mysessionvalue; baz=qux",
                     },
                 },
             },
@@ -311,7 +316,7 @@ func TestExternalAuthzService_Check_CookieWithSpaces(t *testing.T) {
             Request: &envoyAuth.AttributeContext_Request{
                 Http: &envoyAuth.AttributeContext_HttpRequest{
                     Headers: map[string]string{
-                        "cookie": "  foo=bar  ;  session-id=spaced-value  ;  baz=qux  ",
+                        "cookie": "  foo=bar  ;  session=spaced-value  ;  baz=qux  ",
                     },
                 },
             },
@@ -356,22 +361,22 @@ func TestExtractSessionCookie(t *testing.T) {
     }{
         {
             name:          "single session cookie",
-            cookieHeader:  "session-id=abc123",
+            cookieHeader:  "session=abc123",
             expectedValue: "abc123",
         },
         {
             name:          "session cookie with multiple cookies",
-            cookieHeader:  "foo=bar; session-id=xyz789; baz=qux",
+            cookieHeader:  "foo=bar; session=xyz789; baz=qux",
             expectedValue: "xyz789",
         },
         {
             name:          "session cookie at start",
-            cookieHeader:  "session-id=first; other=value",
+            cookieHeader:  "session=first; other=value",
             expectedValue: "first",
         },
         {
             name:          "session cookie at end",
-            cookieHeader:  "other=value; session-id=last",
+            cookieHeader:  "other=value; session=last",
             expectedValue: "last",
         },
         {
@@ -386,17 +391,17 @@ func TestExtractSessionCookie(t *testing.T) {
         },
         {
             name:          "session cookie with spaces",
-            cookieHeader:  "  session-id=spaced  ",
+            cookieHeader:  "  session=spaced  ",
             expectedValue: "spaced",
         },
         {
             name:          "session cookie with complex value",
-            cookieHeader:  "session-id=value-with-dashes_and_underscores.and.dots",
+            cookieHeader:  "session=value-with-dashes_and_underscores.and.dots",
             expectedValue: "value-with-dashes_and_underscores.and.dots",
         },
         {
             name:          "similar cookie name",
-            cookieHeader:  "session=wrong; session-id=correct",
+            cookieHeader:  "session-id=wrong; session=correct",
             expectedValue: "correct",
         },
     }
@@ -420,13 +425,13 @@ func TestSplitCookies(t *testing.T) {
     }{
         {
             name:          "single cookie",
-            cookieHeader:  "session-id=abc123",
+            cookieHeader:  "session=abc123",
             expectedCount: 1,
-            expectedFirst: "session-id=abc123",
+            expectedFirst: "session=abc123",
         },
         {
             name:          "multiple cookies",
-            cookieHeader:  "foo=bar; baz=qux; session-id=xyz",
+            cookieHeader:  "foo=bar; baz=qux; session=xyz",
             expectedCount: 3,
             expectedFirst: "foo=bar",
         },
@@ -463,18 +468,18 @@ func TestSplitCookies(t *testing.T) {
     }
 }
 
-func TestDenyResponse(t *testing.T) {
+func TestUnAuthorized(t *testing.T) {
     tests := []struct {
         name string
         body string
     }{
         {
-            name: "standard error message",
-            body: "Unauthorized",
+            name: "standard unauthorized message",
+            body: "Unauthorized access",
         },
         {
-            name: "custom error message",
-            body: "Invalid session",
+            name: "no session cookie provided",
+            body: "No session cookie provided",
         },
         {
             name: "empty message",
@@ -484,7 +489,110 @@ func TestDenyResponse(t *testing.T) {
 
     for _, tt := range tests {
         t.Run(tt.name, func(t *testing.T) {
-            resp := denyResponse(tt.body)
+            resp := unauthorized(tt.body)
+
+            if resp == nil {
+                t.Fatal("unauthorized returned nil")
+            }
+
+            if resp.Status.Code != int32(codes.Unauthenticated) {
+                t.Errorf("expected status code %d, got %d", codes.Unauthenticated, resp.Status.Code)
+            }
+
+            deniedResp := resp.GetDeniedResponse()
+            if deniedResp == nil {
+                t.Fatal("expected DeniedResponse, got nil")
+            }
+
+            if deniedResp.Status.Code != envoyType.StatusCode_Unauthorized {
+                t.Errorf("expected HTTP status %d, got %d", envoyType.StatusCode_Unauthorized, deniedResp.Status.Code)
+            }
+
+            if deniedResp.Body != tt.body {
+                t.Errorf("expected body %q, got %q", tt.body, deniedResp.Body)
+            }
+        })
+    }
+}
+
+func TestForbidden(t *testing.T) {
+    tests := []struct {
+        name string
+        body string
+    }{
+        {
+            name: "standard forbidden message",
+            body: "Access forbidden",
+        },
+        {
+            name: "invalid session error",
+            body: "invalid session",
+        },
+        {
+            name: "empty message",
+            body: "",
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            resp := forbidden(tt.body)
+
+            if resp == nil {
+                t.Fatal("forbidden returned nil")
+            }
+
+            if resp.Status.Code != int32(codes.Unauthenticated) {
+                t.Errorf("expected status code %d, got %d", codes.Unauthenticated, resp.Status.Code)
+            }
+
+            deniedResp := resp.GetDeniedResponse()
+            if deniedResp == nil {
+                t.Fatal("expected DeniedResponse, got nil")
+            }
+
+            if deniedResp.Status.Code != envoyType.StatusCode_Forbidden {
+                t.Errorf("expected HTTP status %d, got %d", envoyType.StatusCode_Forbidden, deniedResp.Status.Code)
+            }
+
+            if deniedResp.Body != tt.body {
+                t.Errorf("expected body %q, got %q", tt.body, deniedResp.Body)
+            }
+        })
+    }
+}
+
+func TestDenyResponse(t *testing.T) {
+    tests := []struct {
+        name           string
+        body           string
+        expectedStatus envoyType.StatusCode
+    }{
+        {
+            name:           "unauthorized error",
+            body:           "Unauthorized",
+            expectedStatus: envoyType.StatusCode_Unauthorized,
+        },
+        {
+            name:           "forbidden error",
+            body:           "Forbidden",
+            expectedStatus: envoyType.StatusCode_Forbidden,
+        },
+        {
+            name:           "custom error message",
+            body:           "Invalid session",
+            expectedStatus: envoyType.StatusCode_Forbidden,
+        },
+        {
+            name:           "empty message",
+            body:           "",
+            expectedStatus: envoyType.StatusCode_Unauthorized,
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            resp := denyResponse(tt.body, tt.expectedStatus)
 
             if resp == nil {
                 t.Fatal("denyResponse returned nil")
@@ -499,8 +607,8 @@ func TestDenyResponse(t *testing.T) {
                 t.Fatal("expected DeniedResponse, got nil")
             }
 
-            if deniedResp.Status.Code != envoyType.StatusCode_Unauthorized {
-                t.Errorf("expected HTTP status %d, got %d", envoyType.StatusCode_Unauthorized, deniedResp.Status.Code)
+            if deniedResp.Status.Code != tt.expectedStatus {
+                t.Errorf("expected HTTP status %d, got %d", tt.expectedStatus, deniedResp.Status.Code)
             }
 
             if deniedResp.Body != tt.body {
