@@ -22,7 +22,7 @@ data:
   VALKEY_ENABLED: "false"
   VALKEY_ADDRESS: "valkey-primary.data.svc.cluster.local:6379"
   STS_ADDRESS: "secure-token-service.default.svc.cluster.local:9090"
-  STS_ENABLED: "true"
+  STS_ENABLED: "false"
   
   # Service Metadata
   SERVICE_NAME: "authorization-service"

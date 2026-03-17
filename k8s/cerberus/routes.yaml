@@ -7,11 +7,11 @@ spec:
   parentRefs:
   - group: gateway.networking.k8s.io
     kind: Gateway
-    name: sts-gateway
+    name: cerberus-gateway
     namespace: default
   hostnames:
   - "localhost"
-  - "iam.internal.io"
+  - "iam.internal.io" # this is not used in any authz policy so it won't work
   rules:
   # Auth endpoints (/auth/login, /auth/callback, /auth/logout, /auth/sessions)
   - matches:

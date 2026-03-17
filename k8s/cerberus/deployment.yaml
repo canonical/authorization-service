@@ -19,6 +19,7 @@ spec:
       containers:
       - name: authorization-service
         image: authorization-service
+        imagePullPolicy: IfNotPresent
         command: ["/usr/bin/app"]
         args: ["serve"]
         ports:
