@@ -78,7 +78,7 @@ func (s *ExternalAuthzService) Check(ctx context.Context, req *envoyAuth.CheckRe
     })
 
     if err != nil {
-        s.logger.Debug("Failed to exchange session-id cookie", "error", err)
+        s.logger.Debug("Failed to exchange session cookie", "error", err)
         return forbidden(err.Error()), nil
     }
 
@@ -103,9 +103,9 @@ func (s *ExternalAuthzService) Check(ctx context.Context, req *envoyAuth.CheckRe
     }, nil
 }
 
-// extractSessionCookie parses the Cookie header string and extracts the "session-id" cookie value
+// extractSessionCookie parses the Cookie header string and extracts the "session" cookie value
 func extractSessionCookie(cookieHeader string) string {
-    // Cookie header format: "cookie1=value1; cookie2=value2; session-id=sessionvalue"
+    // Cookie header format: "cookie1=value1; cookie2=value2; session=sessionvalue"
     cookies := splitCookies(cookieHeader)
     for _, cookie := range cookies {
         if len(cookie) >= sessionCookieNamePrefixLength && cookie[:sessionCookieNamePrefixLength] == sessionCookieNamePrefix {

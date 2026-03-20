@@ -468,7 +468,7 @@ func TestSplitCookies(t *testing.T) {
     }
 }
 
-func TestUnAuthorized(t *testing.T) {
+func TestUnauthorized(t *testing.T) {
     tests := []struct {
         name string
         body string

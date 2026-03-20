@@ -132,7 +132,7 @@ curl http://localhost/echo/health
 curl -v http://localhost/echo/
 
 # 3. Test with valid session cookie (should work)
-curl -H "Cookie: session-id=VALID_SESSION" http://localhost/echo/
+curl -H "Cookie: session=VALID_SESSION" http://localhost/echo/
 ```
 
 ## Why Waypoint is Needed
