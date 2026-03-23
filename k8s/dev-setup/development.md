@@ -17,6 +17,19 @@ To ensure Istio configuration patches are applied correctly and component depend
     skaffold dev -p echoserver
     ```
 
+#### If you use Podman
+In case you use podman, to make sure Skaffold behaves correctly, you need to do 2 things
+1. enable the service that emulates docker
+```shell
+systemctl --user enable --now podman.socket
+export DOCKER_HOST="unix://$XDG_RUNTIME_DIR/podman/podman.sock"
+```
+
+2. run skaffold with the podman driver option
+```shell
+skaffold dev --driver=podman -p <profile of choice>
+```
+
 ---
 
 ## 🌐 Networking & Alias
