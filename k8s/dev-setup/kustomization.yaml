@@ -1,0 +1,61 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- ./serviceentry.yaml
+- ./istio-mesh-base.yaml
+
+configMapGenerator:
+- name: k8s-bridge
+  envs:
+  - k8s-bridge.env
+  options:
+    annotations:
+      config.kubernetes.io/local-config: "true"
+
+replacements:
+- source:
+    kind: ConfigMap
+    name: k8s-bridge
+    fieldPath: data.K8S_BRIDGE_IP
+  targets:
+  - select:
+      kind: ServiceEntry
+      name: cerberus
+    fieldPaths:
+      - spec.endpoints.0.address
+
+patches:
+- target:
+    kind: ConfigMap
+    name: istio
+    namespace: istio-system
+  patch: |-
+    - op: replace
+      path: /data/mesh
+      value: |-
+       extensionProviders:
+         - name: "cerberus"
+           envoyExtAuthzGrpc:
+             service: "cerberus.dev.external"
+             port: "9090"
+       defaultConfig:
+         discoveryAddress: istiod.istio-system.svc:15012
+         image:
+          imageType: distroless
+         proxyMetadata:
+          ISTIO_META_ENABLE_HBONE: "true"
+       defaultProviders:
+         metrics:
+         - prometheus
+       enablePrometheusMerge: true
+       rootNamespace: istio-system
+       serviceScopeConfigs:
+       - scope: GLOBAL
+         servicesSelector:
+          matchExpressions:
+          - key: istio.io/global
+            operator: In
+            values:
+            - "true"
+       trustDomain: cluster.local

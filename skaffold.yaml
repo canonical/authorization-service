@@ -1,6 +1,10 @@
 apiVersion: skaffold/v4beta1
 kind: Config
 build:
+  tagPolicy:
+    gitCommit: {}
+  local:
+    push: false
   artifacts:
   - image: authorization-service
     sync:
@@ -10,17 +14,26 @@ build:
         paths:
           - rockcraft.yaml
     platforms: ["linux/amd64"]
+
 test:
 - image: "authorization-service"
   structureTests:
     - './structure-tests.yaml'
-manifests:
-  kustomize:
-    paths:
-    - k8s
-deploy:
-  kubectl: {}
+
 profiles:
+- name: push-image
+  build:
+    local:
+      push: true
+
+- name: cerberus
+  manifests:
+    kustomize:
+      paths:
+      - k8s/cerberus
+  deploy:
+    kubectl: {}
+
 - name: istio
   manifests:
     kustomize:
@@ -64,7 +77,7 @@ profiles:
           remoteChart: ztunnel
           repo: https://istio-release.storage.googleapis.com/charts
           namespace: istio-system
-          wait: true        
+          wait: true
     kubectl: {}
 
 - name: echoserver
@@ -74,3 +87,12 @@ profiles:
       - k8s/echoserver
   deploy:
     kubectl: {}
+
+- name: dev-setup
+  manifests:
+    kustomize:
+      paths:
+      - k8s/dev-setup
+  deploy:
+    kubectl:
+      defaultNamespace: istio-system
