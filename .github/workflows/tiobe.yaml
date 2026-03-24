@@ -10,6 +10,7 @@ on:
 
 jobs:
   TICS:
+    if: false # Disable for now since the project is not registered in TICS
     runs-on: [ self-hosted, amd64, tiobe, noble ]
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
