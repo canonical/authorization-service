@@ -12,6 +12,7 @@ import (
     "github.com/canonical/authorization-service/internal/config"
     "github.com/canonical/authorization-service/internal/integrations/nats"
     "github.com/canonical/authorization-service/internal/integrations/openfga"
+    "github.com/canonical/authorization-service/internal/integrations/postgres"
     "github.com/canonical/authorization-service/internal/integrations/sts"
     "github.com/canonical/authorization-service/internal/integrations/valkey"
     "github.com/canonical/authorization-service/internal/service/authz"
@@ -32,11 +33,12 @@ type Services struct {
 
 // Integrations holds all external service clients
 type Integrations struct {
-    OpenFGA openfga.ClientInterface
-    NATS    nats.EventClientInterface
-    Valkey  valkey.CacheClientInterface
-    STS     stsv1.SecurityTokenServiceClient
-    stsConn ClosableClientConnInterface
+    OpenFGA  openfga.ClientInterface
+    NATS     nats.EventClientInterface
+    Valkey   valkey.CacheClientInterface
+    STS      stsv1.SecurityTokenServiceClient
+    Postgres postgres.DBClientInterface
+    stsConn  ClosableClientConnInterface
 }
 
 func (i *Integrations) initializeServices(tracer trace.Tracer, serviceLogger *slog.Logger) *Services {
@@ -118,6 +120,35 @@ func initializeIntegrations(cfg *config.Config, logger *slog.Logger, tracer trac
         integrations.Valkey = valkey.NewNoopClient(logger)
     }
 
+    // Initialize Postgres
+    if cfg.Postgres.Enabled {
+        integrations.Postgres, err = postgres.NewClient(
+            postgres.Config{
+                Host:            cfg.Postgres.Host,
+                Port:            cfg.Postgres.Port,
+                User:            cfg.Postgres.User,
+                Password:        cfg.Postgres.Password,
+                DBName:          cfg.Postgres.DBName,
+                SSLMode:         cfg.Postgres.SSLMode,
+                MaxOpenConns:    cfg.Postgres.MaxOpenConns,
+                MaxIdleConns:    cfg.Postgres.MaxIdleConns,
+                ConnMaxLifetime: cfg.Postgres.ConnMaxLifetime,
+                ConnMaxIdleTime: cfg.Postgres.ConnMaxIdleTime,
+                ConnectTimeout:  cfg.Postgres.ConnectTimeout,
+            },
+            logger,
+            tracer,
+        )
+
+        if err != nil {
+            return nil, fmt.Errorf("failed to create Postgres client: %w", err)
+        }
+
+    } else {
+        logger.Info("Postgres disabled, using no-op client")
+        integrations.Postgres = postgres.NewNoopClient(logger)
+    }
+
     // Initialize STS
     if cfg.STS.Enabled {
         integrations.stsConn, err = cfg.STS.CreateSTSConnection()
@@ -157,6 +188,10 @@ func (i *Integrations) cleanupIntegrations(logger *slog.Logger) {
         if err := i.Valkey.Close(); err != nil {
             logger.Error("Failed to close Valkey client", "error", err)
         }
+    }
+
+    if i.Postgres != nil {
+        i.Postgres.Close()
     }
 
     if i.stsConn != nil {

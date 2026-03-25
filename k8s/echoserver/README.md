@@ -98,7 +98,7 @@ The deployment includes two authorization policies:
 ### 2. Protected Endpoints
 - All other paths (`/*`)
 - **Requires external authorization** via the authorization-service
-- Session cookie must be present: `Cookie: session-id=<token>`
+- Session cookie must be present: `Cookie: session=<token>`
 - Authorization service exchanges session for JWT with STS
 - JWT is forwarded to echoserver as `Authorization: Bearer <jwt>`
 
@@ -129,7 +129,7 @@ First, you need a valid session token from your STS service. Then:
 
 ```bash
 # Should succeed and echo back your request
-curl -H "Cookie: session-id=YOUR_VALID_SESSION_TOKEN" http://localhost:8080/
+curl -H "Cookie: session=YOUR_VALID_SESSION_TOKEN" http://localhost:8080/
 ```
 
 Expected response: Echoserver output showing your request details with the JWT in headers.
@@ -149,7 +149,7 @@ curl http://localhost/echo/health
 curl http://localhost/echo/
 
 # Test with valid session cookie via gateway
-curl -H "Cookie: session-id=YOUR_SESSION" http://localhost/echo/
+curl -H "Cookie: session=YOUR_SESSION" http://localhost/echo/
 ```
 
 ### 5. Test Using Authorization Service CLI
@@ -162,7 +162,7 @@ export STS_ADDRESS="sts-service.default.svc.cluster.local:9091"
 export NATS_ENABLED="false"  # Disable NATS if not needed for testing
 
 ./bin/app check \
-  --cookie "session-id=YOUR_SESSION_TOKEN" \
+  --cookie "session=YOUR_SESSION_TOKEN" \
   --path "/" \
   --method "GET" \
   --host "echoserver.default.svc.cluster.local"
@@ -179,7 +179,7 @@ This will show you the authorization decision without actually calling the echos
 5. **External authorization check** is triggered for non-health paths
 6. **Waypoint proxy calls** the authorization-service gRPC ExtAuthz API
 7. **Authorization service**:
-   - Extracts `session-id` cookie from request headers
+   - Extracts `session` cookie from request headers
    - Calls STS `ExchangeSession` to exchange cookie for JWT
    - If successful, returns ALLOW with `Authorization: Bearer <jwt>` header
    - If failed, returns DENY with 401 status

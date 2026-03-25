@@ -29,6 +29,7 @@ type Config struct {
     NATS      *NATSConfig      `validate:"required"`
     Valkey    *ValkeyConfig    `validate:"required"`
     STS       *STSConfig       `validate:"required"`
+    Postgres  *PostgresConfig  `validate:"required"`
     Logging   *LoggingConfig   `validate:"required"`
     Telemetry *TelemetryConfig `validate:"required"`
 }
@@ -84,6 +85,23 @@ type ValkeyConfig struct {
     PoolSize int           `validate:"min=1" env:"VALKEY_POOL_SIZE" default:"10"`
     Timeout  time.Duration `validate:"" env:"VALKEY_TIMEOUT" default:"5s"`
     UseTLS   bool          `validate:"" env:"VALKEY_USE_TLS" default:"false"`
+}
+
+// PostgresConfig contains PostgreSQL database configuration.
+// Postgres 14 or later is required.
+type PostgresConfig struct {
+    Enabled         bool          `validate:"" env:"POSTGRES_ENABLED" default:"false"`
+    Host            string        `validate:"required" env:"POSTGRES_HOST" default:"localhost"`
+    Port            int           `validate:"required,min=1,max=65535" env:"POSTGRES_PORT" default:"5432"`
+    User            string        `validate:"required_if=Enabled true" env:"POSTGRES_USER" default:"postgres"`
+    Password        string        `validate:"" env:"POSTGRES_PASSWORD"`
+    DBName          string        `validate:"required_if=Enabled true" env:"POSTGRES_DB" default:"authz"`
+    SSLMode         string        `validate:"required,oneof=disable require verify-ca verify-full" env:"POSTGRES_SSL_MODE" default:"disable"`
+    MaxOpenConns    int32         `validate:"min=1" env:"POSTGRES_MAX_OPEN_CONNS" default:"25"`
+    MaxIdleConns    int32         `validate:"min=1" env:"POSTGRES_MAX_IDLE_CONNS" default:"5"`
+    ConnMaxLifetime time.Duration `validate:"" env:"POSTGRES_CONN_MAX_LIFETIME" default:"30m"`
+    ConnMaxIdleTime time.Duration `validate:"" env:"POSTGRES_CONN_MAX_IDLE_TIME" default:"5m"`
+    ConnectTimeout  time.Duration `validate:"" env:"POSTGRES_CONNECT_TIMEOUT" default:"10s"`
 }
 
 func (c *LoggingConfig) SetupLogger() *slog.Logger {
