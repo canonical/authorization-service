@@ -5,7 +5,7 @@ import (
     "fmt"
     "log/slog"
 
-    "github.com/canonical/authorization-service/internal/integrations/openfga"
+    "github.com/canonical/authorization-service/internal/integration/openfga"
 )
 
 type ServiceInterface interface {

@@ -10,10 +10,10 @@ import (
     "github.com/kelseyhightower/envconfig"
     "github.com/spf13/cobra"
 
-    "github.com/canonical/authorization-service/internal/config"
-    "github.com/canonical/authorization-service/internal/server/grpc"
-    "github.com/canonical/authorization-service/internal/server/rest"
+    "github.com/canonical/authorization-service/config"
     "github.com/canonical/authorization-service/internal/version"
+    "github.com/canonical/authorization-service/server/grpc"
+    "github.com/canonical/authorization-service/server/rest"
 )
 
 // serveCmd represents the serve command

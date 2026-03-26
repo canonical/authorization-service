@@ -36,3 +36,4 @@ vendor
 # .vscode/
 /*.rock
 k8s/dev-setup/k8s-bridge.env
+/cov_repo.html

@@ -9,12 +9,14 @@ import (
     "google.golang.org/grpc"
 
     stsv1 "github.com/canonical/authorization-service/client/v1/sts"
-    "github.com/canonical/authorization-service/internal/config"
-    "github.com/canonical/authorization-service/internal/integrations/nats"
-    "github.com/canonical/authorization-service/internal/integrations/openfga"
-    "github.com/canonical/authorization-service/internal/integrations/postgres"
-    "github.com/canonical/authorization-service/internal/integrations/sts"
-    "github.com/canonical/authorization-service/internal/integrations/valkey"
+    "github.com/canonical/authorization-service/config"
+    "github.com/canonical/authorization-service/internal/integration/nats"
+    "github.com/canonical/authorization-service/internal/integration/openfga"
+    "github.com/canonical/authorization-service/internal/integration/postgres"
+    "github.com/canonical/authorization-service/internal/integration/sts"
+    "github.com/canonical/authorization-service/internal/integration/valkey"
+    "github.com/canonical/authorization-service/internal/repository"
+    "github.com/canonical/authorization-service/internal/rule"
     "github.com/canonical/authorization-service/internal/service/authz"
     "github.com/canonical/authorization-service/internal/service/permissions"
 )
@@ -33,19 +35,25 @@ type Services struct {
 
 // Integrations holds all external service clients
 type Integrations struct {
-    OpenFGA  openfga.ClientInterface
-    NATS     nats.EventClientInterface
-    Valkey   valkey.CacheClientInterface
-    STS      stsv1.SecurityTokenServiceClient
-    Postgres postgres.DBClientInterface
-    stsConn  ClosableClientConnInterface
+    OpenFGA    openfga.ClientInterface
+    OpenFGASDK openfga.OpenFGAClientInterface
+    NATS       nats.EventClientInterface
+    Valkey     valkey.CacheClientInterface
+    STS        stsv1.SecurityTokenServiceClient
+    Postgres   postgres.DBClientInterface
+    stsConn    ClosableClientConnInterface
 }
 
 func (i *Integrations) initializeServices(tracer trace.Tracer, serviceLogger *slog.Logger) *Services {
+    ruleRepo := repository.NewPostgresRuleRepository(i.Postgres)
+    matcher := rule.NewRuleMatcher()
+    resolver := rule.NewTupleResolver()
+    resourceMapper := rule.NewResourceMapper(ruleRepo, matcher, resolver)
+
     return &Services{
         Permissions:   permissions.NewService(i.Valkey, i.NATS, serviceLogger),
         Authz:         authz.NewService(i.OpenFGA, serviceLogger),
-        ExternalAuthz: authz.NewExternalAuthzService(i.STS, serviceLogger, tracer),
+        ExternalAuthz: authz.NewExternalAuthzService(i.STS, resourceMapper, i.OpenFGASDK, serviceLogger, tracer),
     }
 }
 

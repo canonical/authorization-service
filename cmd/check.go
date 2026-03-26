@@ -10,7 +10,7 @@ import (
     "github.com/kelseyhightower/envconfig"
     "github.com/spf13/cobra"
 
-    "github.com/canonical/authorization-service/internal/config"
+    "github.com/canonical/authorization-service/config"
 )
 
 var (

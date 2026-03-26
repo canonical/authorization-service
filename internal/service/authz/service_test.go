@@ -1,5 +1,5 @@
-//go:generate mockgen -source=../../integrations/openfga/client.go -destination=mocks/mock_openfga.go -package=authz
-//go:generate mockgen -source=../../integrations/valkey/client.go -destination=mocks/mock_valkey.go -package=authz
+//go:generate mockgen -source=../../integration/openfga/client.go -destination=mocks/mock_openfga.go -package=authz
+//go:generate mockgen -source=../../integration/valkey/client.go -destination=mocks/mock_valkey.go -package=authz
 //go:generate mockgen -source=../../../client/v1/sts/sts_grpc.pb.go -destination=mocks/mock_sts.go -package=authz
 
 package authz
@@ -12,11 +12,12 @@ import (
 
     gomock "go.uber.org/mock/gomock"
 
-    "github.com/canonical/authorization-service/internal/integrations/openfga"
+    "github.com/canonical/authorization-service/internal/integration/openfga"
     authz "github.com/canonical/authorization-service/internal/service/authz/mocks"
 )
 
 func testLogger(t *testing.T) *slog.Logger {
+    t.Helper()
     return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 

@@ -10,7 +10,7 @@ import (
     "google.golang.org/grpc/health/grpc_health_v1"
     "google.golang.org/grpc/reflection"
 
-    "github.com/canonical/authorization-service/internal/config"
+    "github.com/canonical/authorization-service/config"
     "github.com/canonical/authorization-service/internal/service/authz"
     "github.com/canonical/authorization-service/internal/service/permissions"
 )

@@ -26,6 +26,12 @@ func (c *NoopClient) Check(ctx context.Context, req *CheckRequest) (*CheckRespon
     return &CheckResponse{Allowed: true}, nil
 }
 
+// BatchCheck performs a no-op batch authorization check (always returns allowed)
+func (c *NoopClient) BatchCheck(ctx context.Context, reqs ...*CheckRequest) (*CheckResponse, error) {
+    c.logger.Debug("NoopClient: BatchCheck called", "count", len(reqs))
+    return &CheckResponse{Allowed: true}, nil
+}
+
 // Write performs a no-op write
 func (c *NoopClient) Write(ctx context.Context, req *WriteRequest) (*WriteResponse, error) {
     c.logger.Debug("NoopClient: Write called", "writes", len(req.Writes), "deletes", len(req.Deletes))

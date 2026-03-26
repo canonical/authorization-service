@@ -10,7 +10,7 @@ import (
     "github.com/testcontainers/testcontainers-go"
     "github.com/testcontainers/testcontainers-go/wait"
 
-    "github.com/canonical/authorization-service/internal/integrations/nats"
+    "github.com/canonical/authorization-service/internal/integration/nats"
 )
 
 // StartNATSContainer starts a NATS container for integration tests
