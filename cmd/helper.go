@@ -1,10 +1,12 @@
 package cmd
 
 import (
+    "context"
     "fmt"
     "io"
     "log/slog"
 
+    "github.com/coreos/go-oidc/v3/oidc"
     "go.opentelemetry.io/otel/trace"
     "google.golang.org/grpc"
 
@@ -15,10 +17,10 @@ import (
     "github.com/canonical/authorization-service/internal/integration/postgres"
     "github.com/canonical/authorization-service/internal/integration/sts"
     "github.com/canonical/authorization-service/internal/integration/valkey"
-    "github.com/canonical/authorization-service/internal/repository"
-    "github.com/canonical/authorization-service/internal/rule"
+    ruleRepository "github.com/canonical/authorization-service/internal/repository"
     "github.com/canonical/authorization-service/internal/service/authz"
     "github.com/canonical/authorization-service/internal/service/permissions"
+    "github.com/canonical/authorization-service/internal/service/rules"
 )
 
 type ClosableClientConnInterface interface {
@@ -35,13 +37,15 @@ type Services struct {
 
 // Integrations holds all external service clients
 type Integrations struct {
+    JwkSetUrl  string
     OpenFGA    openfga.ClientInterface
     OpenFGASDK openfga.OpenFGAClientInterface
     NATS       nats.EventClientInterface
     Valkey     valkey.CacheClientInterface
     STS        stsv1.SecurityTokenServiceClient
     Postgres   postgres.DBClientInterface
-    stsConn    ClosableClientConnInterface
+
+    stsConn ClosableClientConnInterface
 }
 
 func (i *Integrations) initializeServices(tracer trace.Tracer, serviceLogger *slog.Logger) *Services {
@@ -59,7 +63,7 @@ func (i *Integrations) initializeServices(tracer trace.Tracer, serviceLogger *sl
 
 func initializeIntegrations(cfg *config.Config, logger *slog.Logger, tracer trace.Tracer) (*Integrations, error) {
     var err error
-    integrations := &Integrations{}
+    integrations := &Integrations{JwkSetUrl: cfg.ExtAuthzService.JwkSetURL}
 
     // Initialize OpenFGA
     if cfg.OpenFGA.Enabled {

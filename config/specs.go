@@ -24,14 +24,15 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-    Server    *ServerConfig    `validate:"required"`
-    OpenFGA   *OpenFGAConfig   `validate:"required"`
-    NATS      *NATSConfig      `validate:"required"`
-    Valkey    *ValkeyConfig    `validate:"required"`
-    STS       *STSConfig       `validate:"required"`
-    Postgres  *PostgresConfig  `validate:"required"`
-    Logging   *LoggingConfig   `validate:"required"`
-    Telemetry *TelemetryConfig `validate:"required"`
+    Server          *ServerConfig          `validate:"required"`
+    ExtAuthzService *ExtAuthzServiceConfig `validate:"required"`
+    OpenFGA         *OpenFGAConfig         `validate:"required"`
+    NATS            *NATSConfig            `validate:"required"`
+    Valkey          *ValkeyConfig          `validate:"required"`
+    STS             *STSConfig             `validate:"required"`
+    Postgres        *PostgresConfig        `validate:"required"`
+    Logging         *LoggingConfig         `validate:"required"`
+    Telemetry       *TelemetryConfig       `validate:"required"`
 }
 
 // ServerConfig contains server configuration
@@ -41,6 +42,10 @@ type ServerConfig struct {
     Host                    string        `validate:"required" env:"SERVER_HOST" default:"0.0.0.0"`
     GracefulShutdownTimeout time.Duration `validate:"" env:"SERVER_SHUTDOWN_TIMEOUT" default:"15s"`
     Development             bool          `validate:"required" env:"DEV" default:"false"`
+}
+
+type ExtAuthzServiceConfig struct {
+    JwkSetURL string `validate:"required,http_url" env:"EXTAUTHZ_JWK_SET_URL" default:"http://localhost:9091/.well-known/jwks.json"`
 }
 
 // GetGRPCAddress returns the full gRPC server address
