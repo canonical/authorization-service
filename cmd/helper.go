@@ -1,12 +1,13 @@
 package cmd
 
 import (
-    "context"
     "fmt"
     "io"
     "log/slog"
 
     "github.com/coreos/go-oidc/v3/oidc"
+    "github.com/openfga/go-sdk/client"
+    "github.com/openfga/go-sdk/credentials"
     "go.opentelemetry.io/otel/trace"
     "google.golang.org/grpc"
 
@@ -37,28 +38,14 @@ type Services struct {
 
 // Integrations holds all external service clients
 type Integrations struct {
-    JwkSetUrl  string
-    OpenFGA    openfga.ClientInterface
-    OpenFGASDK openfga.OpenFGAClientInterface
-    NATS       nats.EventClientInterface
-    Valkey     valkey.CacheClientInterface
-    STS        stsv1.SecurityTokenServiceClient
-    Postgres   postgres.DBClientInterface
+    JwkSetUrl string
+    OpenFGA   openfga.OpenFGAClientInterface
+    NATS      nats.EventClientInterface
+    Valkey    valkey.CacheClientInterface
+    STS       stsv1.SecurityTokenServiceClient
+    Postgres  postgres.DBClientInterface
 
     stsConn ClosableClientConnInterface
-}
-
-func (i *Integrations) initializeServices(tracer trace.Tracer, serviceLogger *slog.Logger) *Services {
-    ruleRepo := repository.NewPostgresRuleRepository(i.Postgres)
-    matcher := rule.NewRuleMatcher()
-    resolver := rule.NewTupleResolver()
-    resourceMapper := rule.NewResourceMapper(ruleRepo, matcher, resolver)
-
-    return &Services{
-        Permissions:   permissions.NewService(i.Valkey, i.NATS, serviceLogger),
-        Authz:         authz.NewService(i.OpenFGA, serviceLogger),
-        ExternalAuthz: authz.NewExternalAuthzService(i.STS, resourceMapper, i.OpenFGASDK, serviceLogger, tracer),
-    }
 }
 
 func initializeIntegrations(cfg *config.Config, logger *slog.Logger, tracer trace.Tracer) (*Integrations, error) {
@@ -67,18 +54,31 @@ func initializeIntegrations(cfg *config.Config, logger *slog.Logger, tracer trac
 
     // Initialize OpenFGA
     if cfg.OpenFGA.Enabled {
-        integrations.OpenFGA, err = openfga.NewOpenFGAClient(
-            cfg.OpenFGA.Address,
-            cfg.OpenFGA.StoreID,
-            cfg.OpenFGA.AuthKey,
-            cfg.OpenFGA.UseTLS,
-            logger,
-        )
-
+        creds, err := credentials.NewCredentials(credentials.Credentials{
+            Method: credentials.CredentialsMethodApiToken,
+            Config: &credentials.Config{
+                ApiToken: cfg.OpenFGA.ApiKey,
+            },
+        })
         if err != nil {
-            return nil, fmt.Errorf("failed to create OpenFGA client: %w", err)
+            return nil, fmt.Errorf("error loading OpenFGA auth credentials: %v", err)
         }
 
+        openfgaClient, err := client.NewSdkClient(
+            &client.ClientConfiguration{
+                ApiUrl:      cfg.OpenFGA.Address,
+                Credentials: creds,
+            },
+        )
+        if err != nil {
+            return nil, fmt.Errorf("failed to create OpenFGA SDK client: %w", err)
+        }
+
+        if err := openfgaClient.SetStoreId(cfg.OpenFGA.StoreID); err != nil {
+            return nil, fmt.Errorf("failed to set OpenFGA store ID: %w", err)
+        }
+
+        integrations.OpenFGA = openfgaClient
     } else {
         logger.Info("OpenFGA disabled, using no-op client")
         integrations.OpenFGA = openfga.NewNoopClient(logger)
@@ -182,13 +182,38 @@ func initializeIntegrations(cfg *config.Config, logger *slog.Logger, tracer trac
     return integrations, nil
 }
 
+func (i *Integrations) initializeServices(tracer trace.Tracer, serviceLogger *slog.Logger) (*Services, error) {
+    ruleRepo := ruleRepository.NewPostgresRuleRepository(i.Postgres)
+    matcher := rules.NewRuleMatcher()
+    resolver := rules.NewTupleResolver()
+    resourceMapper := rules.NewResourceMapper(ruleRepo, matcher, resolver)
+
+    /*provider, err := oidc.NewProvider(context.Background(), i.JwkSetUrl)
+      if err != nil {
+          serviceLogger.Error("Failed to create OIDC provider", "error", err)
+          return nil, err
+      }
+
+      verifier := provider.Verifier(&oidc.Config{
+          SkipClientIDCheck: true,
+      })*/
+
+    var verifier *oidc.IDTokenVerifier = nil
+
+    return &Services{
+        Permissions:   permissions.NewService(i.Valkey, i.NATS, serviceLogger),
+        Authz:         authz.NewService(i.OpenFGA, serviceLogger),
+        ExternalAuthz: authz.NewExternalAuthzService(verifier, i.STS, resourceMapper, i.OpenFGA, serviceLogger, tracer),
+    }, nil
+}
+
 func (i *Integrations) cleanupIntegrations(logger *slog.Logger) {
 
-    if i.OpenFGA != nil {
+    /*if i.OpenFGA != nil {
         if err := i.OpenFGA.Close(); err != nil {
             logger.Error("Failed to close OpenFGA client", "error", err)
         }
-    }
+    }*/
 
     if i.NATS != nil {
         if err := i.NATS.Close(); err != nil {
