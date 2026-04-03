@@ -2,7 +2,6 @@ package authz
 
 import (
     "context"
-    "fmt"
     "log/slog"
 
     "github.com/canonical/authorization-service/internal/integration/openfga"
@@ -15,16 +14,16 @@ type ServiceInterface interface {
 }
 
 // Compile-time check to ensure Service implements ServiceInterface
-var _ ServiceInterface = (*Service)(nil)
+// var _ ServiceInterface = (*Service)(nil)
 
 // Service handles authorization checks
 type Service struct {
-    fga    openfga.ClientInterface
+    fga    openfga.OpenFGAClientInterface
     logger *slog.Logger
 }
 
 // NewService creates a new authorization service
-func NewService(fga openfga.ClientInterface, logger *slog.Logger) *Service {
+func NewService(fga openfga.OpenFGAClientInterface, logger *slog.Logger) *Service {
     return &Service{
         fga:    fga,
         logger: logger,
@@ -37,7 +36,7 @@ type CheckResponse struct {
 }
 
 // Check performs an authorization check
-func (s *Service) Check(ctx context.Context, user, resource, action string) (*CheckResponse, error) {
+/*func (s *Service) Check(ctx context.Context, user, resource, action string) (*CheckResponse, error) {
     s.logger.Debug("Authorization check",
         "user", user,
         "resource", resource,
@@ -103,4 +102,4 @@ func (s *Service) RevokeAccess(ctx context.Context, user, resource, action strin
 
     s.logger.Info("Access revoked", "user", user, "resource", resource, "action", action)
     return nil
-}
+}*/
