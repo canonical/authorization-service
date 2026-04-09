@@ -1,12 +1,13 @@
 package cmd
 
 import (
-    "fmt"
-    "os"
+	"fmt"
+	"os"
 
-    "github.com/spf13/cobra"
+	"github.com/spf13/cobra"
 
-    "github.com/canonical/authorization-service/internal/version"
+	"github.com/canonical/authorization-service/cmd/authz"
+	"github.com/canonical/authorization-service/internal/version"
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -36,6 +37,7 @@ func Execute() {
 }
 
 func init() {
-    rootCmd.AddCommand(serveCmd)
-    rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(serveCmd)
+	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(authz.Command)
 }

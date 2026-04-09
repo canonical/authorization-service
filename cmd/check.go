@@ -65,7 +65,7 @@ func runCheck(cmd *cobra.Command, args []string) error {
     }
     defer integrations.cleanupIntegrations(logger)
 
-    services := integrations.initializeServices(tracer, logger)
+    services, _ := integrations.initializeServices(tracer, logger)
 
     // Build a mock CheckRequest
     checkReq := &authv3.CheckRequest{
