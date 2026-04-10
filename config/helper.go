@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -31,7 +32,6 @@ type ClosableClientConnInterface interface {
 // Services holds all business logic services
 type Services struct {
 	Permissions   *permissions.Service
-	Authz         *authz.Service
 	ExternalAuthz *authz.ExternalAuthzService
 }
 
@@ -189,21 +189,18 @@ func (i *Integrations) InitializeServices(tracer trace.Tracer, serviceLogger *sl
 	resolver := rules.NewTupleResolver()
 	resourceMapper := rules.NewResourceMapper(ruleRepo, matcher, resolver)
 
-	/*provider, err := oidc.NewProvider(context.Background(), i.jwkSetUrl)
-	  if err != nil {
-	      serviceLogger.Error("Failed to create OIDC provider", "error", err)
-	      return nil, err
-	  }
+	provider, err := oidc.NewProvider(context.Background(), i.jwkSetUrl)
+	if err != nil {
+		serviceLogger.Error("Failed to create OIDC provider", "error", err)
+		return nil, err
+	}
 
-	  verifier := provider.Verifier(&oidc.Config{
-	      SkipClientIDCheck: true,
-	  })*/
-
-	var verifier *oidc.IDTokenVerifier = nil
+	verifier := provider.Verifier(&oidc.Config{
+		SkipClientIDCheck: true,
+	})
 
 	return &Services{
 		Permissions:   permissions.NewService(i.Valkey, i.NATS, serviceLogger),
-		Authz:         authz.NewService(i.OpenFGA, serviceLogger),
 		ExternalAuthz: authz.NewExternalAuthzService(verifier, i.STS, resourceMapper, i.OpenFGA, serviceLogger, tracer),
 	}, nil
 }

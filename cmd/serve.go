@@ -64,7 +64,6 @@ func serve(cmd *cobra.Command, args []string) error {
 		cfg.Server,
 		logger,
 		grpc.WithPermissionsService(services.Permissions),
-		grpc.WithAuthzService(services.Authz),
 		grpc.WithExternalAuthz(services.ExternalAuthz),
 	)
 	if err != nil {
