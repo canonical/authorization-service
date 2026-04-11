@@ -30,7 +30,7 @@ func NewPostgresRuleRepository(db postgres.DBClientInterface) *PostgresRuleRepos
 }
 
 // buildFindCandidatesQuery builds the SQL query for finding candidate rules using Squirrel.
-func (r *PostgresRuleRepository) buildFindCandidatesQuery(method, path string, segmentCount int) (string, []interface{}, error) {
+func (r *PostgresRuleRepository) buildFindCandidatesQuery(method string, pathPrefixes []string, segmentCount int) (string, []interface{}, error) {
 	return r.db.Builder().
 		Select(
 			"r.id", "r.service_id", "r.method", "r.segment_count", "r.static_prefix", "r.path_regex", "r.priority",
@@ -39,7 +39,7 @@ func (r *PostgresRuleRepository) buildFindCandidatesQuery(method, path string, s
 		From("authorization_rule r").
 		Join("authorization_rule_tuple t ON t.rule_id = r.id").
 		Where(sq.Eq{"r.method": method}).
-		Where(sq.Expr("starts_with(?, r.static_prefix)", path)).
+		Where(sq.Expr("r.static_prefix = ANY(?)", pathPrefixes)).
 		Where(sq.LtOrEq{"r.segment_count": segmentCount}).
 		OrderBy("r.priority ASC").
 		ToSql()
@@ -47,9 +47,14 @@ func (r *PostgresRuleRepository) buildFindCandidatesQuery(method, path string, s
 
 // FindCandidates retrieves candidate rules (with their tuples) for the given HTTP method and path.
 func (r *PostgresRuleRepository) FindCandidates(ctx context.Context, method, path string) ([]*rules.RuleWithTuples, error) {
-	segmentCount := countSegments(path)
+	if method == "" || path == "" {
+		return nil, fmt.Errorf("method and path cannot be empty")
+	}
 
-	query, args, err := r.buildFindCandidatesQuery(method, path, segmentCount)
+	segmentCount := countSegments(path)
+	pathPrefixes := buildPrefixes(path, segmentCount)
+
+	query, args, err := r.buildFindCandidatesQuery(method, pathPrefixes, segmentCount)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build rule candidates query: %w", err)
 	}
@@ -61,6 +66,46 @@ func (r *PostgresRuleRepository) FindCandidates(ctx context.Context, method, pat
 	defer rows.Close()
 
 	return scanRulesWithTuples(rows)
+}
+
+// buildPrefixes returns all cumulative prefixes of a path.
+//
+// Every intermediate segment boundary is represented with a trailing slash,
+// matching how static_prefix values are stored in the database when the next
+// segment is dynamic (e.g. "/api/v1/groups/" for a rule like
+// "/api/v1/groups/{groupID}/member").
+// The final entry is the full path as-is: with a trailing slash if the caller
+// supplied one, without otherwise.
+//
+// Example
+//
+//	/api/v1/groups/group-id-1 -> ["/api/", "/api/v1/", "/api/v1/groups/", "/api/v1/groups/group-id-1"]
+func buildPrefixes(path string, segments int) []string {
+	if path == "/" {
+		return []string{"/"}
+	}
+
+	// avoid reallocations by using a number that will be 100% sufficient
+	prefixes := make([]string, 0, segments+1)
+
+	start := 0
+	if path[0] == '/' {
+		start = 1
+	}
+
+	for i := start; i < len(path); i++ {
+		if path[i] == '/' {
+			prefixes = append(prefixes, path[:i+1]) // intermediate prefix WITH trailing slash
+		}
+	}
+
+	// Append the full path only when it is not already covered by the last
+	// intermediate prefix (i.e. the original path did not end with a slash).
+	if path[len(path)-1] != '/' {
+		prefixes = append(prefixes, path)
+	}
+
+	return prefixes
 }
 
 // countSegments counts the number of non-empty path segments in a URL path.
