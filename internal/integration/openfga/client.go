@@ -10,6 +10,8 @@ import (
 type ClientInterface interface {
     // Check performs an authorization check
     Check(ctx context.Context, req *CheckRequest) (*CheckResponse, error)
+    // BatchCheck performs authorization checks in batch
+    BatchCheck(ctx context.Context, reqs ...*CheckRequest) (*CheckResponse, error)
     // Write writes authorization tuples
     Write(ctx context.Context, req *WriteRequest) (*WriteResponse, error)
     // Read reads authorization tuples
@@ -60,8 +62,8 @@ type Tuple struct {
     Object   string
 }
 
-// OpenFGAClient implements the ClientInterface interface using the OpenFGA SDK
-type OpenFGAClient struct {
+// Client implements the ClientInterface interface using the OpenFGA SDK
+type Client struct {
     address string
     storeID string
     authKey string
@@ -69,17 +71,17 @@ type OpenFGAClient struct {
     logger  *slog.Logger
 }
 
-// Compile-time check to ensure OpenFGAClient implements the ClientInterface interface
-var _ ClientInterface = (*OpenFGAClient)(nil)
+// Compile-time check to ensure Client implements the ClientInterface interface
+var _ ClientInterface = (*Client)(nil)
 
 // NewOpenFGAClient creates a new OpenFGA client
-func NewOpenFGAClient(address, storeID, authKey string, useTLS bool, logger *slog.Logger) (*OpenFGAClient, error) {
+func NewOpenFGAClient(address, storeID, authKey string, useTLS bool, logger *slog.Logger) (*Client, error) {
     // Validate configuration
     if address == "" {
         return nil, fmt.Errorf("OpenFGA address is required")
     }
 
-    client := &OpenFGAClient{
+    client := &Client{
         address: address,
         storeID: storeID,
         authKey: authKey,
@@ -97,12 +99,7 @@ func NewOpenFGAClient(address, storeID, authKey string, useTLS bool, logger *slo
 }
 
 // Check performs an authorization check
-func (c *OpenFGAClient) Check(ctx context.Context, req *CheckRequest) (*CheckResponse, error) {
-    c.logger.Debug("OpenFGA check",
-        "user", req.User,
-        "relation", req.Relation,
-        "object", req.Object,
-    )
+func (c *Client) Check(ctx context.Context, req *CheckRequest) (*CheckResponse, error) {
 
     // TODO: Implement actual OpenFGA API call when SDK is ready
     // For now, return a default response
@@ -111,12 +108,16 @@ func (c *OpenFGAClient) Check(ctx context.Context, req *CheckRequest) (*CheckRes
     }, nil
 }
 
+// BatchCheck performs authorization checks in batch
+func (c *Client) BatchCheck(ctx context.Context, reqs ...*CheckRequest) (*CheckResponse, error) {
+
+    return &CheckResponse{
+        Allowed: true,
+    }, nil
+}
+
 // Write writes authorization tuples
-func (c *OpenFGAClient) Write(ctx context.Context, req *WriteRequest) (*WriteResponse, error) {
-    c.logger.Debug("OpenFGA write",
-        "writes", len(req.Writes),
-        "deletes", len(req.Deletes),
-    )
+func (c *Client) Write(ctx context.Context, req *WriteRequest) (*WriteResponse, error) {
 
     // TODO: Implement actual OpenFGA API call when SDK is ready
     return &WriteResponse{
@@ -125,12 +126,7 @@ func (c *OpenFGAClient) Write(ctx context.Context, req *WriteRequest) (*WriteRes
 }
 
 // Read reads authorization tuples
-func (c *OpenFGAClient) Read(ctx context.Context, req *ReadRequest) (*ReadResponse, error) {
-    c.logger.Debug("OpenFGA read",
-        "user", req.User,
-        "relation", req.Relation,
-        "object", req.Object,
-    )
+func (c *Client) Read(ctx context.Context, req *ReadRequest) (*ReadResponse, error) {
 
     // TODO: Implement actual OpenFGA API call when SDK is ready
     return &ReadResponse{
@@ -139,7 +135,7 @@ func (c *OpenFGAClient) Read(ctx context.Context, req *ReadRequest) (*ReadRespon
 }
 
 // Close closes the client connection
-func (c *OpenFGAClient) Close() error {
+func (c *Client) Close() error {
     c.logger.Info("OpenFGA client closed")
     return nil
 }

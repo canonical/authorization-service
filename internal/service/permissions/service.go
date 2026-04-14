@@ -9,8 +9,8 @@ import (
 
     "github.com/google/uuid"
 
-    "github.com/canonical/authorization-service/internal/integrations/nats"
-    "github.com/canonical/authorization-service/internal/integrations/valkey"
+    "github.com/canonical/authorization-service/internal/integration/nats"
+    "github.com/canonical/authorization-service/internal/integration/valkey"
 )
 
 type ServiceInterface interface {

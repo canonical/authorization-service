@@ -6,6 +6,7 @@
 *.exe~
 *.dll
 *.so
+!docker/dependencies/postgres/pg_uuidv7.so
 *.dylib
 
 # Binaries for development setup
@@ -36,3 +37,4 @@ vendor
 # .vscode/
 /*.rock
 k8s/dev-setup/k8s-bridge.env
+/cov_repo.html

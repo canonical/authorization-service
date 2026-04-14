@@ -1,0 +1,14 @@
+model
+  schema 1.1
+
+type user
+
+type group
+  relations
+    define member: [user]
+    define read: [user]
+    define write: [user]
+
+type platform
+  relations
+    define admin: [user]

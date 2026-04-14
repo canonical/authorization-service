@@ -96,3 +96,9 @@ profiles:
   deploy:
     kubectl:
       defaultNamespace: istio-system
+
+- name: fake-webserver
+  manifests:
+    rawYaml:
+    - k8s/fake-server/webserver.yaml
+    - k8s/fake-server/authz-policy.yaml
