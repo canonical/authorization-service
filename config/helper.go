@@ -189,13 +189,8 @@ func (i *Integrations) InitializeServices(tracer trace.Tracer, serviceLogger *sl
 	resolver := rules.NewTupleResolver()
 	resourceMapper := rules.NewResourceMapper(ruleRepo, matcher, resolver)
 
-	provider, err := oidc.NewProvider(context.Background(), i.jwkSetUrl)
-	if err != nil {
-		serviceLogger.Error("Failed to create OIDC provider", "error", err)
-		return nil, err
-	}
-
-	verifier := provider.Verifier(&oidc.Config{
+	keySet := oidc.NewRemoteKeySet(context.Background(), i.jwkSetUrl)
+	verifier := oidc.NewVerifier("", keySet, &oidc.Config{
 		SkipClientIDCheck: true,
 	})
 
