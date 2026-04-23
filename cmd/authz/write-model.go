@@ -79,9 +79,6 @@ func parseDSLToWriteRequest(dsl string) (*openfga.WriteAuthorizationModelRequest
 
 // writeAuthorizationModel writes the authorization model to OpenFGA
 func writeAuthorizationModel(ctx context.Context, storeID string, cfg *config.Config, logger *slog.Logger) error {
-	if !cfg.OpenFGA.Enabled {
-		return fmt.Errorf("OpenFGA is not enabled in configuration")
-	}
 
 	if storeID == "" {
 		return fmt.Errorf("store-id is required")

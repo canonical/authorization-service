@@ -8,7 +8,7 @@ spec:
   - cerberus.dev.external
   location: MESH_EXTERNAL
   ports:
-  - number: 9090
+  - number: 9091
     name: grpc
     protocol: GRPC
   resolution: STATIC

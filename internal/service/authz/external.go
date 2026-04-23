@@ -113,9 +113,9 @@ func (s *ExternalAuthzService) Check(ctx context.Context, req *envoyAuth.CheckRe
 
 	userIdentity, err := s.extractJWTSubject(ctx, exchangeResp.GetAccessToken())
 	if err != nil || userIdentity == "" {
-		s.logger.Debug("Could not extract subject from JWT, skipping authorization check", "error", err)
+		s.logger.Debug("Failed to extract subject from JWT", "error", err)
 		// If there is no explicit subject, we can't perform an authz check.
-		return okResponse(exchangeResp.AccessToken), nil
+		return unauthorized("no subject in JWT"), nil
 	}
 
 	tuples, err := s.resourceMapper.Map(ctx, userIdentity, method, path)

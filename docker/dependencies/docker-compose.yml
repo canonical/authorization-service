@@ -6,7 +6,7 @@ services:
       dockerfile: Dockerfile
     container_name: authz-postgres
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       - POSTGRES_DB=openfga
       - POSTGRES_USER=cerberus
@@ -48,7 +48,7 @@ services:
       retries: 5
 
   migrateopenfga:
-    image: openfga/openfga:v1.14
+    image: openfga/openfga:v1.14.1
     container_name: migrateopenfga
     command: migrate --datastore-engine postgres --datastore-uri 'postgresql://cerberus:password@postgres/openfga?sslmode=disable'
     depends_on:
@@ -66,45 +66,6 @@ services:
         condition: service_healthy
     networks:
       - authz-network
-
-  # Secure Token Service (STS) TODO: use the image
-#  sts:
-#    build:
-#      context: ../../secure-token-service
-#      dockerfile: Dockerfile
-#    container_name: sts
-#    ports:
-#      - "9091:9090"
-#      - "9092:8080"
-#    environment:
-#      # Cache (Valkey) configuration
-#      CACHE_ADDR: "valkey:6379"
-#      CACHE_PASSWORD: ""
-#      CACHE_DB: "0"
-#
-#      # Server configuration
-#      HTTP_PORT: "8080"
-#      GRPC_PORT: "9090"
-#
-#      # JWT configuration
-#      JWT_ISSUER: "session-service"
-#      JWT_AUDIENCE: "internal-services"
-#      JWT_EXPIRY: "3600"
-#
-#      # Cookie Encryption
-#      COOKIE_HASH_KEY: "0123456789012345678901234567890123456789012345678901234567890123"
-#      COOKIE_BLOCK_KEY: "01234567890123456789012345678901"
-#
-#      # OIDC Configuration (Update with your provider)
-#      OIDC_PROVIDER_URL: "https://accounts.google.com"
-#      OIDC_CLIENT_ID: "your-client-id"
-#      OIDC_CLIENT_SECRET: "your-client-secret"
-#      OIDC_REDIRECT_URL: "http://localhost:8080/auth/callback"
-#
-#      # Database configuration
-#      DATABASE_URL: "postgres://cerberus:password@postgres:5432/sts?sslmode=disable"
-#    networks:
-#      - authz-network
 
   # Valkey
   valkey:

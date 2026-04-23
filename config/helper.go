@@ -52,38 +52,33 @@ func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Trace
 	integrations := &Integrations{jwkSetUrl: cfg.ExtAuthzService.JwkSetURL}
 
 	// Initialize OpenFGA
-	if cfg.OpenFGA.Enabled {
-		creds, err := credentials.NewCredentials(credentials.Credentials{
-			Method: credentials.CredentialsMethodApiToken,
-			Config: &credentials.Config{
-				ApiToken: cfg.OpenFGA.ApiKey,
-			},
-		})
-		if err != nil {
-			return nil, fmt.Errorf("error loading OpenFGA auth credentials: %v", err)
-		}
-
-		openfgaClient, err := client.NewSdkClient(
-			&client.ClientConfiguration{
-				ApiUrl:               cfg.OpenFGA.Address,
-				Credentials:          creds,
-				AuthorizationModelId: cfg.OpenFGA.AuthorizationModelID,
-				Telemetry:            nil,
-			},
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create OpenFGA SDK client: %w", err)
-		}
-
-		if err := openfgaClient.SetStoreId(cfg.OpenFGA.StoreID); err != nil {
-			return nil, fmt.Errorf("failed to set OpenFGA store ID: %w", err)
-		}
-
-		integrations.OpenFGA = openfgaClient
-	} else {
-		logger.Info("OpenFGA disabled, using no-op client")
-		integrations.OpenFGA = openfga.NewNoopClient(logger)
+	creds, err := credentials.NewCredentials(credentials.Credentials{
+		Method: credentials.CredentialsMethodApiToken,
+		Config: &credentials.Config{
+			ApiToken: cfg.OpenFGA.ApiKey,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error loading OpenFGA auth credentials: %v", err)
 	}
+
+	openfgaClient, err := client.NewSdkClient(
+		&client.ClientConfiguration{
+			ApiUrl:               cfg.OpenFGA.Address,
+			Credentials:          creds,
+			AuthorizationModelId: cfg.OpenFGA.AuthorizationModelID,
+			Telemetry:            nil,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create OpenFGA SDK client: %w", err)
+	}
+
+	if err := openfgaClient.SetStoreId(cfg.OpenFGA.StoreID); err != nil {
+		return nil, fmt.Errorf("failed to set OpenFGA store ID: %w", err)
+	}
+
+	integrations.OpenFGA = openfgaClient
 
 	// Initialize NATS
 	if cfg.NATS.Enabled {
@@ -134,51 +129,39 @@ func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Trace
 	}
 
 	// Initialize Postgres
-	if cfg.Postgres.Enabled {
-		integrations.Postgres, err = postgres.NewClient(
-			postgres.Config{
-				Host:            cfg.Postgres.Host,
-				Port:            cfg.Postgres.Port,
-				User:            cfg.Postgres.User,
-				Password:        cfg.Postgres.Password,
-				DBName:          cfg.Postgres.DBName,
-				SSLMode:         cfg.Postgres.SSLMode,
-				MaxOpenConns:    cfg.Postgres.MaxOpenConns,
-				MaxIdleConns:    cfg.Postgres.MaxIdleConns,
-				ConnMaxLifetime: cfg.Postgres.ConnMaxLifetime,
-				ConnMaxIdleTime: cfg.Postgres.ConnMaxIdleTime,
-				ConnectTimeout:  cfg.Postgres.ConnectTimeout,
-			},
-			logger,
-			tracer,
-		)
+	integrations.Postgres, err = postgres.NewClient(
+		postgres.Config{
+			Host:            cfg.Postgres.Host,
+			Port:            cfg.Postgres.Port,
+			User:            cfg.Postgres.User,
+			Password:        cfg.Postgres.Password,
+			DBName:          cfg.Postgres.DBName,
+			SSLMode:         cfg.Postgres.SSLMode,
+			MaxOpenConns:    cfg.Postgres.MaxOpenConns,
+			MaxIdleConns:    cfg.Postgres.MaxIdleConns,
+			ConnMaxLifetime: cfg.Postgres.ConnMaxLifetime,
+			ConnMaxIdleTime: cfg.Postgres.ConnMaxIdleTime,
+			ConnectTimeout:  cfg.Postgres.ConnectTimeout,
+		},
+		logger,
+		tracer,
+	)
 
-		if err != nil {
-			return nil, fmt.Errorf("failed to create Postgres client: %w", err)
-		}
-
-	} else {
-		logger.Info("Postgres disabled, using no-op client")
-		integrations.Postgres = postgres.NewNoopClient(logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Postgres client: %w", err)
 	}
 
 	// Initialize STS
-	if cfg.STS.Enabled {
-		integrations.stsConn, err = cfg.STS.CreateSTSConnection()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create STS connection: %w", err)
-		}
-
-		integrations.STS = sts.NewSTSClientWrapper(
-			stsv1.NewSecurityTokenServiceClient(integrations.stsConn),
-			logger,
-			tracer,
-		)
-
-	} else {
-		logger.Info("STS disabled, using no-op client")
-		integrations.STS = sts.NewNoopClient(logger)
+	integrations.stsConn, err = cfg.STS.CreateSTSConnection()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create STS connection: %w", err)
 	}
+
+	integrations.STS = sts.NewSTSClientWrapper(
+		stsv1.NewSecurityTokenServiceClient(integrations.stsConn),
+		logger,
+		tracer,
+	)
 
 	return integrations, nil
 }
@@ -189,14 +172,11 @@ func (i *Integrations) InitializeServices(tracer trace.Tracer, serviceLogger *sl
 	resolver := rules.NewTupleResolver()
 	resourceMapper := rules.NewResourceMapper(ruleRepo, matcher, resolver)
 
-	provider, err := oidc.NewProvider(context.Background(), i.jwkSetUrl)
-	if err != nil {
-		serviceLogger.Error("Failed to create OIDC provider", "error", err)
-		return nil, err
-	}
-
-	verifier := provider.Verifier(&oidc.Config{
-		SkipClientIDCheck: true,
+	keySet := oidc.NewRemoteKeySet(context.Background(), i.jwkSetUrl)
+	verifier := oidc.NewVerifier("", keySet, &oidc.Config{
+		SkipClientIDCheck:    true,
+		SkipIssuerCheck:      true,
+		SupportedSigningAlgs: []string{oidc.RS256, oidc.ES256},
 	})
 
 	return &Services{
