@@ -4,9 +4,6 @@ metadata:
   name: fake-webserver
   namespace: default
 spec:
-#  selector:
-#    matchLabels:
-#      app: fake-webserver
   targetRef:
     group: gateway.networking.k8s.io
     kind: Gateway

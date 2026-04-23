@@ -38,7 +38,7 @@ patches:
          - name: "cerberus"
            envoyExtAuthzGrpc:
              service: "cerberus.dev.external"
-             port: "9090"
+             port: "9091"
        defaultConfig:
          discoveryAddress: istiod.istio-system.svc:15012
          image:

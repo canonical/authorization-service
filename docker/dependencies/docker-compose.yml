@@ -6,7 +6,7 @@ services:
       dockerfile: Dockerfile
     container_name: authz-postgres
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       - POSTGRES_DB=openfga
       - POSTGRES_USER=cerberus

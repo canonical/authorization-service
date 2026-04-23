@@ -37,15 +37,15 @@ type Config struct {
 
 // ServerConfig contains server configuration
 type ServerConfig struct {
-	GRPCPort                int           `validate:"required,min=1,max=65535" envconfig:"GRPC_PORT" default:"9090"`
-	HTTPPort                int           `validate:"required,min=1,max=65535" envconfig:"HTTP_PORT" default:"8080"`
+	GRPCPort                int           `validate:"required,min=1,max=65535" envconfig:"GRPC_PORT" default:"9091"`
+	HTTPPort                int           `validate:"required,min=1,max=65535" envconfig:"HTTP_PORT" default:"8070"`
 	Host                    string        `validate:"required" envconfig:"SERVER_HOST" default:"0.0.0.0"`
 	GracefulShutdownTimeout time.Duration `validate:"" envconfig:"SERVER_SHUTDOWN_TIMEOUT" default:"15s"`
 	Development             bool          `validate:"required" envconfig:"DEV" default:"false"`
 }
 
 type ExtAuthzServiceConfig struct {
-	JwkSetURL string `validate:"required,http_url" envconfig:"EXTAUTHZ_JWK_SET_URL" default:"http://localhost:9091/.well-known/jwks.json"`
+	JwkSetURL string `validate:"required,http_url" envconfig:"EXTAUTHZ_JWK_SET_URL" default:"http://localhost:8080/.well-known/jwks.json"`
 }
 
 // GetGRPCAddress returns the full gRPC server address
@@ -122,7 +122,7 @@ func (c *LoggingConfig) SetupLogger() *slog.Logger {
 
 // STSConfig contains Secure Token Service configuration
 type STSConfig struct {
-	Address              string        `validate:"required" envconfig:"STS_ADDRESS" default:"localhost:9091"`
+	Address              string        `validate:"required" envconfig:"STS_ADDRESS" default:"localhost:9090"`
 	UseTLS               bool          `validate:"" envconfig:"STS_USE_TLS" default:"false"`
 	Timeout              time.Duration `validate:"" envconfig:"STS_TIMEOUT" default:"10s"`
 	EagerConnectionCheck bool          `validate:"" envconfig:"STS_EAGER_CONNECTION_CHECK" default:"false"`
