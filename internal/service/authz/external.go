@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	sessionCookieName             = "session"
+	sessionCookieName             = "session_id"
 	sessionCookieNamePrefix       = sessionCookieName + "="
 	sessionCookieNamePrefixLength = len(sessionCookieNamePrefix)
 )
