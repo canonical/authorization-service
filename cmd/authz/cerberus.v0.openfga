@@ -12,3 +12,7 @@ type group
 type platform
   relations
     define admin: [user]
+
+type membership
+  relations
+    define read: [user]

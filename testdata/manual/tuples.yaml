@@ -7,6 +7,12 @@
 - object: group:developers
   user: user:marco.basile@canonical.com
   relation: write
+- object: group:directors
+  user: user:marco.basile@canonical.com
+  relation: read
+- object: membership:12345
+  user: user:marco.basile@canonical.com
+  relation: read
 - object: platform:default
   user: user:marco.basile@canonical.com
   relation: admin
