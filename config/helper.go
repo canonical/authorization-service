@@ -174,7 +174,9 @@ func (i *Integrations) InitializeServices(tracer trace.Tracer, serviceLogger *sl
 
 	keySet := oidc.NewRemoteKeySet(context.Background(), i.jwkSetUrl)
 	verifier := oidc.NewVerifier("", keySet, &oidc.Config{
-		SkipClientIDCheck: true,
+		SkipClientIDCheck:    true,
+		SkipIssuerCheck:      true,
+		SupportedSigningAlgs: []string{oidc.RS256, oidc.ES256},
 	})
 
 	return &Services{
