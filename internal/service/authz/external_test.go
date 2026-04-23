@@ -90,8 +90,8 @@ func buildCheckRequest(headers map[string]string, method, path string) *envoyAut
 // --- Check: early-exit paths --------------------------------------------------
 
 // TestExternalAuthzService_Check_NoSubjectEarlyReturn verifies that when the JWT
-// does not contain a "sub" claim (or verification fails), the service returns 200
-// with the access token forwarded — no resource mapping or FGA call is made.
+// does not contain a "sub" claim (or verification fails), the service returns 401
+// Unauthorized — no resource mapping or FGA call is made.
 func TestExternalAuthzService_Check_NoSubjectEarlyReturn(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -127,18 +127,15 @@ func TestExternalAuthzService_Check_NoSubjectEarlyReturn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Check failed: %v", err)
 	}
-	if resp.Status.Code != int32(codes.OK) {
-		t.Errorf("expected status code %d, got %d", codes.OK, resp.Status.Code)
+	if resp.Status.Code != int32(codes.Unauthenticated) {
+		t.Errorf("expected status code %d, got %d", codes.Unauthenticated, resp.Status.Code)
 	}
-	okResp := resp.GetOkResponse()
-	if okResp == nil {
-		t.Fatal("expected OkResponse, got nil")
+	deniedResp := resp.GetDeniedResponse()
+	if deniedResp == nil {
+		t.Fatal("expected DeniedResponse, got nil")
 	}
-	if len(okResp.Headers) != 1 {
-		t.Fatalf("expected 1 header, got %d", len(okResp.Headers))
-	}
-	if v := okResp.Headers[0].Header.Value; v != "Bearer "+expectedToken {
-		t.Errorf("expected header value %q, got %q", "Bearer "+expectedToken, v)
+	if deniedResp.Status.Code != envoyType.StatusCode_Unauthorized {
+		t.Errorf("expected HTTP status %d, got %d", envoyType.StatusCode_Unauthorized, deniedResp.Status.Code)
 	}
 }
 
@@ -737,7 +734,7 @@ func TestExternalAuthzService_Check_MultipleCookies(t *testing.T) {
 		ExchangeSession(gomock.Any(), &stsv1.ExchangeRequest{SessionCookie: "mysessionvalue"}).
 		Return(&stsv1.ExchangeResponse{AccessToken: expectedToken, ExpiresIn: 1800}, nil).
 		Times(1)
-	// Token verification fails — early return with OK.
+	// Token verification fails — returns unauthorized.
 	mockVerifier.EXPECT().
 		Verify(gomock.Any(), expectedToken).
 		Return(nil, fmt.Errorf("token does not contain a 'sub' claim")).
@@ -751,18 +748,15 @@ func TestExternalAuthzService_Check_MultipleCookies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Check failed: %v", err)
 	}
-	if resp.Status.Code != int32(codes.OK) {
-		t.Errorf("expected status code %d, got %d", codes.OK, resp.Status.Code)
+	if resp.Status.Code != int32(codes.Unauthenticated) {
+		t.Errorf("expected status code %d, got %d", codes.Unauthenticated, resp.Status.Code)
 	}
-	okResp := resp.GetOkResponse()
-	if okResp == nil {
-		t.Fatal("expected OkResponse, got nil")
+	deniedResp := resp.GetDeniedResponse()
+	if deniedResp == nil {
+		t.Fatal("expected DeniedResponse, got nil")
 	}
-	if len(okResp.Headers) != 1 {
-		t.Fatalf("expected 1 header, got %d", len(okResp.Headers))
-	}
-	if v := okResp.Headers[0].Header.Value; v != "Bearer "+expectedToken {
-		t.Errorf("expected header value %q, got %q", "Bearer "+expectedToken, v)
+	if deniedResp.Status.Code != envoyType.StatusCode_Unauthorized {
+		t.Errorf("expected HTTP status %d, got %d", envoyType.StatusCode_Unauthorized, deniedResp.Status.Code)
 	}
 }
 
@@ -794,8 +788,8 @@ func TestExternalAuthzService_Check_CookieWithSpaces(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Check failed: %v", err)
 	}
-	if resp.Status.Code != int32(codes.OK) {
-		t.Errorf("expected status code %d, got %d", codes.OK, resp.Status.Code)
+	if resp.Status.Code != int32(codes.Unauthenticated) {
+		t.Errorf("expected status code %d, got %d", codes.Unauthenticated, resp.Status.Code)
 	}
 }
 
