@@ -155,7 +155,8 @@ func TestBuildFindCandidatesQuery(t *testing.T) {
 		"FROM authorization_rule r " +
 		"JOIN authorization_rule_tuple t ON t.rule_id = r.id " +
 		"WHERE r.method = $1 AND r.static_prefix = ANY($2) AND r.segment_count <= $3 " +
-		"ORDER BY r.priority ASC"
+		"ORDER BY r.segment_count DESC," +
+		" r.priority ASC"
 
 	if sql != expectedSQL {
 		t.Errorf("unexpected SQL:\ngot:  %s\nwant: %s", sql, expectedSQL)
