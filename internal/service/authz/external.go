@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	sessionCookieName             = "session"
+	sessionCookieName             = "session_id"
 	sessionCookieNamePrefix       = sessionCookieName + "="
 	sessionCookieNamePrefixLength = len(sessionCookieNamePrefix)
 )
@@ -93,13 +93,13 @@ func (s *ExternalAuthzService) Check(ctx context.Context, req *envoyAuth.CheckRe
 	cookies, ok := headers["cookie"]
 	if !ok {
 		s.logger.Debug("No cookie header found in request")
-		return unauthorized("No session cookie provided"), nil
+		return unauthorized("no session cookie provided"), nil
 	}
 
 	sessionValue := extractSessionCookie(cookies)
 	if sessionValue == "" {
 		s.logger.Debug("Session cookie not found in cookie header")
-		return unauthorized("Session cookie not found"), nil
+		return unauthorized("session cookie not found"), nil
 	}
 
 	exchangeResp, err := s.sts.ExchangeSession(ctx, &stsv1.ExchangeRequest{
@@ -115,7 +115,7 @@ func (s *ExternalAuthzService) Check(ctx context.Context, req *envoyAuth.CheckRe
 	if err != nil || userIdentity == "" {
 		s.logger.Debug("Failed to extract subject from JWT", "error", err)
 		// If there is no explicit subject, we can't perform an authz check.
-		return unauthorized("no subject in JWT"), nil
+		return unauthorized("issue with STS JWT"), nil
 	}
 
 	tuples, err := s.resourceMapper.Map(ctx, userIdentity, method, path)

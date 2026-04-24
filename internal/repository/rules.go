@@ -41,6 +41,7 @@ func (r *PostgresRuleRepository) buildFindCandidatesQuery(method string, pathPre
 		Where(sq.Eq{"r.method": method}).
 		Where(sq.Expr("r.static_prefix = ANY(?)", pathPrefixes)).
 		Where(sq.LtOrEq{"r.segment_count": segmentCount}).
+		OrderBy("r.segment_count DESC").
 		OrderBy("r.priority ASC").
 		ToSql()
 }

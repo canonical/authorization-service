@@ -55,14 +55,14 @@ func NewTupleResolver() *TupleResolver {
 // Resolve builds an openfga Tuple from the rule tuple specifications, substituting
 // dynamic object_resource_id values (wrapped in braces like "{groupId}") with
 // the corresponding capture group value from the regex match.
-func (r *TupleResolver) Resolve(userID string, rule *rules.RuleWithTuples, match *rules.RegexMatch) ([]*rules.Tuple, error) {
+func (r *TupleResolver) Resolve(userID string, rule *rules.RuleWithTuples, matches rules.RegexMatches) ([]*rules.Tuple, error) {
 	if len(rule.RuleTuples) == 0 {
 		return nil, fmt.Errorf("rule %s has no tuples", rule.Id)
 	}
 
 	tuples := make([]*rules.Tuple, 0, len(rule.RuleTuples))
 	for idx, spec := range rule.RuleTuples {
-		objectID, err := extractDynamicObjectID(spec.ObjectResourceId, match)
+		objectID, err := extractDynamicObjectID(spec.ObjectResourceId, matches)
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve dynamic object resource ID for rule %s: %w", rule.Id, err)
 		}
@@ -82,22 +82,23 @@ func (r *TupleResolver) Resolve(userID string, rule *rules.RuleWithTuples, match
 	return tuples, nil
 }
 
-func extractDynamicObjectID(objectID string, match *rules.RegexMatch) (string, error) {
+func extractDynamicObjectID(objectID string, matches rules.RegexMatches) (string, error) {
 	if !(strings.HasPrefix(objectID, "{") && strings.HasSuffix(objectID, "}")) {
 		return objectID, nil
 	}
 
-	if match == nil {
-		return "", fmt.Errorf("rule requires a regex capture group but no regex match was provided")
+	if matches == nil {
+		return "", fmt.Errorf("rule requires a regex capture group but no regex matches were provided")
 	}
 
 	// unwrap curly braces
 	groupName := objectID[1 : len(objectID)-1]
-	if match.Identifier != groupName {
-		return "", fmt.Errorf("expected capture group %q but got %q", groupName, match.Identifier)
+	val, ok := matches[groupName]
+	if !ok {
+		return "", fmt.Errorf("capture group %q not found in regex matches", groupName)
 	}
 
-	return match.Value, nil
+	return val, nil
 }
 
 // ResourceMapper implements the full pipeline: lookup → match → resolve.
@@ -138,12 +139,12 @@ func (rm *ResourceMapper) Map(ctx context.Context, userID, method, path string) 
 	}
 
 	// Extract named capture groups from the path using the matched rule's regex.
-	regexMatch, err := extractRegexMatch(matchedRule.PathRegex, path)
+	regexMatches, err := extractRegexMatches(matchedRule.PathRegex, path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract regex match: %w", err)
 	}
 
-	tuples, err := rm.resolver.Resolve(userID, matchedRule, regexMatch)
+	tuples, err := rm.resolver.Resolve(userID, matchedRule, regexMatches)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve tuples: %w", err)
 	}
@@ -161,28 +162,29 @@ func (rm *ResourceMapper) Map(ctx context.Context, userID, method, path string) 
 	return batchReqItems, nil
 }
 
-// extractRegexMatch compiles the path regex and extracts the first named capture group
+// extractRegexMatches compiles the path regex and extracts all named capture groups
 // from the path. Returns nil if there are no named groups.
-func extractRegexMatch(pathRegex, path string) (*rules.RegexMatch, error) {
+func extractRegexMatches(pathRegex, path string) (rules.RegexMatches, error) {
 	re, err := regexp.Compile(pathRegex)
 	if err != nil {
 		return nil, fmt.Errorf("invalid path regex %q: %w", pathRegex, err)
 	}
 
-	names := re.SubexpNames()
 	match := re.FindStringSubmatch(path)
 	if match == nil {
 		return nil, nil
 	}
 
-	for i, name := range names {
+	result := make(rules.RegexMatches)
+	for i, name := range re.SubexpNames() {
 		if i > 0 && name != "" && i < len(match) {
-			return &rules.RegexMatch{
-				Identifier: name,
-				Value:      match[i],
-			}, nil
+			result[name] = match[i]
 		}
 	}
 
-	return nil, nil
+	if len(result) == 0 {
+		return nil, nil
+	}
+
+	return result, nil
 }

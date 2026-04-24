@@ -8,7 +8,7 @@ data:
         listen 80;
         location / {
             default_type application/json;
-            return 200 '{"authorization_header": "$http_authorization", "session_cookie": "$cookie_session", "status": "success", "message": "Authz Test", "random_id": "$request_id"}';
+            return 200 '{"authorization_header": "$http_authorization", "session_cookie": "$cookie_session_id", "status": "success", "message": "Authz Test", "random_id": "$request_id"}';
         }
     }
 ---

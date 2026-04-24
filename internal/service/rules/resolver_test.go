@@ -87,43 +87,64 @@ func TestTupleResolver_Resolve(t *testing.T) {
 		},
 	}
 
+	ruleWithMultipleTuples := &rules.RuleWithTuples{
+		Id: "rule2",
+		RuleTuples: []*rules.RuleTuple{
+			{Id: "tuple1", UserResourceType: "user", Permission: "view", ObjectResourceType: "team", ObjectResourceId: "{teamId}"},
+			{Id: "tuple2", UserResourceType: "user", Permission: "view", ObjectResourceType: "member", ObjectResourceId: "{memberId}"},
+		},
+	}
+
 	testCases := []struct {
 		name          string
 		userID        string
 		rule          *rules.RuleWithTuples
-		match         *rules.RegexMatch
+		matches       rules.RegexMatches
 		expected      []*rules.Tuple
 		expectedError string
 	}{
 		{
-			name:   "successful resolution",
-			userID: "user123",
-			rule:   ruleWithTuples,
-			match:  &rules.RegexMatch{Identifier: "groupId", Value: "group456"},
+			name:    "successful resolution",
+			userID:  "user123",
+			rule:    ruleWithTuples,
+			matches: rules.RegexMatches{"groupId": "group456"},
 			expected: []*rules.Tuple{
 				{User: "user:user123", Relation: "view", Object: "group:group456", RuleTupleRef: "0"},
+			},
+		},
+		{
+			name:   "successful resolution with multiple capture groups",
+			userID: "user123",
+			rule:   ruleWithMultipleTuples,
+			matches: rules.RegexMatches{
+				"teamId":   "team789",
+				"memberId": "member012",
+			},
+			expected: []*rules.Tuple{
+				{User: "user:user123", Relation: "view", Object: "team:team789", RuleTupleRef: "0"},
+				{User: "user:user123", Relation: "view", Object: "member:member012", RuleTupleRef: "1"},
 			},
 		},
 		{
 			name:          "rule with no tuples",
 			userID:        "user123",
 			rule:          &rules.RuleWithTuples{Id: "rule-no-tuples"},
-			match:         nil,
+			matches:       nil,
 			expectedError: "rule rule-no-tuples has no tuples",
 		},
 		{
 			name:          "failed to resolve dynamic object ID",
 			userID:        "user123",
 			rule:          ruleWithTuples,
-			match:         &rules.RegexMatch{Identifier: "wrongId", Value: "group456"},
-			expectedError: `failed to resolve dynamic object resource ID for rule rule1: expected capture group "groupId" but got "wrongId"`,
+			matches:       rules.RegexMatches{"wrongId": "group456"},
+			expectedError: `failed to resolve dynamic object resource ID for rule rule1: capture group "groupId" not found in regex matches`,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			resolver := NewTupleResolver()
-			tuples, err := resolver.Resolve(tc.userID, tc.rule, tc.match)
+			tuples, err := resolver.Resolve(tc.userID, tc.rule, tc.matches)
 
 			if tc.expectedError != "" {
 				require.Error(t, err)
@@ -140,39 +161,45 @@ func TestExtractDynamicObjectID(t *testing.T) {
 	testCases := []struct {
 		name          string
 		objectID      string
-		match         *rules.RegexMatch
+		matches       rules.RegexMatches
 		expected      string
 		expectedError string
 	}{
 		{
 			name:     "static object ID",
 			objectID: "static-id",
-			match:    nil,
+			matches:  nil,
 			expected: "static-id",
 		},
 		{
 			name:     "dynamic object ID with matching group",
 			objectID: "{groupId}",
-			match:    &rules.RegexMatch{Identifier: "groupId", Value: "group123"},
+			matches:  rules.RegexMatches{"groupId": "group123"},
 			expected: "group123",
 		},
 		{
-			name:          "dynamic object ID with no match",
-			objectID:      "{groupId}",
-			match:         nil,
-			expectedError: "rule requires a regex capture group but no regex match was provided",
+			name:     "dynamic object ID picks correct group from multiple",
+			objectID: "{memberId}",
+			matches:  rules.RegexMatches{"teamId": "team1", "memberId": "member2"},
+			expected: "member2",
 		},
 		{
-			name:          "dynamic object ID with mismatched group",
+			name:          "dynamic object ID with no matches",
 			objectID:      "{groupId}",
-			match:         &rules.RegexMatch{Identifier: "wrongId", Value: "group123"},
-			expectedError: `expected capture group "groupId" but got "wrongId"`,
+			matches:       nil,
+			expectedError: "rule requires a regex capture group but no regex matches were provided",
+		},
+		{
+			name:          "dynamic object ID with missing group",
+			objectID:      "{groupId}",
+			matches:       rules.RegexMatches{"wrongId": "group123"},
+			expectedError: `capture group "groupId" not found in regex matches`,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := extractDynamicObjectID(tc.objectID, tc.match)
+			result, err := extractDynamicObjectID(tc.objectID, tc.matches)
 			if tc.expectedError != "" {
 				require.Error(t, err)
 				assert.Equal(t, tc.expectedError, err.Error())
@@ -287,19 +314,25 @@ func TestResourceMapper_Map(t *testing.T) {
 	}
 }
 
-func TestExtractRegexMatch(t *testing.T) {
+func TestExtractRegexMatches(t *testing.T) {
 	testCases := []struct {
 		name          string
 		pathRegex     string
 		path          string
-		expected      *rules.RegexMatch
+		expected      rules.RegexMatches
 		expectedError string
 	}{
 		{
 			name:      "regex with named capture group",
 			pathRegex: `^/groups/(?P<groupId>[^/]+)$`,
 			path:      "/groups/group123",
-			expected:  &rules.RegexMatch{Identifier: "groupId", Value: "group123"},
+			expected:  rules.RegexMatches{"groupId": "group123"},
+		},
+		{
+			name:      "regex with multiple named capture groups",
+			pathRegex: `^/api/teams/(?P<teamId>[^/]+)/members/(?P<memberId>[^/]+)$`,
+			path:      "/api/teams/team1/members/member2",
+			expected:  rules.RegexMatches{"teamId": "team1", "memberId": "member2"},
 		},
 		{
 			name:      "regex with no named capture group",
@@ -323,7 +356,7 @@ func TestExtractRegexMatch(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := extractRegexMatch(tc.pathRegex, tc.path)
+			result, err := extractRegexMatches(tc.pathRegex, tc.path)
 			if tc.expectedError != "" {
 				require.Error(t, err)
 				assert.Equal(t, tc.expectedError, err.Error())

@@ -1,21 +1,21 @@
 package rules
 
 import (
-    "context"
+	"context"
 
-    "github.com/openfga/go-sdk/client"
+	"github.com/openfga/go-sdk/client"
 
-    "github.com/canonical/authorization-service/internal/model/rules"
+	"github.com/canonical/authorization-service/internal/model/rules"
 )
 
 type RuleMatcherInterface interface {
-    Match(candidates []*rules.RuleWithTuples, path string) (*rules.RuleWithTuples, error)
+	Match(candidates []*rules.RuleWithTuples, path string) (*rules.RuleWithTuples, error)
 }
 
 type TupleResolverInterface interface {
-    Resolve(userID string, rule *rules.RuleWithTuples, match *rules.RegexMatch) ([]*rules.Tuple, error)
+	Resolve(userID string, rule *rules.RuleWithTuples, matches rules.RegexMatches) ([]*rules.Tuple, error)
 }
 
 type ResourceMapperInterface interface {
-    Map(ctx context.Context, userID, method, path string) ([]client.ClientBatchCheckItem, error)
+	Map(ctx context.Context, userID, method, path string) ([]client.ClientBatchCheckItem, error)
 }

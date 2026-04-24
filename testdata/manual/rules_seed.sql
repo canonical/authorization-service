@@ -93,3 +93,35 @@ VALUES (
            'default',
            'admin'
        );
+
+-- +-----------------------------------------------------------+
+-- | Rule 2: POST /api/v1/groups/{groupId}/members/{memberId}  |
+-- | Checks: user can "write" a specific group                 |
+-- +-----------------------------------------------------------+
+INSERT INTO authorization_rule (id, service_id, method, segment_count, static_prefix, path_regex, priority)
+VALUES (
+           '00000000-0000-0000-0000-000000000040',
+           '00000000-0000-0000-0000-000000000001',
+           'POST',
+           6,
+           '/api/v1/groups/',
+           '^/api/v1/groups/(?P<groupId>[^/]+)/members/(?<memberId>[^/]+)$',
+           10
+       );
+INSERT INTO authorization_rule_tuple (id, rule_id, user_resource_type, object_resource_type, object_resource_id, permission)
+VALUES (
+           '00000000-0000-0000-0000-000000000041',
+           '00000000-0000-0000-0000-000000000040',
+           'user',
+           'group',
+           '{groupId}',
+           'read'
+       ),
+       (
+           '00000000-0000-0000-0000-000000000051',
+           '00000000-0000-0000-0000-000000000010',
+           'user',
+           'membership',
+           '{memberId}',
+           'read'
+       );
