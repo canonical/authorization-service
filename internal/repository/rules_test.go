@@ -156,7 +156,7 @@ func TestBuildFindCandidatesQuery(t *testing.T) {
 		"JOIN authorization_rule_tuple t ON t.rule_id = r.id " +
 		"WHERE r.method = $1 AND r.static_prefix = ANY($2) AND r.segment_count <= $3 " +
 		"ORDER BY r.segment_count DESC," +
-		" r.priority ASC"
+		" r.priority ASC, r.id ASC"
 
 	if sql != expectedSQL {
 		t.Errorf("unexpected SQL:\ngot:  %s\nwant: %s", sql, expectedSQL)
@@ -238,7 +238,7 @@ func TestFindCandidates_SingleRuleSingleTuple(t *testing.T) {
 	repo := NewPostgresRuleRepository(mockDB)
 
 	rows := pool.NewRows(ruleColumns).AddRow(
-		"1", "10", "GET", 4, "/api/v1/groups/", `^/api/v1/groups/(?P<groupId>\d+)$`, 0,
+		"1", "10", "GET", 4, "/api/v1/groups/", `^/api/v1/groups/(?<groupId>\d+)$`, 0,
 		"100", "1", "user", "edit", "group", "{groupId}",
 	)
 
