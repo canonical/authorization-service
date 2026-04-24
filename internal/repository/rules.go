@@ -43,6 +43,7 @@ func (r *PostgresRuleRepository) buildFindCandidatesQuery(method string, pathPre
 		Where(sq.LtOrEq{"r.segment_count": segmentCount}).
 		OrderBy("r.segment_count DESC").
 		OrderBy("r.priority ASC").
+		OrderBy("r.id ASC").
 		ToSql()
 }
 
