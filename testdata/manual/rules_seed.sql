@@ -34,14 +34,14 @@ VALUES (
            '{groupId}',
            'read'
        ),
-    (
-        '00000000-0000-0000-0000-000000000012',
-        '00000000-0000-0000-0000-000000000010',
-        'user',
-        'group',
-        '{groupId}',
-        'member'
-    );
+       (
+           '00000000-0000-0000-0000-000000000012',
+           '00000000-0000-0000-0000-000000000010',
+           'user',
+           'group',
+           '{groupId}',
+           'member'
+       );
 
 -- +-----------------------------------------------+
 -- | Rule 2: POST /api/v1/groups/{groupId}/members  |
@@ -95,7 +95,7 @@ VALUES (
        );
 
 -- +-----------------------------------------------------------+
--- | Rule 2: POST /api/v1/groups/{groupId}/members/{memberId}  |
+-- | Rule 4: POST /api/v1/groups/{groupId}/members/{memberId}  |
 -- | Checks: user can "write" a specific group                 |
 -- +-----------------------------------------------------------+
 INSERT INTO authorization_rule (id, service_id, method, segment_count, static_prefix, path_regex, priority)
@@ -119,7 +119,7 @@ VALUES (
        ),
        (
            '00000000-0000-0000-0000-000000000051',
-           '00000000-0000-0000-0000-000000000010',
+           '00000000-0000-0000-0000-000000000040',
            'user',
            'membership',
            '{memberId}',
