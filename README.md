@@ -1,3 +1,11 @@
+<p align="center">
+  <img
+    src="permissions-updater-logo-cropped.png"
+    alt="Permissions Updater Logo"
+    width="1200"
+  />
+</p>
+
 # Authorization Service
 A production-grade gRPC and REST API service for managing authorization and permissions in a microservices architecture. Built with Go 1.25, leveraging OpenFGA for fine-grained authorization and Valkey for caching.
 ## Overview
