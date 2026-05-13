@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc"
 
 	stsv1 "github.com/canonical/authorization-service/client/v1/sts"
+	kafkaintegration "github.com/canonical/authorization-service/internal/integration/kafka"
 	"github.com/canonical/authorization-service/internal/integration/nats"
 	"github.com/canonical/authorization-service/internal/integration/openfga"
 	"github.com/canonical/authorization-service/internal/integration/postgres"
@@ -40,12 +41,14 @@ type Services struct {
 
 // Integrations holds all external service clients
 type Integrations struct {
-	jwkSetUrl string
-	OpenFGA   openfga.OpenFGAClientInterface
-	NATS      nats.EventClientInterface
-	Valkey    valkey.CacheClientInterface
-	STS       stsv1.SecurityTokenServiceClient
-	Postgres  postgres.DBClientInterface
+	jwkSetUrl      string
+	OpenFGA        openfga.OpenFGAClientInterface
+	NATS           nats.EventClientInterface
+	Valkey         valkey.CacheClientInterface
+	STS            stsv1.SecurityTokenServiceClient
+	Postgres       postgres.DBClientInterface
+	KafkaConsumer  kafkaintegration.ConsumerInterface
+	KafkaPublisher kafkaintegration.PublisherInterface
 
 	stsConn ClosableClientConnInterface
 }
@@ -154,6 +157,29 @@ func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Trace
 		return nil, fmt.Errorf("failed to create Postgres client: %w", err)
 	}
 
+	// Initialize Kafka
+	if cfg.Kafka.Enabled {
+		kafkaClient, err := kafkaintegration.NewClient(
+			kafkaintegration.Config{
+				Brokers:       cfg.Kafka.Brokers,
+				ConsumerGroup: cfg.Kafka.ConsumerGroup,
+				Topic:         cfg.Kafka.Topic,
+				Workers:       cfg.Kafka.Workers,
+			},
+			logger,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create Kafka client: %w", err)
+		}
+		integrations.KafkaConsumer = kafkaClient
+		integrations.KafkaPublisher = kafkaClient
+	} else {
+		logger.Info("Kafka disabled, using no-op client")
+		noopKafka := kafkaintegration.NewNoopClient(logger)
+		integrations.KafkaConsumer = noopKafka
+		integrations.KafkaPublisher = noopKafka
+	}
+
 	// Initialize STS
 	integrations.stsConn, err = cfg.STS.CreateSTSConnection()
 	if err != nil {
@@ -189,6 +215,18 @@ func (i *Integrations) InitializeServices(tracer trace.Tracer, serviceLogger *sl
 }
 
 func (i *Integrations) CleanupIntegrations(logger *slog.Logger) {
+
+	if i.KafkaConsumer != nil {
+		if err := i.KafkaConsumer.Close(); err != nil {
+			logger.Error("Failed to close Kafka consumer", "error", err)
+		}
+	}
+
+	if i.KafkaPublisher != nil {
+		if err := i.KafkaPublisher.Close(); err != nil {
+			logger.Error("Failed to close Kafka publisher", "error", err)
+		}
+	}
 
 	if i.NATS != nil {
 		if err := i.NATS.Close(); err != nil {
