@@ -8,6 +8,25 @@
 
 # Authorization Service
 A production-grade gRPC and REST API service for managing authorization and permissions in a microservices architecture. Built with Go 1.25, leveraging OpenFGA for fine-grained authorization and Valkey for caching.
+
+## Hackathon: Kafka Tuple Ingestion Listener
+
+As part of the Canonical Hackathon, we built a **Kafka-based async ingestion pipeline** for OpenFGA tuples.
+
+Services publish `WriteRequest` protobuf messages to a Kafka topic; the listener consumes them, batches writes per service, and persists the resulting permission tuples into OpenFGA. Errors (deserialization failures, OpenFGA rejections) are published to a dedicated error topic so the originating service can handle them.
+
+**What was built:**
+- `cmd/listen.go` — new `listen` CLI subcommand that starts the pipeline
+- `internal/service/listen/` — listener, per-service batcher, protobuf handler, error publisher
+- `internal/integration/kafka/` — Kafka consumer/publisher client
+- `tests/integration/` — end-to-end integration tests (Kafka + OpenFGA via Testcontainers)
+
+**Demo recording** — shows the listener consuming Kafka messages, tuples appearing in OpenFGA in real time, and error messages arriving on the error topic:
+
+```bash
+asciinema play demo/demo.cast
+```
+
 ## Overview
 The Authorization Service (codename Cerberus) is designed to provide:
 1. **Permission Management**: Register and manage service permissions via a versioned gRPC API
