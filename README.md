@@ -1,12 +1,11 @@
 # Authorization Service
-A production-grade gRPC and REST API service for managing authorization and permissions in a microservices architecture. Built with Go 1.25, leveraging OpenFGA for fine-grained authorization, NATS for event streaming, and Valkey for caching.
+A production-grade gRPC and REST API service for managing authorization and permissions in a microservices architecture. Built with Go 1.25, leveraging OpenFGA for fine-grained authorization and Valkey for caching.
 ## Overview
 The Authorization Service (codename Cerberus) is designed to provide:
 1. **Permission Management**: Register and manage service permissions via a versioned gRPC API
 2. **Authorization Checks**: Perform authorization decisions using OpenFGA
 3. **Envoy Integration**: Implements Envoy's External Authorization API for use with Istio
-4. **Event-Driven Architecture**: Publishes authorization events to NATS JetStream
-5. **Caching**: Uses Valkey for high-performance authorization decision caching
+4. **Caching**: Uses Valkey for high-performance authorization decision caching
 6. **Token Validation**: Integrates with the Secure Token Service (STS) for token validation
 ## Architecture
 ```mermaid
@@ -28,7 +27,6 @@ graph TB
     subgraph integrations["Integrations"]
         FGA["OpenFGA<br/>Fine-Grained<br/>Authorization"]
         VALKEY["Valkey<br/>Cache"]
-        NATS["NATS JetStream<br/>Events"]
         STS["Secure Token<br/>Service"]
     end
     subgraph external["External Services"]
@@ -39,7 +37,6 @@ graph TB
     B -->|External AuthZ| GRPC
     C -->|REST API| REST
     PERMS --> VALKEY
-    PERMS --> NATS
     AUTHZ --> FGA
     AUTHZ --> VALKEY
     AUTHZ --> STS
@@ -59,7 +56,6 @@ authorization-service/
 ├── internal/
 │   ├── integrations/
 │   │   ├── openfga/                    # OpenFGA client wrapper
-│   │   ├── nats/                       # NATS client
 │   │   ├── valkey/                     # Valkey (Redis) client
 │   │   └── sts/                        # STS gRPC client
 │   ├── server/
@@ -89,7 +85,6 @@ authorization-service/
 - **Versioned gRPC APIs** with Go code generation from protobuf definitions
 - **REST API Gateway** using grpc-gateway for transcoding gRPC to REST
 - **OpenFGA Integration** with pluggable no-op implementation for development
-- **NATS JetStream** for reliable event streaming and message queues
 - **Valkey Caching** for high-performance authorization decision caching
 - **envconfig** for environment-based configuration management
 - **Secure Token Service Integration** for token validation
@@ -173,17 +168,6 @@ Configuration is managed through environment variables using [envconfig](https:/
 | `OPENFGA_AUTH_KEY` | string | (empty) | OpenFGA authentication key |
 | `OPENFGA_USE_TLS` | bool | false | Use TLS for OpenFGA |
 | `OPENFGA_TIMEOUT` | duration | 10s | Request timeout |
-### NATS Configuration
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `NATS_URL` | string | nats://localhost:4222 | NATS server URL |
-| `NATS_CLUSTER_ID` | string | authz-cluster | Cluster ID |
-| `NATS_CLIENT_ID` | string | authz-service | Client ID |
-| `NATS_ENABLE_JETSTREAM` | bool | true | Enable JetStream |
-| `NATS_STREAM_NAME` | string | AUTHZ | Stream name |
-| `NATS_MAX_RECONNECTS` | int | 10 | Max reconnects |
-| `NATS_RECONNECT_WAIT` | duration | 2s | Reconnect wait |
-| `NATS_TIMEOUT` | duration | 10s | Operation timeout |
 ### Valkey Configuration
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
@@ -210,7 +194,6 @@ export GRPC_PORT=9090
 export HTTP_PORT=8888
 export LOG_LEVEL=debug
 export OPENFGA_ADDRESS=localhost:8081
-export NATS_URL=nats://localhost:4222
 export VALKEY_ADDRESS=localhost:6379
 ./bin/authz-service serve
 ```
@@ -308,8 +291,6 @@ lsof -i :8888
 ```bash
 # OpenFGA
 curl http://localhost:8080/healthz
-# NATS
-curl http://localhost:8222
 # Valkey
 redis-cli -h localhost ping
 ```

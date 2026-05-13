@@ -109,32 +109,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # NATS with JetStream
-  nats:
-    image: nats:latest
-    container_name: authz-nats
-    ports:
-      - "4222:4222"  # Client connections
-      - "8222:8222"  # HTTP monitoring
-      - "6222:6222"  # Cluster connections
-    command: ["-js", "-m", "8222"]
-    networks:
-      - authz-network
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # NATS monitoring UI (optional)
-  nats-box:
-    image: natsio/nats-box:latest
-    container_name: authz-nats-box
-    networks:
-      - authz-network
-    depends_on:
-      - nats
-    command: ["tail", "-f", "/dev/null"]
 
 networks:
   authz-network:
