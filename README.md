@@ -21,11 +21,11 @@ Services publish `WriteRequest` protobuf messages to a Kafka topic; the listener
 - `internal/integration/kafka/` — Kafka consumer/publisher client
 - `tests/integration/` — end-to-end integration tests (Kafka + OpenFGA via Testcontainers)
 
-**Demo recording** — shows the listener consuming Kafka messages, tuples appearing in OpenFGA in real time, and error messages arriving on the error topic:
+**Demo** — listener consuming Kafka messages, tuples appearing in OpenFGA in real time, and errors routed to the error topic:
 
-```bash
-asciinema play demo/demo.cast
-```
+<p align="center">
+  <img src="demo/demo.gif" alt="Kafka→OpenFGA listener demo" />
+</p>
 
 ## Overview
 The Authorization Service (codename Cerberus) is designed to provide:
