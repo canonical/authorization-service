@@ -5,18 +5,20 @@ go 1.26.1
 require (
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/coreos/go-oidc/v3 v3.17.0
+	github.com/docker/docker v28.5.2+incompatible
+	github.com/docker/go-connections v0.6.0
 	github.com/envoyproxy/go-control-plane/envoy v1.36.0
 	github.com/go-playground/validator/v10 v10.30.1
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0
 	github.com/jackc/pgx/v5 v5.8.0
 	github.com/kelseyhightower/envconfig v1.4.0
-	github.com/nats-io/nats.go v1.48.0
 	github.com/openfga/go-sdk v0.7.5
 	github.com/openfga/language/pkg/go v0.2.1
 	github.com/pashagolub/pgxmock/v5 v5.0.1
 	github.com/pressly/goose/v3 v3.27.0
 	github.com/redis/go-redis/v9 v9.17.3
+	github.com/segmentio/kafka-go v0.4.51
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.40.0
@@ -50,8 +52,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/distribution/reference v0.6.0 // indirect
-	github.com/docker/docker v28.5.2+incompatible // indirect
-	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/ebitengine/purego v0.9.1 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
@@ -84,11 +84,10 @@ require (
 	github.com/moby/sys/userns v0.1.0 // indirect
 	github.com/moby/term v0.5.2 // indirect
 	github.com/morikuni/aec v1.1.0 // indirect
-	github.com/nats-io/nkeys v0.4.15 // indirect
-	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/openfga/api/proto v0.0.0-20260319214821-f153694bfc20 // indirect
+	github.com/pierrec/lz4/v4 v4.1.25 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
