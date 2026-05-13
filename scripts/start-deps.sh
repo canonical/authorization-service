@@ -39,21 +39,6 @@ for i in {1..30}; do
     fi
 done
 
-# Wait for NATS
-echo -n "Waiting for NATS..."
-for i in {1..30}; do
-    if curl -s http://localhost:8222 > /dev/null 2>&1; then
-        echo -e " ${GREEN}✓${NC}"
-        break
-    fi
-    echo -n "."
-    sleep 1
-    if [ $i -eq 30 ]; then
-        echo -e " ${RED}✗ Timeout${NC}"
-        exit 1
-    fi
-done
-
 # Wait for Valkey
 echo -n "Waiting for Valkey..."
 for i in {1..30}; do
@@ -76,8 +61,6 @@ echo "Service endpoints:"
 echo "  OpenFGA HTTP:  http://localhost:8080"
 echo "  OpenFGA gRPC:  localhost:8081"
 echo "  OpenFGA UI:    http://localhost:3000"
-echo "  NATS:          nats://localhost:4222"
-echo "  NATS Monitor:  http://localhost:8222"
 echo "  Valkey:        localhost:6379"
 echo ""
 echo "To stop dependencies:"

@@ -23,8 +23,8 @@ for managing authorization and permissions in microservices architectures.
 It provides:
   - Versioned gRPC APIs with REST transcoding
   - Fine-grained authorization with OpenFGA
-  - Event streaming with NATS JetStream
   - High-performance caching with Valkey
+  - Kafka-based tuple ingestion
   - Istio/Envoy external authorization support`,
 	Version: version.Version,
 }

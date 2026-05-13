@@ -30,7 +30,6 @@ type Config struct {
 	Server          *ServerConfig          `validate:"required"`
 	ExtAuthzService *ExtAuthzServiceConfig `validate:"required"`
 	OpenFGA         *OpenFGAConfig         `validate:"required"`
-	NATS            *NATSConfig            `validate:"required"`
 	Valkey          *ValkeyConfig          `validate:"required"`
 	STS             *STSConfig             `validate:"required"`
 	Postgres        *PostgresConfig        `validate:"required"`
@@ -69,19 +68,6 @@ type OpenFGAConfig struct {
 	AuthorizationModelID string        `validate:"required" envconfig:"OPENFGA_AUTHZ_MODEL_ID"`
 	ApiKey               string        `validate:"required" envconfig:"OPENFGA_API_KEY"`
 	Timeout              time.Duration `validate:"" envconfig:"OPENFGA_TIMEOUT" default:"10s"`
-}
-
-// NATSConfig contains NATS configuration
-type NATSConfig struct {
-	Enabled         bool          `validate:"" envconfig:"NATS_ENABLED" default:"false"`
-	URL             string        `validate:"required_if=Enabled true" envconfig:"NATS_URL" default:"nats://localhost:4222"`
-	ClusterID       string        `validate:"" envconfig:"NATS_CLUSTER_ID" default:"authz-cluster"`
-	ClientID        string        `validate:"" envconfig:"NATS_CLIENT_ID" default:"authz-service"`
-	EnableJetStream bool          `validate:"" envconfig:"NATS_ENABLE_JETSTREAM" default:"true"`
-	StreamName      string        `validate:"required_if=EnableJetStream true" envconfig:"NATS_STREAM_NAME" default:"AUTHZ"`
-	MaxReconnects   int           `validate:"min=0" envconfig:"NATS_MAX_RECONNECTS" default:"10"`
-	ReconnectWait   time.Duration `validate:"" envconfig:"NATS_RECONNECT_WAIT" default:"2s"`
-	Timeout         time.Duration `validate:"" envconfig:"NATS_TIMEOUT" default:"10s"`
 }
 
 // ValkeyConfig contains Valkey (Redis-compatible) configuration

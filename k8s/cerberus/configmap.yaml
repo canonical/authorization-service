@@ -17,8 +17,6 @@ data:
   # Service Dependencies
   OPENFGA_ENABLED: "false"
   OPENFGA_ADDRESS: "openfga.data.svc.cluster.local:8081"
-  NATS_ENABLED: "false"
-  NATS_URL: "nats://nats.data.svc.cluster.local:4222"
   VALKEY_ENABLED: "false"
   VALKEY_ADDRESS: "valkey-primary.data.svc.cluster.local:6379"
   STS_ADDRESS: "secure-token-service.default.svc.cluster.local:9090"

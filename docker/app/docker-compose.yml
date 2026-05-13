@@ -15,8 +15,6 @@ services:
       - SERVER_HOST=0.0.0.0
       - OPENFGA_ENABLED=true
       - OPENFGA_ADDRESS=openfga:8081
-      - NATS_URL=nats://nats:4222
-      - NATS_ENABLE_JETSTREAM=true
       - VALKEY_ADDRESS=valkey:6379
       - STS_ADDRESS=sts:9091
       - LOG_LEVEL=debug
@@ -25,8 +23,6 @@ services:
       - authz-network
     depends_on:
       openfga:
-        condition: service_healthy
-      nats:
         condition: service_healthy
       valkey:
         condition: service_healthy

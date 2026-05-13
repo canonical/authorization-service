@@ -17,7 +17,6 @@ import (
 
 	stsv1 "github.com/canonical/authorization-service/client/v1/sts"
 	kafkaintegration "github.com/canonical/authorization-service/internal/integration/kafka"
-	"github.com/canonical/authorization-service/internal/integration/nats"
 	"github.com/canonical/authorization-service/internal/integration/openfga"
 	"github.com/canonical/authorization-service/internal/integration/postgres"
 	"github.com/canonical/authorization-service/internal/integration/sts"
@@ -43,7 +42,6 @@ type Services struct {
 type Integrations struct {
 	jwkSetUrl      string
 	OpenFGA        openfga.OpenFGAClientInterface
-	NATS           nats.EventClientInterface
 	Valkey         valkey.CacheClientInterface
 	STS            stsv1.SecurityTokenServiceClient
 	Postgres       postgres.DBClientInterface
@@ -85,31 +83,6 @@ func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Trace
 	}
 
 	integrations.OpenFGA = openfgaClient
-
-	// Initialize NATS
-	if cfg.NATS.Enabled {
-		integrations.NATS, err = nats.NewClient(
-			nats.Config{
-				URL:             cfg.NATS.URL,
-				ClusterID:       cfg.NATS.ClusterID,
-				ClientID:        cfg.NATS.ClientID,
-				EnableJetStream: cfg.NATS.EnableJetStream,
-				StreamName:      cfg.NATS.StreamName,
-				MaxReconnects:   cfg.NATS.MaxReconnects,
-				ReconnectWait:   cfg.NATS.ReconnectWait,
-				Timeout:         cfg.NATS.Timeout,
-			},
-			logger,
-		)
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to create NATS client: %w", err)
-		}
-
-	} else {
-		logger.Info("NATS disabled, using no-op client")
-		integrations.NATS = nats.NewNoopClient(logger)
-	}
 
 	// Initialize Valkey
 	if cfg.Valkey.Enabled {
@@ -209,7 +182,7 @@ func (i *Integrations) InitializeServices(tracer trace.Tracer, serviceLogger *sl
 	})
 
 	return &Services{
-		Permissions:   permissions.NewService(i.Valkey, i.NATS, serviceLogger),
+		Permissions:   permissions.NewService(i.Valkey, serviceLogger),
 		ExternalAuthz: authz.NewExternalAuthzService(verifier, i.STS, resourceMapper, i.OpenFGA, serviceLogger, tracer),
 	}, nil
 }
@@ -225,12 +198,6 @@ func (i *Integrations) CleanupIntegrations(logger *slog.Logger) {
 	if i.KafkaPublisher != nil {
 		if err := i.KafkaPublisher.Close(); err != nil {
 			logger.Error("Failed to close Kafka publisher", "error", err)
-		}
-	}
-
-	if i.NATS != nil {
-		if err := i.NATS.Close(); err != nil {
-			logger.Error("Failed to close NATS client", "error", err)
 		}
 	}
 

@@ -159,8 +159,6 @@ Use the authorization service's built-in test command:
 ```bash
 # From the authorization-service directory
 export STS_ADDRESS="sts-service.default.svc.cluster.local:9091"
-export NATS_ENABLED="false"  # Disable NATS if not needed for testing
-
 ./bin/app check \
   --cookie "session=YOUR_SESSION_TOKEN" \
   --path "/" \
