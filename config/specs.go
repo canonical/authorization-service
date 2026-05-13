@@ -33,6 +33,7 @@ type Config struct {
 	Postgres        *PostgresConfig        `validate:"required"`
 	Logging         *LoggingConfig         `validate:"required"`
 	Telemetry       *TelemetryConfig       `validate:"required"`
+	Kafka           *KafkaConfig           `validate:"required"`
 }
 
 // ServerConfig contains server configuration
@@ -183,6 +184,19 @@ func (s *STSConfig) waitForConnectionReady(conn *grpc.ClientConn) error {
 	}
 
 	return nil
+}
+
+// KafkaConfig contains Kafka consumer/producer configuration.
+type KafkaConfig struct {
+	Enabled         bool          `validate:"" envconfig:"KAFKA_ENABLED" default:"false"`
+	Brokers         []string      `validate:"required_if=Enabled true" envconfig:"KAFKA_BROKERS" default:"localhost:9092"`
+	Topic           string        `validate:"required_if=Enabled true" envconfig:"KAFKA_TOPIC"`
+	ErrorTopic      string        `validate:"required_if=Enabled true" envconfig:"KAFKA_ERROR_TOPIC"`
+	ConsumerGroup   string        `validate:"required_if=Enabled true" envconfig:"KAFKA_CONSUMER_GROUP" default:"authz-listener"`
+	Workers         int           `validate:"min=1" envconfig:"KAFKA_WORKERS" default:"4"`
+	BatchSize       int           `validate:"min=1" envconfig:"KAFKA_BATCH_SIZE" default:"100"`
+	FlushInterval   time.Duration `validate:"" envconfig:"KAFKA_FLUSH_INTERVAL" default:"5s"`
+	ServiceIdHeader string        `validate:"" envconfig:"KAFKA_SERVICE_ID_HEADER" default:"service"`
 }
 
 // LoggingConfig contains logging configuration
