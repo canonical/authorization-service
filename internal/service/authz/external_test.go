@@ -1,3 +1,6 @@
+// Copyright 2026 Canonical Ltd.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //go:generate mockgen -source=../../../client/v1/sts/sts_grpc.pb.go -destination=mocks/mock_sts.go -package=authz
 //go:generate mockgen -source=../rules/interfaces.go -destination=mocks/mock_rules.go -package=authz
 //go:generate mockgen -source=../../integration/openfga/interfaces.go -destination=mocks/mock_openfga_client.go -package=authz

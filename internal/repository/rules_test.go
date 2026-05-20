@@ -1,3 +1,6 @@
+// Copyright 2026 Canonical Ltd.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //go:generate mockgen -source=../integration/postgres/client.go -destination=mocks/mock_postgres.go -package=repository
 
 package repository
