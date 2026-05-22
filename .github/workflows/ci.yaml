@@ -13,9 +13,6 @@ on:
     branches:
       - "*"
 
-permissions:
-  packages: write
-
 jobs:
   unit-test:
     uses: ./.github/workflows/unittest.yaml
@@ -26,6 +23,9 @@ jobs:
     with:
       structure-tests-enabled: true
   gh-publish:
+    permissions:
+      packages: write
+      contents: read
     if: ${{ (github.ref == 'refs/heads/main') || (github.ref_type == 'tag') }}
     needs: [ build, unit-test ]
     uses: canonical/identity-team/.github/workflows/_rock-gh-publish.yaml@6b27807be4ec7c25045d52ef09ac780d684f65a2 # v1.10.0
