@@ -13,6 +13,9 @@ on:
     branches:
       - "*"
 
+permissions:
+  packages: write
+
 jobs:
   unit-test:
     uses: ./.github/workflows/unittest.yaml
