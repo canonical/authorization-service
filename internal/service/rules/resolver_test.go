@@ -1,3 +1,6 @@
+// Copyright 2026 Canonical Ltd.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //go:generate mockgen -build_flags=--mod=mod -package=mocks -destination=mocks/mock_repo.go github.com/canonical/authorization-service/internal/repository RuleRepository
 //go:generate mockgen -build_flags=--mod=mod -package=mocks -destination=mocks/mock_rules.go . RuleMatcherInterface,TupleResolverInterface
 
