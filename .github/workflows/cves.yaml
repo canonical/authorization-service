@@ -27,6 +27,9 @@ jobs:
         echo "ids=$CLEAN_JSON" >> $GITHUB_OUTPUT
 
   scheduled-check:
+    permissions:
+      contents: write
+      issues: write
     needs:
     - list-all-issues
     if: ${{ github.event_name == 'schedule' && needs.list-all-issues.outputs.issues != '[]' && needs.list-all-issues.outputs.issues != '' }}
@@ -38,5 +41,8 @@ jobs:
       issue: ${{ matrix.issue }}
 
   apply-labels:
+    permissions:
+      contents: write
+      issues: write
     if: ${{ github.event.issue.id }}
     uses: canonical/identity-team/.github/workflows/cve-check.yaml@6b27807be4ec7c25045d52ef09ac780d684f65a2 # v1.10.0
