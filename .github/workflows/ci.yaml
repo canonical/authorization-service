@@ -31,12 +31,32 @@ jobs:
     uses: canonical/identity-team/.github/workflows/_rock-gh-publish.yaml@6b27807be4ec7c25045d52ef09ac780d684f65a2 # v1.10.0
     with:
       rock: ${{ needs.build.outputs.rock }}
+  
   scan:
+    runs-on: ubuntu-24.04
     permissions:
       packages: read
       contents: read
+      security-events: write
     if: ${{ (github.ref == 'refs/heads/main') || (github.ref_type == 'tag') }}
     needs: gh-publish
-    uses: canonical/identity-team/.github/workflows/_rock-scan.yaml@6b27807be4ec7c25045d52ef09ac780d684f65a2 # v1.10.0
-    with:
-      image: ${{ needs.gh-publish.outputs.image }}
+    
+    steps:
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: ${{ needs.gh-publish.outputs.image }}
+          format: sarif
+          output: trivy-results.sarif
+
+      - name: Upload scan results to GitHub
+        uses: github/codeql-action/upload-sarif@181d5eefc20863364f96762470ba6f862bdef56b # v3
+        with:
+          sarif_file: trivy-results.sarif
