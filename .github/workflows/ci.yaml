@@ -32,6 +32,9 @@ jobs:
     with:
       rock: ${{ needs.build.outputs.rock }}
   scan:
+    permissions:
+      packages: read
+      contents: read
     if: ${{ (github.ref == 'refs/heads/main') || (github.ref_type == 'tag') }}
     needs: gh-publish
     uses: canonical/identity-team/.github/workflows/_rock-scan.yaml@6b27807be4ec7c25045d52ef09ac780d684f65a2 # v1.10.0
