@@ -10,7 +10,6 @@ NC='\033[0m'
 APP_BINARY_PATH="bin/app"
 
 echo -e "${PURPLE}🔨 Building Authorization Service...${NC}"
-echo -e "${BLUE}📦 Generating Protocol Buffers...${NC}"
 
 echo ""
 echo -e "${BLUE}🏗️ Building binary...${NC}"

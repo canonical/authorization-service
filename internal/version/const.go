@@ -1,6 +1,6 @@
 // Copyright 2025 Canonical Ltd.
-// SPDX-License-Identifier: AGPL-3.0
+// SPDX-License-Identifier: AGPL-3.0-only
 
 package version
 
-const Version = "0.1.0" // x-release-please-version
+const Version = "0.2.0" // x-release-please-version

@@ -1,0 +1,19 @@
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: fake-webserver
+  namespace: default
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: cerberus-gateway
+  action: CUSTOM
+  provider:
+    name: "cerberus"
+  rules:
+    - to:
+      - operation:
+          paths: ["/api/*"]
+          methods: ["*"]
+---

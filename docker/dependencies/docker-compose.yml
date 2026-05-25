@@ -1,22 +1,85 @@
-version: '3.8'
 
 services:
-  # OpenFGA - Authorization Engine
-  openfga:
-    image: openfga/openfga:latest
-    container_name: authz-openfga
+  postgres:
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+    container_name: authz-postgres
     ports:
-      - "8080:8080"  # HTTP API
-      - "8081:8081"  # gRPC API
-      - "3000:3000"  # Playground
-    command: run
+      - "5433:5432"
     environment:
-      - OPENFGA_DATASTORE_ENGINE=memory
-      - OPENFGA_LOG_FORMAT=json
+      - POSTGRES_DB=openfga
+      - POSTGRES_USER=cerberus
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init-scripts:/docker-entrypoint-initdb.d
     networks:
       - authz-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      test: ["CMD-SHELL", "pg_isready -U cerberus -d openfga"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # OpenFGA - Authorization Engine
+  openfga:
+    image: openfga/openfga:v1.14.1
+    container_name: authz-openfga
+    ports:
+      - "8082:8080"  # HTTP API
+      - "8081:8081"  # gRPC API
+    command: "run"
+    environment:
+      OPENFGA_DATASTORE_ENGINE: "postgres"
+      OPENFGA_DATASTORE_URI: "postgresql://cerberus:password@postgres/openfga?sslmode=disable"
+      OPENFGA_AUTHN_PRESHARED_KEYS: "42"
+      OPENFGA_LOG_FORMAT: text
+      OPENFGA_HTTP_ADDR: "0.0.0.0:8080"
+    networks:
+      - authz-network
+    depends_on:
+      migrateopenfga:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/grpc_health_probe", "-addr=localhost:8081"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  migrateopenfga:
+    image: openfga/openfga:v1.14.1
+    container_name: migrateopenfga
+    command: migrate --datastore-engine postgres --datastore-uri 'postgresql://cerberus:password@postgres/openfga?sslmode=disable'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - authz-network
+
+  insert-hardcoded-store:
+    image: governmentpaas/psql
+    container_name: insert-hardcoded-store
+    command: psql -Atx postgresql://cerberus:password@postgres/openfga?sslmode=disable -c "INSERT INTO store (id,name,created_at,updated_at) VALUES ('01GP1254CHWJC1MNGVB0WDG1T0','cerberos',NOW(),NOW()) ON CONFLICT DO NOTHING;"
+    depends_on:
+      openfga:
+        condition: service_healthy
+    networks:
+      - authz-network
+
+  # Valkey
+  valkey:
+    image: valkey/valkey:latest
+    container_name: authz-valkey
+    ports:
+      - "6379:6379"
+    command: valkey-server --save 60 1 --loglevel warning
+    volumes:
+      - valkey-data:/data
+    networks:
+      - authz-network
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -38,23 +101,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Valkey (Redis fork)
-  valkey:
-    image: valkey/valkey:latest
-    container_name: authz-valkey
-    ports:
-      - "6379:6379"
-    command: valkey-server --save 60 1 --loglevel warning
-    volumes:
-      - valkey-data:/data
-    networks:
-      - authz-network
-    healthcheck:
-      test: ["CMD", "valkey-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # NATS monitoring UI (optional)
   nats-box:
     image: natsio/nats-box:latest
@@ -71,3 +117,4 @@ networks:
 
 volumes:
   valkey-data:
+  postgres-data:

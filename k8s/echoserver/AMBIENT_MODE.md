@@ -62,7 +62,7 @@ Configured in `helm/ext_authz.yaml`:
 
 ```yaml
 extensionProviders:
-  - name: "cerberos"
+  - name: "cerberus"
     envoyExtAuthzGrpc:
       service: "authorization-service.default.svc.cluster.local"
       port: "9090"
@@ -72,7 +72,7 @@ extensionProviders:
 
 **Policy 1: `echoserver-ext-authz`**
 - **TargetRef:** `Gateway/echoserver-waypoint` (L7 enforcement at waypoint)
-- **Action:** `CUSTOM` with provider `cerberos`
+- **Action:** `CUSTOM` with provider `cerberus`
 - **Rules:** All paths require external authorization except /health
 
 **Policy 2: `echoserver-allow-health`**
@@ -132,7 +132,7 @@ curl http://localhost/echo/health
 curl -v http://localhost/echo/
 
 # 3. Test with valid session cookie (should work)
-curl -H "Cookie: session-id=VALID_SESSION" http://localhost/echo/
+curl -H "Cookie: session=VALID_SESSION" http://localhost/echo/
 ```
 
 ## Why Waypoint is Needed

@@ -1,39 +1,3 @@
-# apiVersion: security.istio.io/v1
-# kind: AuthorizationPolicy
-# metadata:
-#   name: authorization-service-ztunnel
-#   namespace: default
-# spec:
-#   selector:
-#     matchLabels:
-#       app: authorization-service
-#   action: ALLOW
-#   rules:
-#   - from:
-#     - source:
-#         principals:
-#         - cluster.local/ns/default/sa/sts-gateway-istio
-#         - cluster.local/ns/default/sa/waypoint
-# ---
-# apiVersion: security.istio.io/v1
-# kind: AuthorizationPolicy
-# metadata:
-#   name: authorization-service-allow-auth
-#   namespace: default
-# spec:
-#   # Target the waypoint gateway for L7 policy enforcement
-#   targetRef:
-#     group: gateway.networking.k8s.io
-#     kind: Gateway
-#     name: sts-gateway
-#   # Allow unauthenticated access to /health
-#   action: ALLOW
-#   rules:
-#   - to:
-#     - operation:
-#         paths: ["/healthz"]
-#         methods: ["GET"]
-# ---        
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:

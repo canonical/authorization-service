@@ -6,6 +6,7 @@
 *.exe~
 *.dll
 *.so
+!docker/dependencies/postgres/pg_uuidv7.so
 *.dylib
 
 # Binaries for development setup
@@ -13,6 +14,7 @@ bin
 # Mocks, test binary, built with `go test -c`
 mock_*.go
 *.test
+http-tests
 
 # Code coverage profiles and other test artifacts
 *.out
@@ -33,3 +35,6 @@ vendor
 # Editor/IDE
 # .idea/
 # .vscode/
+/*.rock
+k8s/dev-setup/k8s-bridge.env
+/cov_repo.html

@@ -1,5 +1,8 @@
-//go:generate mockgen -source=../../integrations/valkey/client.go -destination=mocks/mock_valkey.go -package=permissions
-//go:generate mockgen -source=../../integrations/nats/client.go -destination=mocks/mock_nats.go -package=permissions
+// Copyright 2026 Canonical Ltd.
+// SPDX-License-Identifier: AGPL-3.0-only
+
+//go:generate mockgen -source=../../integration/valkey/client.go -destination=mocks/mock_valkey.go -package=permissions
+//go:generate mockgen -source=../../integration/nats/client.go -destination=mocks/mock_nats.go -package=permissions
 
 package permissions
 

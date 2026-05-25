@@ -1,3 +1,6 @@
+// Copyright 2026 Canonical Ltd.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package permissions
 
 import (
@@ -9,8 +12,8 @@ import (
 
     "github.com/google/uuid"
 
-    "github.com/canonical/authorization-service/internal/integrations/nats"
-    "github.com/canonical/authorization-service/internal/integrations/valkey"
+    "github.com/canonical/authorization-service/internal/integration/nats"
+    "github.com/canonical/authorization-service/internal/integration/valkey"
 )
 
 type ServiceInterface interface {

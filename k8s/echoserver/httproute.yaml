@@ -7,7 +7,7 @@ spec:
   parentRefs:
   - group: gateway.networking.k8s.io
     kind: Gateway
-    name: sts-gateway
+    name: cerberus-gateway
     namespace: default
   hostnames:
   - "localhost"
@@ -21,7 +21,6 @@ spec:
     - path:
         type: PathPrefix
         value: /health
-            
     backendRefs:
     - name: echoserver
       port: 80
