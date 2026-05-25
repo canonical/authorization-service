@@ -38,6 +38,7 @@ jobs:
       packages: read
       contents: read
       security-events: write
+      actions: read
     if: ${{ (github.ref == 'refs/heads/main') || (github.ref_type == 'tag') }}
     needs: gh-publish
     
