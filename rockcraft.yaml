@@ -35,8 +35,9 @@ parts:
       opt/authorization-service/bin/app: usr/bin/app
       etc/ssl/certs/ca-certificates.crt: etc/ssl/certs/ca-certificates.crt
     stage-packages:
-      - ca-certificates
-      - base-files
+      - ca-certificates_data
+      - base-files_var
+      - base-files_chisel
     prime:
       - usr/bin/app
       - etc/ssl/certs/ca-certificates.crt
