@@ -109,15 +109,6 @@ dev: build start-deps
 	@echo "Starting service in development mode..."
 	@LOG_LEVEL=debug ./$(BINARY_PATH) serve
 
-
-# Generate protobuf code (requires protoc)
-proto:
-	@echo "Generating protobuf code..."
-	protoc --go_out=. --go_opt=paths=source_relative \
-		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
-		$(PROTO_PATH)/sts.proto
-	@echo "Protobuf generation complete"
-
 openapi-v3:
 	cd openapi && go mod tidy && go run convert.go
 
