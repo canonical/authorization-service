@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/netip"
 	"os"
 	"strconv"
 	"testing"
 	"time"
 
-	dockercontainer "github.com/docker/docker/api/types/container"
-	"github.com/docker/go-connections/nat"
+	dockercontainer "github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
 	openfgasdk "github.com/openfga/go-sdk"
 	"github.com/openfga/go-sdk/client"
 	"github.com/testcontainers/testcontainers-go"
@@ -105,8 +106,9 @@ func startKafka(ctx context.Context) (testcontainers.Container, string, error) {
 			"KAFKA_AUTO_CREATE_TOPICS_ENABLE":        "true",
 		},
 		HostConfigModifier: func(hc *dockercontainer.HostConfig) {
-			hc.PortBindings = nat.PortMap{
-				"9092/tcp": []nat.PortBinding{{HostIP: "0.0.0.0", HostPort: portStr}},
+			p, _ := network.ParsePort("9092/tcp")
+			hc.PortBindings = network.PortMap{
+				p: []network.PortBinding{{HostIP: netip.MustParseAddr("0.0.0.0"), HostPort: portStr}},
 			}
 		},
 		WaitingFor: wait.ForLog("Kafka Server started").WithStartupTimeout(60 * time.Second),
