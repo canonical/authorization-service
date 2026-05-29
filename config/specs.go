@@ -30,12 +30,12 @@ type Config struct {
 	Server          *ServerConfig          `validate:"required"`
 	ExtAuthzService *ExtAuthzServiceConfig `validate:"required"`
 	OpenFGA         *OpenFGAConfig         `validate:"required"`
-	NATS            *NATSConfig            `validate:"required"`
 	Valkey          *ValkeyConfig          `validate:"required"`
 	STS             *STSConfig             `validate:"required"`
 	Postgres        *PostgresConfig        `validate:"required"`
 	Logging         *LoggingConfig         `validate:"required"`
 	Telemetry       *TelemetryConfig       `validate:"required"`
+	Kafka           *KafkaConfig           `validate:"required"`
 }
 
 // ServerConfig contains server configuration
@@ -68,19 +68,6 @@ type OpenFGAConfig struct {
 	AuthorizationModelID string        `validate:"required" envconfig:"OPENFGA_AUTHZ_MODEL_ID"`
 	ApiKey               string        `validate:"required" envconfig:"OPENFGA_API_KEY"`
 	Timeout              time.Duration `validate:"" envconfig:"OPENFGA_TIMEOUT" default:"10s"`
-}
-
-// NATSConfig contains NATS configuration
-type NATSConfig struct {
-	Enabled         bool          `validate:"" envconfig:"NATS_ENABLED" default:"false"`
-	URL             string        `validate:"required_if=Enabled true" envconfig:"NATS_URL" default:"nats://localhost:4222"`
-	ClusterID       string        `validate:"" envconfig:"NATS_CLUSTER_ID" default:"authz-cluster"`
-	ClientID        string        `validate:"" envconfig:"NATS_CLIENT_ID" default:"authz-service"`
-	EnableJetStream bool          `validate:"" envconfig:"NATS_ENABLE_JETSTREAM" default:"true"`
-	StreamName      string        `validate:"required_if=EnableJetStream true" envconfig:"NATS_STREAM_NAME" default:"AUTHZ"`
-	MaxReconnects   int           `validate:"min=0" envconfig:"NATS_MAX_RECONNECTS" default:"10"`
-	ReconnectWait   time.Duration `validate:"" envconfig:"NATS_RECONNECT_WAIT" default:"2s"`
-	Timeout         time.Duration `validate:"" envconfig:"NATS_TIMEOUT" default:"10s"`
 }
 
 // ValkeyConfig contains Valkey (Redis-compatible) configuration
@@ -186,6 +173,19 @@ func (s *STSConfig) waitForConnectionReady(conn *grpc.ClientConn) error {
 	}
 
 	return nil
+}
+
+// KafkaConfig contains Kafka consumer/producer configuration.
+type KafkaConfig struct {
+	Enabled         bool          `validate:"" envconfig:"KAFKA_ENABLED" default:"false"`
+	Brokers         []string      `validate:"required_if=Enabled true" envconfig:"KAFKA_BROKERS" default:"localhost:9092"`
+	Topic           string        `validate:"required_if=Enabled true" envconfig:"KAFKA_TOPIC"`
+	ErrorTopic      string        `validate:"required_if=Enabled true" envconfig:"KAFKA_ERROR_TOPIC"`
+	ConsumerGroup   string        `validate:"required_if=Enabled true" envconfig:"KAFKA_CONSUMER_GROUP" default:"authz-listener"`
+	Workers         int           `validate:"min=1" envconfig:"KAFKA_WORKERS" default:"4"`
+	BatchSize       int           `validate:"min=1" envconfig:"KAFKA_BATCH_SIZE" default:"100"`
+	FlushInterval   time.Duration `validate:"" envconfig:"KAFKA_FLUSH_INTERVAL" default:"5s"`
+	ServiceIdHeader string        `validate:"" envconfig:"KAFKA_SERVICE_ID_HEADER" default:"service"`
 }
 
 // LoggingConfig contains logging configuration

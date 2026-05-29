@@ -1,0 +1,28 @@
+// Copyright 2025 Canonical Ltd.
+// SPDX-License-Identifier: AGPL-3.0
+
+syntax = "proto3";
+package authorization.service.api.v1;
+option go_package = "github.com/canonical/authorization-service/api/proto/v1";
+
+// Published by other services to the tuple ingestion topic.
+message WriteRequest {
+  uint32 sequence_id   = 1;
+  string user_type     = 2;
+  string user_id       = 3;
+  string resource_type = 4;
+  string resource_id   = 5;
+  string organization  = 6;
+  oneof permission {
+    string entitlement = 7;
+    string role        = 8;
+  }
+}
+
+// Published by this service to the error topic when ingestion fails.
+message WriteRequestError {
+  uint32 sequence_id    = 1;
+  string error_code     = 2;
+  string error_message  = 3;
+  string tuple_snapshot = 4;
+}
