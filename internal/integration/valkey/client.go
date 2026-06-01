@@ -40,6 +40,7 @@ type Client struct {
 // Config holds Valkey client configuration
 type Config struct {
     Address  string
+    Username string
     Password string
     DB       int
     PoolSize int
@@ -51,6 +52,7 @@ type Config struct {
 func NewClient(cfg Config, logger *slog.Logger) (*Client, error) {
     opts := &redis.Options{
         Addr:         cfg.Address,
+        Username:     cfg.Username,
         Password:     cfg.Password,
         DB:           cfg.DB,
         PoolSize:     cfg.PoolSize,
