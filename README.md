@@ -181,6 +181,7 @@ Configuration is managed through environment variables using [envconfig](https:/
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
 | `VALKEY_ADDRESS` | string | localhost:6379 | Valkey server address |
+| `VALKEY_USERNAME` | string | (empty) | Valkey username |
 | `VALKEY_PASSWORD` | string | (empty) | Valkey password |
 | `VALKEY_DB` | int | 0 | Database number |
 | `VALKEY_POOL_SIZE` | int | 10 | Connection pool size |

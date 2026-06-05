@@ -74,6 +74,7 @@ type OpenFGAConfig struct {
 type ValkeyConfig struct {
 	Enabled  bool          `validate:"" envconfig:"VALKEY_ENABLED" default:"false"`
 	Address  string        `validate:"required_if=Enabled true" envconfig:"VALKEY_ADDRESS" default:"localhost:6379"`
+	Username string        `validate:"" envconfig:"VALKEY_USERNAME"`
 	Password string        `validate:"" envconfig:"VALKEY_PASSWORD"`
 	DB       int           `validate:"min=0,max=15" envconfig:"VALKEY_DB" default:"0"`
 	PoolSize int           `validate:"min=1" envconfig:"VALKEY_POOL_SIZE" default:"10"`

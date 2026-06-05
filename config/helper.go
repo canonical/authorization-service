@@ -89,6 +89,7 @@ func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Trace
 		integrations.Valkey, err = valkey.NewClient(
 			valkey.Config{
 				Address:  cfg.Valkey.Address,
+				Username: cfg.Valkey.Username,
 				Password: cfg.Valkey.Password,
 				DB:       cfg.Valkey.DB,
 				PoolSize: cfg.Valkey.PoolSize,
