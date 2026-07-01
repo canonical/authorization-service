@@ -1,28 +1,48 @@
-// Copyright 2025 Canonical Ltd.
+// Copyright 2026 Canonical Ltd.
 // SPDX-License-Identifier: AGPL-3.0
 
 syntax = "proto3";
 package authorization.service.api.v1;
 option go_package = "github.com/canonical/authorization-service/api/proto/v1";
 
-// Published by other services to the tuple ingestion topic.
-message WriteRequest {
-  uint32 sequence_id   = 1;
-  string user_type     = 2;
-  string user_id       = 3;
-  string resource_type = 4;
-  string resource_id   = 5;
-  string organization  = 6;
-  oneof permission {
-    string entitlement = 7;
-    string role        = 8;
-  }
+import "google/protobuf/timestamp.proto";
+
+// Permission update event published by federated services to <service>.permissions
+message PermissionUpdateEnvelope {
+  string version = 1; // payload schema version
+  string service = 2; // service slug/name
+  string message_id = 3; // reference to this message to be used in case of errors
+  optional string idempotency_key = 4;
+  google.protobuf.Timestamp event_time = 5; // business time of the event (producer)
+  optional google.protobuf.Timestamp ingestion_time = 6; // populated by Cerberus listener at ingestion
+  optional string correlation_id = 7; // optional trace/correlation id
+  repeated PermissionOperation operations = 8;  // list of atomic operations to apply
 }
 
-// Published by this service to the error topic when ingestion fails.
-message WriteRequestError {
-  uint32 sequence_id    = 1;
-  string error_code     = 2;
-  string error_message  = 3;
-  string tuple_snapshot = 4;
+// Single operation that maps to one or more OpenFGA tuple writes/deletes
+message PermissionOperation {
+  PermissionOp op = 1; // write, delete, replace, ...
+  string subject = 2; // "type:id" e.g. "user:u2"
+  string relation = 3; // relation name e.g. "viewer", "owner"
+  string object = 4; // "type:id" e.g. "invoice:inv-1"
+}
+
+// Enum for operation types; includes unspecified zero value
+enum PermissionOp {
+  PERMISSION_OP_UNSPECIFIED = 0; // Zero value to notice when an operation wasn't explicitly set
+  PERMISSION_OP_WRITE = 1;
+  PERMISSION_OP_DELETE = 2;
+}
+
+// Error envelope published by Cerberus to <service>.errors when a message permanently fails
+message PermissionErrorEnvelope {
+  string version = 1;  // payload schema version (of the original message)
+  string service = 2; // service slug / name
+  google.protobuf.Timestamp event_time = 3; // original event_time, if available
+  google.protobuf.Timestamp ingestion_time = 4; // ingestion_time recorded at receive
+  google.protobuf.Timestamp last_processed_time = 5; // optional: when worker last attempted processing
+  string message_id = 6; // original message reference
+  optional string correlation_id = 7; // optional trace/correlation id from original message
+  string error_code = 8; // machine-friendly error code
+  string error_message = 9; // human-readable message
 }
