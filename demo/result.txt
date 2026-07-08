@@ -1,0 +1,30 @@
+===================================================================
+kafka-go consumer group PoC run
+broker: localhost:9092
+===================================================================
+
+=== kafka-go consumer group PoC ===
+broker:         localhost:9092
+consumer group: cerberus-cg
+topics:         a.perm, b.perm, a.error, b.error
+expecting 8 messages (2 per topic)
+
+ensured 4 topics exist
+produced 8 messages to 4 topics
+
+[recv] topic=b.perm   partition=0 offset=0   key=b.perm-key-0   value="hello from b.perm #0"
+[recv] topic=b.error  partition=0 offset=0   key=b.error-key-0  value="hello from b.error #0"
+[recv] topic=b.perm   partition=0 offset=1   key=b.perm-key-1   value="hello from b.perm #1"
+[recv] topic=b.error  partition=0 offset=1   key=b.error-key-1  value="hello from b.error #1"
+[recv] topic=a.error  partition=0 offset=0   key=a.error-key-0  value="hello from a.error #0"
+[recv] topic=a.error  partition=0 offset=1   key=a.error-key-1  value="hello from a.error #1"
+[recv] topic=a.perm   partition=0 offset=0   key=a.perm-key-0   value="hello from a.perm #0"
+[recv] topic=a.perm   partition=0 offset=1   key=a.perm-key-1   value="hello from a.perm #1"
+
+per-topic totals:
+  a.perm   -> 2 messages
+  b.perm   -> 2 messages
+  a.error  -> 2 messages
+  b.error  -> 2 messages
+
+=== PoC completed successfully: consumed 8 messages across 4 topics ===
