@@ -176,17 +176,20 @@ func (s *STSConfig) waitForConnectionReady(conn *grpc.ClientConn) error {
 	return nil
 }
 
-// KafkaConfig contains Kafka consumer/producer configuration.
+// KafkaConfig contains Kafka consumer configuration for the permission-update
+// ingestion listener.
+//
+// FederatedServices is the registry source: each entry is a service slug, and
+// the listener subscribes to the derived "<slug>.permissions" topic within a
+// single consumer group. Topics are never hardcoded.
 type KafkaConfig struct {
-	Enabled         bool          `validate:"" envconfig:"KAFKA_ENABLED" default:"false"`
-	Brokers         []string      `validate:"required_if=Enabled true" envconfig:"KAFKA_BROKERS" default:"localhost:9092"`
-	Topic           string        `validate:"required_if=Enabled true" envconfig:"KAFKA_TOPIC"`
-	ErrorTopic      string        `validate:"required_if=Enabled true" envconfig:"KAFKA_ERROR_TOPIC"`
-	ConsumerGroup   string        `validate:"required_if=Enabled true" envconfig:"KAFKA_CONSUMER_GROUP" default:"authz-listener"`
-	Workers         int           `validate:"min=1" envconfig:"KAFKA_WORKERS" default:"4"`
-	BatchSize       int           `validate:"min=1" envconfig:"KAFKA_BATCH_SIZE" default:"100"`
-	FlushInterval   time.Duration `validate:"" envconfig:"KAFKA_FLUSH_INTERVAL" default:"5s"`
-	ServiceIdHeader string        `validate:"" envconfig:"KAFKA_SERVICE_ID_HEADER" default:"service"`
+	Enabled           bool     `validate:"" envconfig:"KAFKA_ENABLED" default:"false"`
+	Brokers           []string `validate:"required_if=Enabled true" envconfig:"KAFKA_BROKERS" default:"localhost:9092"`
+	FederatedServices []string `validate:"required_if=Enabled true" envconfig:"FEDERATED_SERVICES"`
+	ConsumerGroup     string   `validate:"required_if=Enabled true" envconfig:"KAFKA_CONSUMER_GROUP" default:"authz-listener"`
+	// Topic creation settings, used by the ensure-topics command.
+	TopicPartitions        int `validate:"min=1" envconfig:"KAFKA_TOPIC_PARTITIONS" default:"1"`
+	TopicReplicationFactor int `validate:"min=1" envconfig:"KAFKA_TOPIC_REPLICATION_FACTOR" default:"1"`
 }
 
 // LoggingConfig contains logging configuration

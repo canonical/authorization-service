@@ -11,15 +11,17 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/canonical/authorization-service/config"
+	"github.com/canonical/authorization-service/internal/repository"
 	"github.com/canonical/authorization-service/internal/service/listen"
 	"github.com/canonical/authorization-service/internal/version"
 )
 
 var listenCmd = &cobra.Command{
 	Use:   "listen",
-	Short: "Start the Kafka tuple listener",
-	Long: `Start the Kafka listener that consumes WriteRequest messages and writes
-the resulting tuples to OpenFGA. Errors are published to a separate error topic.
+	Short: "Start the Kafka permission-update listener",
+	Long: `Start the Kafka listener that consumes permission-update events from the
+federated services' "<slug>.permissions" topics and durably persists them into
+the PostgreSQL work table for downstream tuple application.
 Configuration is loaded from environment variables.`,
 	RunE: runListen,
 }
@@ -48,18 +50,19 @@ func runListen(cmd *cobra.Command, _ []string) error {
 	}
 	defer integrations.CleanupIntegrations(logger)
 
+	workRepo := repository.NewPostgresPermissionWorkRepository(integrations.Postgres)
+	ingestor := listen.NewIngestionService(
+		integrations.ServiceRegistry,
+		listen.NewDecoder(),
+		listen.NewValidator(),
+		workRepo,
+		nil, // metrics: no-op until an OTel-backed implementation is wired
+		logger,
+	)
+
 	listener := listen.NewListener(
 		integrations.KafkaConsumer,
-		integrations.KafkaPublisher,
-		integrations.OpenFGA,
-		&listen.Base64Encoder{},
-		listen.Config{
-			ErrorTopic:      cfg.Kafka.ErrorTopic,
-			ServiceIdHeader: cfg.Kafka.ServiceIdHeader,
-			BatchSize:       cfg.Kafka.BatchSize,
-			FlushInterval:   cfg.Kafka.FlushInterval,
-			ShutdownTimeout: cfg.Server.GracefulShutdownTimeout,
-		},
+		ingestor,
 		logger,
 	)
 
