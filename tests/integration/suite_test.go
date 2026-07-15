@@ -4,19 +4,21 @@ package integration
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"net"
 	"net/netip"
 	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
 
+	_ "github.com/jackc/pgx/v5/stdlib"
 	dockercontainer "github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"
-	openfgasdk "github.com/openfga/go-sdk"
-	"github.com/openfga/go-sdk/client"
+	"github.com/pressly/goose/v3"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"google.golang.org/protobuf/proto"
@@ -24,21 +26,22 @@ import (
 	kafka "github.com/segmentio/kafka-go"
 
 	messagesv1 "github.com/canonical/authorization-service/api/v1"
-	kafkaintegration "github.com/canonical/authorization-service/internal/integration/kafka"
+	"github.com/canonical/authorization-service/internal/integration/postgres"
+	"github.com/canonical/authorization-service/internal/service/listen"
 	"github.com/canonical/authorization-service/internal/testutil"
+	"github.com/canonical/authorization-service/migrations"
 )
 
-const (
-	ingestTopic = "test.authz.tuples"
-	errorTopic  = "test.authz.tuples.errors"
-)
+// Federated services under test. Each maps to a "<slug>.permissions" topic.
+var federatedServices = []string{"payments", "invoicing"}
+
+func topicFor(slug string) string { return slug + listen.TopicSuffix }
 
 var (
-	kafkaBroker     string
-	openfgaHTTPAddr string
-	openfgaStoreID  string
-	openfgaModelID  string
-	testLogger      = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	kafkaBroker string
+	pgDSN       string
+	pgConfig    postgres.Config
+	testLogger  = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 )
 
 func TestMain(m *testing.M) {
@@ -56,21 +59,18 @@ func run(m *testing.M) int {
 	defer testutil.StopContainer(ctx, kafkaCtr)
 	kafkaBroker = broker
 
-	fgaCtr, addr, err := startOpenFGA(ctx)
+	pgCtr, dsn, err := startPostgres(ctx)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to start OpenFGA: %v\n", err)
+		fmt.Fprintf(os.Stderr, "failed to start Postgres: %v\n", err)
 		return 1
 	}
-	defer testutil.StopContainer(ctx, fgaCtr)
-	openfgaHTTPAddr = addr
+	defer testutil.StopContainer(ctx, pgCtr)
+	pgDSN = dsn
 
-	storeID, modelID, err := setupOpenFGA(ctx, addr)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to setup OpenFGA: %v\n", err)
+	if err := runMigrations(ctx, dsn); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to run migrations: %v\n", err)
 		return 1
 	}
-	openfgaStoreID = storeID
-	openfgaModelID = modelID
 
 	if err := createKafkaTopics(ctx, kafkaBroker); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to create Kafka topics: %v\n", err)
@@ -81,8 +81,6 @@ func run(m *testing.M) int {
 }
 
 // startKafka starts a KRaft-mode Kafka container and returns the broker address.
-// It picks a free host port and pins it so KAFKA_ADVERTISED_LISTENERS matches
-// the port that testcontainers exposes.
 func startKafka(ctx context.Context) (testcontainers.Container, string, error) {
 	l, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
@@ -127,17 +125,32 @@ func startKafka(ctx context.Context) (testcontainers.Container, string, error) {
 	return ctr, "localhost:" + portStr, nil
 }
 
-// startOpenFGA starts an OpenFGA container with an in-memory datastore.
-func startOpenFGA(ctx context.Context) (testcontainers.Container, string, error) {
+// startPostgres builds the project's pg_uuidv7-enabled image and starts it.
+func startPostgres(ctx context.Context) (testcontainers.Container, string, error) {
+	dockerfileDir, err := filepath.Abs(filepath.Join("..", "..", "docker", "dependencies", "postgres"))
+	if err != nil {
+		return nil, "", fmt.Errorf("resolving dockerfile dir: %w", err)
+	}
+
+	const (
+		user = "cerberus"
+		pass = "cerberus"
+		db   = "cerberus"
+	)
+
 	req := testcontainers.ContainerRequest{
-		Image:        "openfga/openfga:v1.14.1",
-		Cmd:          []string{"run"},
-		ExposedPorts: []string{"8080/tcp"},
-		Env: map[string]string{
-			"OPENFGA_DATASTORE_ENGINE": "memory",
-			"OPENFGA_HTTP_ADDR":        "0.0.0.0:8080",
+		FromDockerfile: testcontainers.FromDockerfile{
+			Context:    dockerfileDir,
+			Dockerfile: "Dockerfile",
+			KeepImage:  true,
 		},
-		WaitingFor: wait.ForHTTP("/healthz").WithPort("8080/tcp").WithStartupTimeout(30 * time.Second),
+		ExposedPorts: []string{"5432/tcp"},
+		Env: map[string]string{
+			"POSTGRES_USER":     user,
+			"POSTGRES_PASSWORD": pass,
+			"POSTGRES_DB":       db,
+		},
+		WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(60 * time.Second),
 	}
 
 	ctr, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -145,75 +158,70 @@ func startOpenFGA(ctx context.Context) (testcontainers.Container, string, error)
 		Started:          true,
 	})
 	if err != nil {
-		return nil, "", fmt.Errorf("starting OpenFGA: %w", err)
+		return nil, "", fmt.Errorf("starting Postgres: %w", err)
 	}
 
 	host, err := ctr.Host(ctx)
 	if err != nil {
-		return nil, "", fmt.Errorf("getting OpenFGA host: %w", err)
+		return nil, "", fmt.Errorf("getting Postgres host: %w", err)
 	}
-	mappedPort, err := ctr.MappedPort(ctx, "8080/tcp")
+	mappedPort, err := ctr.MappedPort(ctx, "5432/tcp")
 	if err != nil {
-		return nil, "", fmt.Errorf("getting OpenFGA port: %w", err)
+		return nil, "", fmt.Errorf("getting Postgres port: %w", err)
 	}
 
-	addr := fmt.Sprintf("http://%s:%s", host, mappedPort.Port())
-	return ctr, addr, nil
+	portNum, err := strconv.Atoi(mappedPort.Port())
+	if err != nil {
+		return nil, "", fmt.Errorf("parsing Postgres port: %w", err)
+	}
+
+	pgConfig = postgres.Config{
+		Host:           host,
+		Port:           portNum,
+		User:           user,
+		Password:       pass,
+		DBName:         db,
+		SSLMode:        "disable",
+		ConnectTimeout: 10 * time.Second,
+	}
+
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		host, mappedPort.Port(), user, pass, db)
+	return ctr, dsn, nil
 }
 
-// setupOpenFGA creates an OpenFGA store and writes the minimal authorization model
-// needed by the listener tests (user type + group type with member relation).
-func setupOpenFGA(ctx context.Context, apiURL string) (storeID, modelID string, err error) {
-	fgaClient, err := client.NewSdkClient(&client.ClientConfiguration{ApiUrl: apiURL})
+// runMigrations applies all goose migrations against the test database.
+func runMigrations(ctx context.Context, dsn string) error {
+	db, err := sql.Open("pgx/v5", dsn)
 	if err != nil {
-		return "", "", fmt.Errorf("creating OpenFGA client: %w", err)
+		return fmt.Errorf("opening db: %w", err)
+	}
+	defer db.Close()
+
+	// Wait for the extension-enabled DB to accept connections.
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		if err = db.PingContext(ctx); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("db not ready: %w", err)
+		}
+		time.Sleep(500 * time.Millisecond)
 	}
 
-	storeResp, err := fgaClient.CreateStoreExecute(
-		fgaClient.CreateStore(ctx).Body(client.ClientCreateStoreRequest{Name: "integration-tests"}),
-	)
-	if err != nil {
-		return "", "", fmt.Errorf("creating OpenFGA store: %w", err)
+	goose.SetBaseFS(migrations.EmbedMigrations)
+	if err := goose.SetDialect("postgres"); err != nil {
+		return fmt.Errorf("setting dialect: %w", err)
 	}
-	storeID = storeResp.GetId()
-	if err := fgaClient.SetStoreId(storeID); err != nil {
-		return "", "", fmt.Errorf("setting store ID: %w", err)
+	if err := goose.UpContext(ctx, db, ".", goose.WithNoColor(true)); err != nil {
+		return fmt.Errorf("goose up: %w", err)
 	}
-
-	memberRelation := map[string]openfgasdk.Userset{
-		"member": {This: &map[string]interface{}{}},
-	}
-	memberMeta := map[string]openfgasdk.RelationMetadata{
-		"member": {
-			DirectlyRelatedUserTypes: &[]openfgasdk.RelationReference{
-				{Type: "user"},
-			},
-		},
-	}
-	authModel := openfgasdk.WriteAuthorizationModelRequest{
-		SchemaVersion: "1.1",
-		TypeDefinitions: []openfgasdk.TypeDefinition{
-			{Type: "user"},
-			{
-				Type:      "group",
-				Relations: &memberRelation,
-				Metadata:  &openfgasdk.Metadata{Relations: &memberMeta},
-			},
-		},
-	}
-
-	modelResp, err := fgaClient.WriteAuthorizationModelExecute(
-		fgaClient.WriteAuthorizationModel(ctx).Body(authModel),
-	)
-	if err != nil {
-		return "", "", fmt.Errorf("writing authorization model: %w", err)
-	}
-
-	return storeID, modelResp.GetAuthorizationModelId(), nil
+	return nil
 }
 
-// createKafkaTopics pre-creates both the ingestion and error topics via the
-// kafka-go admin API so tests never hit the auto-create race.
+// createKafkaTopics pre-creates every federated service's permissions topic via
+// the kafka-go admin API so tests never hit the auto-create race.
 func createKafkaTopics(ctx context.Context, broker string) error {
 	conn, err := kafka.DialContext(ctx, "tcp", broker)
 	if err != nil {
@@ -231,10 +239,10 @@ func createKafkaTopics(ctx context.Context, broker string) error {
 	}
 	defer controllerConn.Close()
 
-	specs := make([]kafka.TopicConfig, 0, 2)
-	for _, topic := range []string{ingestTopic, errorTopic} {
+	specs := make([]kafka.TopicConfig, 0, len(federatedServices))
+	for _, slug := range federatedServices {
 		specs = append(specs, kafka.TopicConfig{
-			Topic:             topic,
+			Topic:             topicFor(slug),
 			NumPartitions:     1,
 			ReplicationFactor: 1,
 		})
@@ -247,83 +255,30 @@ func createKafkaTopics(ctx context.Context, broker string) error {
 
 // ── Per-test helpers ─────────────────────────────────────────────────────────
 
-func newOpenFGAClient(t *testing.T) *client.OpenFgaClient {
+// publishEnvelope serializes and publishes one PermissionUpdateEnvelope to the
+// given service's permissions topic, keyed by idempotency key.
+func publishEnvelope(t *testing.T, slug string, env *messagesv1.PermissionUpdateEnvelope) {
 	t.Helper()
-	fgaClient, err := client.NewSdkClient(&client.ClientConfiguration{
-		ApiUrl:               openfgaHTTPAddr,
-		AuthorizationModelId: openfgaModelID,
-	})
+	data, err := proto.Marshal(env)
 	if err != nil {
-		t.Fatalf("newOpenFGAClient: %v", err)
+		t.Fatalf("publishEnvelope marshal: %v", err)
 	}
-	if err := fgaClient.SetStoreId(openfgaStoreID); err != nil {
-		t.Fatalf("newOpenFGAClient SetStoreId: %v", err)
-	}
-	return fgaClient
+	publishRaw(t, slug, []byte(env.GetIdempotencyKey()), data)
 }
 
-// newKafkaClient creates a Kafka client pointing at the test broker.
-// The consumer group is unique per call so tests don't share committed offsets.
-func newKafkaClient(t *testing.T, group string) *kafkaintegration.Client {
-	t.Helper()
-	c, err := kafkaintegration.NewClient(kafkaintegration.Config{
-		Brokers:       []string{kafkaBroker},
-		ConsumerGroup: group,
-		Topic:         ingestTopic,
-		Workers:       2,
-	}, testLogger)
-	if err != nil {
-		t.Fatalf("newKafkaClient: %v", err)
-	}
-	t.Cleanup(func() { c.Close() })
-	return c
-}
-
-// newErrorReader returns a kafka.Reader positioned at the start of the error topic.
-// Uses a unique group per call so it always reads from offset 0.
-func newErrorReader(t *testing.T, group string) *kafka.Reader {
-	t.Helper()
-	r := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:     []string{kafkaBroker},
-		GroupID:     group,
-		Topic:       errorTopic,
-		MinBytes:    1,
-		MaxBytes:    10e6,
-		StartOffset: kafka.FirstOffset,
-	})
-	t.Cleanup(func() { r.Close() })
-	return r
-}
-
-// publishWriteRequest serializes and publishes one WriteRequest to the ingest topic.
-func publishWriteRequest(t *testing.T, w *kafka.Writer, req *messagesv1.WriteRequest, service string) {
-	t.Helper()
-	data, err := proto.Marshal(req)
-	if err != nil {
-		t.Fatalf("publishWriteRequest marshal: %v", err)
-	}
-	if err := w.WriteMessages(context.Background(), kafka.Message{
-		Key:   []byte(fmt.Sprintf("key-%d", req.GetSequenceId())),
-		Value: data,
-		Headers: []kafka.Header{
-			{Key: "service", Value: []byte(service)},
-		},
-	}); err != nil {
-		t.Fatalf("publishWriteRequest write: %v", err)
-	}
-}
-
-// newTestWriter returns a kafka.Writer for the ingest topic.
-func newTestWriter(t *testing.T) *kafka.Writer {
+// publishRaw publishes arbitrary bytes to a service's permissions topic.
+func publishRaw(t *testing.T, slug string, key, value []byte) {
 	t.Helper()
 	w := &kafka.Writer{
 		Addr:                   kafka.TCP(kafkaBroker),
-		Topic:                  ingestTopic,
+		Topic:                  topicFor(slug),
 		Balancer:               &kafka.LeastBytes{},
 		AllowAutoTopicCreation: true,
 	}
-	t.Cleanup(func() { w.Close() })
-	return w
+	defer w.Close()
+	if err := w.WriteMessages(context.Background(), kafka.Message{Key: key, Value: value}); err != nil {
+		t.Fatalf("publishRaw write: %v", err)
+	}
 }
 
 // uniqueSuffix returns a short string unique within the test run.
@@ -331,65 +286,20 @@ func uniqueSuffix() string {
 	return strconv.FormatInt(time.Now().UnixNano(), 36)
 }
 
-// waitForTuple polls OpenFGA until the tuple appears or the deadline passes.
-func waitForTuple(t *testing.T, fga *client.OpenFgaClient, user, relation, object string) {
-	t.Helper()
-	deadline := time.Now().Add(20 * time.Second)
-	for time.Now().Before(deadline) {
-		resp, err := fga.ReadExecute(fga.Read(context.Background()).Body(client.ClientReadRequest{
-			User:     openfgasdk.PtrString(user),
-			Relation: openfgasdk.PtrString(relation),
-			Object:   openfgasdk.PtrString(object),
-		}))
-		if err == nil && len(resp.GetTuples()) > 0 {
-			return
-		}
-		time.Sleep(300 * time.Millisecond)
-	}
-	t.Fatalf("tuple %s#%s@%s not found in OpenFGA within 20s", user, relation, object)
-}
-
-// waitForAbsenceTuple asserts the tuple is NOT present after the listener has had
-// enough time to process (waits waitFor, then checks once).
-func waitForAbsenceTuple(t *testing.T, fga *client.OpenFgaClient, user, relation, object string, waitFor time.Duration) {
-	t.Helper()
-	time.Sleep(waitFor)
-	resp, err := fga.ReadExecute(fga.Read(context.Background()).Body(client.ClientReadRequest{
-		User:     openfgasdk.PtrString(user),
-		Relation: openfgasdk.PtrString(relation),
-		Object:   openfgasdk.PtrString(object),
-	}))
-	if err != nil {
-		return // read error = tuple not there, which is what we want
-	}
-	if len(resp.GetTuples()) > 0 {
-		t.Fatalf("tuple %s#%s@%s should NOT be in OpenFGA but was found", user, relation, object)
-	}
-}
-
-// waitForErrorMessage polls the error reader until a matching message arrives or timeout.
-// match is called for each decodeable message; the first one that returns true is returned.
-// Pass nil to accept the first decodeable message.
-func waitForErrorMessage(t *testing.T, r *kafka.Reader, timeout time.Duration, match func(*messagesv1.WriteRequestError) bool) *messagesv1.WriteRequestError {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	for {
-		msg, err := r.FetchMessage(ctx)
-		if err != nil {
-			t.Fatalf("waitForErrorMessage: no matching error message within %s: %v", timeout, err)
-			return nil
-		}
-		if err := r.CommitMessages(ctx, msg); err != nil {
-			t.Logf("commit warning: %v", err)
-		}
-		var errMsg messagesv1.WriteRequestError
-		if err := proto.Unmarshal(msg.Value, &errMsg); err != nil {
-			continue
-		}
-		if match == nil || match(&errMsg) {
-			return &errMsg
-		}
+// sampleEnvelope builds a minimal valid envelope for a service.
+func sampleEnvelope(slug, idempotencyKey string) *messagesv1.PermissionUpdateEnvelope {
+	return &messagesv1.PermissionUpdateEnvelope{
+		Version:        "1",
+		Service:        slug,
+		MessageId:      "msg-" + idempotencyKey,
+		IdempotencyKey: idempotencyKey,
+		Operations: []*messagesv1.PermissionOperation{
+			{
+				Op:       messagesv1.PermissionOp_PERMISSION_OP_WRITE,
+				Subject:  "user:u1",
+				Relation: "member",
+				Object:   "group:g1",
+			},
+		},
 	}
 }
