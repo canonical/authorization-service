@@ -2,10 +2,10 @@ package kafka
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	kafka "github.com/segmentio/kafka-go"
 )
@@ -16,29 +16,25 @@ type ConsumerInterface interface {
 	Close() error
 }
 
-// PublisherInterface defines the interface for publishing Kafka messages.
-type PublisherInterface interface {
-	Publish(ctx context.Context, topic string, key, value []byte, headers ...kafka.Header) error
-	Close() error
-}
-
-// Compile-time checks.
+// Compile-time check.
 var _ ConsumerInterface = (*Client)(nil)
-var _ PublisherInterface = (*Client)(nil)
 
 // Config holds Kafka client configuration.
+//
+// Topics lists all permission-update topics the consumer subscribes to within
+// the single ConsumerGroup. Partitions across these topics may be reassigned at
+// any time due to rebalance or scaling; delivery is at-least-once. Parallelism
+// is achieved by running multiple instances, not multiple in-process workers, so
+// that per-partition ordering and safe offset committing are preserved.
 type Config struct {
 	Brokers       []string
 	ConsumerGroup string
-	Topic         string
-	Workers       int
+	Topics        []string
 }
 
-// Client wraps a Kafka reader and writer.
+// Client wraps a Kafka consumer-group reader.
 type Client struct {
 	reader    *kafka.Reader
-	writer    *kafka.Writer
-	workers   int
 	logger    *slog.Logger
 	closeOnce sync.Once
 	closeErr  error
@@ -50,118 +46,117 @@ func NewClient(cfg Config, logger *slog.Logger) (*Client, error) {
 		return nil, fmt.Errorf("kafka brokers must not be empty")
 	}
 
-	workers := cfg.Workers
-	if workers < 1 {
-		workers = 1
+	if cfg.ConsumerGroup == "" {
+		return nil, fmt.Errorf("kafka consumer group must not be empty")
+	}
+	if len(cfg.Topics) == 0 {
+		return nil, fmt.Errorf("kafka topics must not be empty")
 	}
 
 	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:  cfg.Brokers,
-		GroupID:  cfg.ConsumerGroup,
-		Topic:    cfg.Topic,
-		MinBytes: 1,
-		MaxBytes: 10e6,
+		Brokers:     cfg.Brokers,
+		GroupID:     cfg.ConsumerGroup,
+		GroupTopics: cfg.Topics,
+		MinBytes:    1,
+		MaxBytes:    10e6,
 	})
 
-	writer := &kafka.Writer{
-		Addr:                   kafka.TCP(cfg.Brokers...),
-		Balancer:               &kafka.LeastBytes{},
-		AllowAutoTopicCreation: true,
-	}
-
-	logger.Info("Kafka client created", "brokers", cfg.Brokers, "topic", cfg.Topic, "group", cfg.ConsumerGroup, "workers", workers)
+	logger.Info("Kafka client created", "brokers", cfg.Brokers, "topics", cfg.Topics, "group", cfg.ConsumerGroup)
 	return &Client{
-		reader:  reader,
-		writer:  writer,
-		workers: workers,
-		logger:  logger,
+		reader: reader,
+		logger: logger,
 	}, nil
 }
 
-// Consume starts workers goroutines that fetch and handle messages until ctx is cancelled.
-// A single fetcher goroutine feeds a shared channel; workers process messages in parallel.
+// Consume fetches and handles messages in order until ctx is cancelled.
+//
+// Processing is deliberately serial. Kafka offsets are a per-partition
+// high-water mark, not per-message acknowledgements: committing offset N marks
+// every offset up to N as consumed. A parallel fan-out could therefore commit a
+// later offset while an earlier one is still failing, silently dropping the
+// earlier message; it would also break the per-partition ordering the ingestion
+// stage relies on. To scale, run multiple listener instances — the consumer
+// group assigns disjoint partitions to each, and every instance processes its
+// partitions in order.
+//
+// The handler's return value drives progress:
+//   - nil: the message is fully handled (persisted, a recognised duplicate, or a
+//     permanent failure that has been logged/metered). The offset is committed
+//     and processing advances.
+//   - non-nil: a transient failure. The same message is retried in place with
+//     backoff — the reader is NOT advanced, because leaving an offset uncommitted
+//     does not cause a running reader to re-fetch it; only serial retry (or, on
+//     restart/rebalance, redelivery from the last committed offset) guarantees
+//     the message is not skipped.
 func (c *Client) Consume(ctx context.Context, handler func(ctx context.Context, msg kafka.Message) error) error {
-	msgChan := make(chan kafka.Message, c.workers*2)
-	fetchErrChan := make(chan error, 1)
-
-	// Single fetcher goroutine — kafka.Reader.FetchMessage must only be called from one goroutine.
-	go func() {
-		defer close(msgChan)
-		for {
-			msg, err := c.reader.FetchMessage(ctx)
-			if err != nil {
-				if ctx.Err() != nil {
-					return
-				}
-				select {
-				case fetchErrChan <- fmt.Errorf("kafka fetch error: %w", err):
-				default:
-				}
-				return
+	for {
+		msg, err := c.reader.FetchMessage(ctx)
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil
 			}
-			select {
-			case msgChan <- msg:
-			case <-ctx.Done():
-				return
+			return fmt.Errorf("kafka fetch error: %w", err)
+		}
+
+		if err := c.handleWithRetry(ctx, handler, msg); err != nil {
+			// Only returns non-nil on context cancellation mid-retry: exit without
+			// committing so the message is redelivered from the committed offset.
+			return nil
+		}
+
+		if err := c.reader.CommitMessages(ctx, msg); err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			c.logger.Error("Failed to commit Kafka message",
+				"topic", msg.Topic, "partition", msg.Partition, "offset", msg.Offset, "error", err)
+		}
+	}
+}
+
+// handleWithRetry invokes handler for msg, retrying transient failures in place
+// with capped exponential backoff. It returns nil once the message is handled
+// (handler returned nil), or a non-nil error only if ctx is cancelled while
+// waiting to retry.
+func (c *Client) handleWithRetry(ctx context.Context, handler func(ctx context.Context, msg kafka.Message) error, msg kafka.Message) error {
+	const (
+		baseBackoff = 200 * time.Millisecond
+		maxBackoff  = 30 * time.Second
+	)
+
+	backoff := baseBackoff
+	for attempt := 1; ; attempt++ {
+		if err := handler(ctx, msg); err == nil {
+			return nil
+		} else {
+			c.logger.Error("Transient handler failure; retrying same message in place",
+				"topic", msg.Topic, "partition", msg.Partition, "offset", msg.Offset,
+				"attempt", attempt, "backoff", backoff.String(), "error", err)
+		}
+
+		timer := time.NewTimer(backoff)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+
+		if backoff < maxBackoff {
+			backoff *= 2
+			if backoff > maxBackoff {
+				backoff = maxBackoff
 			}
 		}
-	}()
-
-	var wg sync.WaitGroup
-	for range c.workers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for msg := range msgChan {
-				if err := handler(ctx, msg); err != nil {
-					c.logger.Error("Kafka message handler error", "error", err)
-				}
-				if err := c.reader.CommitMessages(ctx, msg); err != nil {
-					if ctx.Err() != nil {
-						return
-					}
-					c.logger.Error("Failed to commit Kafka message", "error", err)
-				}
-			}
-		}()
 	}
-
-	wg.Wait()
-
-	select {
-	case err := <-fetchErrChan:
-		return err
-	default:
-	}
-	return nil
 }
 
-// Publish writes a message to the given topic.
-func (c *Client) Publish(ctx context.Context, topic string, key, value []byte, headers ...kafka.Header) error {
-	msg := kafka.Message{
-		Topic:   topic,
-		Key:     key,
-		Value:   value,
-		Headers: headers,
-	}
-	if err := c.writer.WriteMessages(ctx, msg); err != nil {
-		return fmt.Errorf("failed to publish to topic %s: %w", topic, err)
-	}
-	c.logger.Debug("Published Kafka message", "topic", topic, "size", len(value))
-	return nil
-}
-
-// Close closes the reader and writer. Safe to call multiple times.
+// Close closes the reader. Safe to call multiple times.
 func (c *Client) Close() error {
 	c.closeOnce.Do(func() {
-		var errs []error
 		if err := c.reader.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("reader: %w", err))
+			c.closeErr = fmt.Errorf("reader: %w", err)
 		}
-		if err := c.writer.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("writer: %w", err))
-		}
-		c.closeErr = errors.Join(errs...)
 		c.logger.Info("Kafka client closed")
 	})
 	return c.closeErr
