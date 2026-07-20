@@ -45,4 +45,5 @@ func init() {
 	rootCmd.AddCommand(migrateCmd)
 	rootCmd.AddCommand(authz.AuthzCmd)
 	rootCmd.AddCommand(listenCmd)
+	rootCmd.AddCommand(workerCmd)
 }

@@ -92,3 +92,158 @@ func TestPermissionWork_Insert_OtherError(t *testing.T) {
 		t.Fatalf("expected non-duplicate error, got %v", err)
 	}
 }
+
+func TestPermissionWork_ClaimBatch_Success(t *testing.T) {
+	mockDB, pool := setupWorkMocks(t)
+
+	// The claim runs SELECT ... FOR UPDATE SKIP LOCKED then UPDATE ... in one tx.
+	mockDB.EXPECT().
+		Begin(gomock.Any()).
+		DoAndReturn(func(ctx context.Context) (interface{}, error) {
+			pool.ExpectBegin()
+			pool.ExpectQuery(".*").
+				WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).
+				WillReturnRows(
+					pgxmock.NewRows([]string{"id", "service", "message_id", "payload", "event_time", "attempt_count"}).
+						AddRow("row-1", "payments", "msg-1", []byte{0x01}, (*time.Time)(nil), 0).
+						AddRow("row-2", "payments", "msg-2", []byte{0x02}, (*time.Time)(nil), 2),
+				)
+			pool.ExpectExec(".*").
+				WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).
+				WillReturnResult(pgxmock.NewResult("UPDATE", 2))
+			pool.ExpectCommit()
+			return pool.Begin(ctx)
+		})
+
+	repo := NewPostgresPermissionWorkRepository(mockDB)
+	rows, err := repo.ClaimBatch(context.Background(), 20, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 claimed rows, got %d", len(rows))
+	}
+	if rows[0].ID != "row-1" || rows[1].AttemptCount != 2 {
+		t.Fatalf("unexpected claimed rows: %+v", rows)
+	}
+}
+
+func TestPermissionWork_ClaimBatch_Empty(t *testing.T) {
+	mockDB, pool := setupWorkMocks(t)
+
+	// No eligible rows: the claim commits without issuing the UPDATE.
+	mockDB.EXPECT().
+		Begin(gomock.Any()).
+		DoAndReturn(func(ctx context.Context) (interface{}, error) {
+			pool.ExpectBegin()
+			pool.ExpectQuery(".*").
+				WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).
+				WillReturnRows(
+					pgxmock.NewRows([]string{"id", "service", "message_id", "payload", "event_time", "attempt_count"}),
+				)
+			pool.ExpectRollback()
+			return pool.Begin(ctx)
+		})
+
+	repo := NewPostgresPermissionWorkRepository(mockDB)
+	rows, err := repo.ClaimBatch(context.Background(), 20, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("expected no claimed rows, got %d", len(rows))
+	}
+}
+
+func TestPermissionWork_RecordProcessed_Success(t *testing.T) {
+	mockDB, pool := setupWorkMocks(t)
+
+	mockDB.EXPECT().
+		Begin(gomock.Any()).
+		DoAndReturn(func(ctx context.Context) (interface{}, error) {
+			pool.ExpectBegin()
+			pool.ExpectExec("INSERT INTO authorization_tuples").
+				WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).
+				WillReturnResult(pgxmock.NewResult("INSERT", 1))
+			pool.ExpectExec("DELETE FROM authorization_tuples").
+				WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).
+				WillReturnResult(pgxmock.NewResult("DELETE", 1))
+			pool.ExpectExec("UPDATE permission_update_work").
+				WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).
+				WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+			pool.ExpectCommit()
+			return pool.Begin(ctx)
+		})
+
+	repo := NewPostgresPermissionWorkRepository(mockDB)
+	err := repo.RecordProcessed(context.Background(), "row-1", "payments",
+		[]permissions.Tuple{{Subject: "user:u1", Relation: "viewer", Object: "doc:d1"}},
+		[]permissions.Tuple{{Subject: "user:u2", Relation: "editor", Object: "doc:d2"}},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestPermissionWork_MarkFailed(t *testing.T) {
+	mockDB, pool := setupWorkMocks(t)
+
+	mockDB.EXPECT().
+		Exec(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, query string, args ...interface{}) (interface{}, error) {
+			pool.ExpectExec(".*").WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+			return pool.Exec(ctx, "test")
+		})
+
+	repo := NewPostgresPermissionWorkRepository(mockDB)
+	if err := repo.MarkFailed(context.Background(), "row-1", "openfga_write_rejected", "bad input"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestPermissionWork_MarkRetry(t *testing.T) {
+	tests := []struct {
+		name       string
+		incAttempt bool
+	}{
+		{"pre-write failure increments attempts", true},
+		{"post-write bookkeeping failure does not", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockDB, pool := setupWorkMocks(t)
+
+			mockDB.EXPECT().
+				Exec(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, query string, args ...interface{}) (interface{}, error) {
+					pool.ExpectExec(".*").WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+					return pool.Exec(ctx, "test")
+				})
+
+			repo := NewPostgresPermissionWorkRepository(mockDB)
+			if err := repo.MarkRetry(context.Background(), "row-1", "code", "msg", tc.incAttempt); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestPermissionWork_ReclaimStale(t *testing.T) {
+	mockDB, pool := setupWorkMocks(t)
+
+	mockDB.EXPECT().
+		Exec(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, query string, args ...interface{}) (interface{}, error) {
+			pool.ExpectExec(".*").WillReturnResult(pgxmock.NewResult("UPDATE", 3))
+			return pool.Exec(ctx, "test")
+		})
+
+	repo := NewPostgresPermissionWorkRepository(mockDB)
+	n, err := repo.ReclaimStale(context.Background(), 15*time.Minute)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if n != 3 {
+		t.Fatalf("expected 3 reclaimed rows, got %d", n)
+	}
+}
