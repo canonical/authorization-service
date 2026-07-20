@@ -19,26 +19,8 @@ import (
 	"github.com/canonical/authorization-service/internal/service/listen"
 )
 
-// permanentError marks a failure that will never succeed on retry (undecodable
-// payload, an operation OpenFGA rejects as invalid). Such rows are moved straight
-// to 'failed' regardless of attempt_count.
-type permanentError struct {
-	Code string
-	Err  error
-}
-
-func (e *permanentError) Error() string { return fmt.Sprintf("%s: %v", e.Code, e.Err) }
-func (e *permanentError) Unwrap() error { return e.Err }
-
-func permanent(code string, err error) *permanentError { return &permanentError{Code: code, Err: err} }
-
-// asPermanent reports whether err is a permanentError and returns it.
-func asPermanent(err error) (*permanentError, bool) {
-	var p *permanentError
-	if errors.As(err, &p) {
-		return p, true
-	}
-	return nil, false
+func permanent(code string, err error) *permissions.PermanentError {
+	return permissions.NewPermanentError(code, err)
 }
 
 // TupleApplier applies a batch of tuple writes and deletes to OpenFGA. The
@@ -184,7 +166,7 @@ func (p *Processor) retryOrFail(ctx context.Context, row permissions.ClaimedRow,
 // fail records a permanent failure: logs, meters, and moves the row to 'failed'.
 func (p *Processor) fail(ctx context.Context, row permissions.ClaimedRow, err error) error {
 	code := "permanent_failure"
-	if perm, ok := asPermanent(err); ok {
+	if perm, ok := permissions.AsPermanent(err); ok {
 		code = perm.Code
 	}
 	p.logger.Error("Permanent processing failure",

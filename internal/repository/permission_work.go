@@ -108,8 +108,7 @@ func (r *PostgresPermissionWorkRepository) Insert(ctx context.Context, row permi
 	}
 
 	if _, err := r.db.Exec(ctx, query, args...); err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == pgUniqueViolation {
 			return ErrDuplicate
 		}
 		return fmt.Errorf("failed to insert permission update work row: %w", err)
@@ -279,13 +278,24 @@ func (r *PostgresPermissionWorkRepository) RecordProcessed(ctx context.Context, 
 // MarkFailed moves a row to 'failed', incrementing attempt_count and recording
 // the error code and message.
 func (r *PostgresPermissionWorkRepository) MarkFailed(ctx context.Context, id, errCode, errMsg string) error {
+	var (
+		codeVal *string = &errCode
+		msgVal  *string = &errMsg
+	)
+	if errCode == "" {
+		codeVal = nil
+	}
+	if errMsg == "" {
+		msgVal = nil
+	}
+
 	query, args, err := r.db.Builder().
 		Update("permission_update_work").
 		Set("status", string(permissions.StatusFailed)).
 		Set("attempt_count", sq.Expr("attempt_count + 1")).
 		Set("last_attempt_at", sq.Expr("now()")).
-		Set("last_error_code", errCode).
-		Set("last_error_message", errMsg).
+		Set("last_error_code", codeVal).
+		Set("last_error_message", msgVal).
 		Where(sq.Eq{"id": id}).
 		ToSql()
 	if err != nil {
@@ -301,12 +311,23 @@ func (r *PostgresPermissionWorkRepository) MarkFailed(ctx context.Context, id, e
 // counts towards the retry limit (true for pre/during-write failures, false for
 // post-write bookkeeping failures, per the spec's retry model).
 func (r *PostgresPermissionWorkRepository) MarkRetry(ctx context.Context, id, errCode, errMsg string, incAttempt bool) error {
+	var (
+		codeVal *string = &errCode
+		msgVal  *string = &errMsg
+	)
+	if errCode == "" {
+		codeVal = nil
+	}
+	if errMsg == "" {
+		msgVal = nil
+	}
+
 	builder := r.db.Builder().
 		Update("permission_update_work").
 		Set("status", string(permissions.StatusReceived)).
 		Set("last_attempt_at", sq.Expr("now()")).
-		Set("last_error_code", errCode).
-		Set("last_error_message", errMsg).
+		Set("last_error_code", codeVal).
+		Set("last_error_message", msgVal).
 		Set("processing_started_at", sq.Expr("NULL"))
 	if incAttempt {
 		builder = builder.Set("attempt_count", sq.Expr("attempt_count + 1"))
