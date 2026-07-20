@@ -1,0 +1,307 @@
+// Copyright 2026 Canonical Ltd.
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package worker
+
+import (
+	"context"
+	"errors"
+	"io"
+	"log/slog"
+	"testing"
+	"time"
+
+	fgaSdk "github.com/openfga/go-sdk"
+	"github.com/openfga/go-sdk/client"
+	"google.golang.org/protobuf/proto"
+
+	messagesv1 "github.com/canonical/authorization-service/api/v1"
+	"github.com/canonical/authorization-service/internal/model/permissions"
+	"github.com/canonical/authorization-service/internal/service/listen"
+)
+
+// listenDecoder returns a real Decoder; decoding is pure so no mock is needed.
+func listenDecoder() *listen.Decoder { return listen.NewDecoder() }
+
+// fakeRepo records the lifecycle calls the processor makes. Only the methods the
+// processor uses are meaningful; the rest satisfy the interface.
+type fakeRepo struct {
+	processedID      string
+	processedService string
+	processedWrites  []permissions.Tuple
+	processedDeletes []permissions.Tuple
+
+	failedID   string
+	failedCode string
+
+	retryID         string
+	retryCode       string
+	retryIncAttempt bool
+
+	recordProcessedErr error
+
+	calls []string
+}
+
+func (f *fakeRepo) Insert(context.Context, permissions.WorkRow) error { return nil }
+
+func (f *fakeRepo) ClaimBatch(context.Context, int, time.Duration) ([]permissions.ClaimedRow, error) {
+	return nil, nil
+}
+
+func (f *fakeRepo) RecordProcessed(_ context.Context, id, service string, writes, deletes []permissions.Tuple) error {
+	f.calls = append(f.calls, "RecordProcessed")
+	if f.recordProcessedErr != nil {
+		return f.recordProcessedErr
+	}
+	f.processedID = id
+	f.processedService = service
+	f.processedWrites = writes
+	f.processedDeletes = deletes
+	return nil
+}
+
+func (f *fakeRepo) MarkFailed(_ context.Context, id, errCode, _ string) error {
+	f.calls = append(f.calls, "MarkFailed")
+	f.failedID = id
+	f.failedCode = errCode
+	return nil
+}
+
+func (f *fakeRepo) MarkRetry(_ context.Context, id, errCode, _ string, incAttempt bool) error {
+	f.calls = append(f.calls, "MarkRetry")
+	f.retryID = id
+	f.retryCode = errCode
+	f.retryIncAttempt = incAttempt
+	return nil
+}
+
+func (f *fakeRepo) ReclaimStale(context.Context, time.Duration) (int64, error) { return 0, nil }
+
+// fakeApplier records the tuples applied and returns a configurable error.
+type fakeApplier struct {
+	err     error
+	writes  []client.ClientTupleKey
+	deletes []client.ClientTupleKeyWithoutCondition
+	called  bool
+}
+
+func (a *fakeApplier) ApplyTuples(_ context.Context, writes []client.ClientTupleKey, deletes []client.ClientTupleKeyWithoutCondition) error {
+	a.called = true
+	a.writes = writes
+	a.deletes = deletes
+	return a.err
+}
+
+func testLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
+// encodeEnvelope builds a valid protobuf payload with the given operations.
+func encodeEnvelope(t *testing.T, ops ...*messagesv1.PermissionOperation) []byte {
+	t.Helper()
+	env := &messagesv1.PermissionUpdateEnvelope{
+		Service:    "payments",
+		MessageId:  "msg-1",
+		Operations: ops,
+	}
+	b, err := proto.Marshal(env)
+	if err != nil {
+		t.Fatalf("failed to marshal envelope: %v", err)
+	}
+	return b
+}
+
+func writeOp(subject, relation, object string) *messagesv1.PermissionOperation {
+	return &messagesv1.PermissionOperation{
+		Op:       messagesv1.PermissionOp_PERMISSION_OP_WRITE,
+		Subject:  subject,
+		Relation: relation,
+		Object:   object,
+	}
+}
+
+func deleteOp(subject, relation, object string) *messagesv1.PermissionOperation {
+	return &messagesv1.PermissionOperation{
+		Op:       messagesv1.PermissionOp_PERMISSION_OP_DELETE,
+		Subject:  subject,
+		Relation: relation,
+		Object:   object,
+	}
+}
+
+func newTestProcessor(repo *fakeRepo, applier *fakeApplier, maxAttempts int) *Processor {
+	return NewProcessor(repo, applier, listenDecoder(), maxAttempts, nil, testLogger())
+}
+
+func TestProcessRow_Success_WritesAndDeletes(t *testing.T) {
+	repo := &fakeRepo{}
+	applier := &fakeApplier{}
+	p := newTestProcessor(repo, applier, 5)
+
+	row := permissions.ClaimedRow{
+		ID:      "row-1",
+		Service: "payments",
+		Payload: encodeEnvelope(t,
+			writeOp("user:u1", "viewer", "doc:d1"),
+			deleteOp("user:u2", "editor", "doc:d2"),
+		),
+	}
+	if err := p.ProcessRow(context.Background(), row); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !applier.called || len(applier.writes) != 1 || len(applier.deletes) != 1 {
+		t.Fatalf("applier not called with expected tuples: %+v", applier)
+	}
+	if applier.writes[0].User != "user:u1" || applier.deletes[0].Object != "doc:d2" {
+		t.Fatalf("unexpected mapped tuples: %+v", applier)
+	}
+	if repo.processedID != "row-1" || repo.processedService != "payments" {
+		t.Fatalf("RecordProcessed not called correctly: %+v", repo)
+	}
+	if len(repo.processedWrites) != 1 || len(repo.processedDeletes) != 1 {
+		t.Fatalf("bookkeeping tuples mismatch: %+v", repo)
+	}
+}
+
+func TestProcessRow_DecodeFailure_IsPermanent(t *testing.T) {
+	repo := &fakeRepo{}
+	applier := &fakeApplier{}
+	p := newTestProcessor(repo, applier, 5)
+
+	row := permissions.ClaimedRow{ID: "row-1", Service: "payments", Payload: []byte{0xff, 0xff, 0xff}}
+	if err := p.ProcessRow(context.Background(), row); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if applier.called {
+		t.Fatal("applier should not be called on decode failure")
+	}
+	if repo.failedID != "row-1" || repo.failedCode != "decode_failed" {
+		t.Fatalf("expected permanent failure with decode_failed, got %+v", repo)
+	}
+}
+
+func TestProcessRow_TransientFGAError_Retries(t *testing.T) {
+	repo := &fakeRepo{}
+	applier := &fakeApplier{err: fgaSdk.FgaApiRateLimitExceededError{}}
+	p := newTestProcessor(repo, applier, 5)
+
+	row := permissions.ClaimedRow{
+		ID:           "row-1",
+		Service:      "payments",
+		AttemptCount: 1,
+		Payload:      encodeEnvelope(t, writeOp("user:u1", "viewer", "doc:d1")),
+	}
+	if err := p.ProcessRow(context.Background(), row); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if repo.retryID != "row-1" || !repo.retryIncAttempt {
+		t.Fatalf("expected retry with attempt increment, got %+v", repo)
+	}
+	if repo.failedID != "" {
+		t.Fatalf("row should not be failed on transient error: %+v", repo)
+	}
+}
+
+func TestProcessRow_TransientButRetriesExhausted_Fails(t *testing.T) {
+	repo := &fakeRepo{}
+	applier := &fakeApplier{err: fgaSdk.FgaApiRateLimitExceededError{}}
+	p := newTestProcessor(repo, applier, 3)
+
+	// AttemptCount 2, +1 = 3 == maxAttempts → fail.
+	row := permissions.ClaimedRow{
+		ID:           "row-1",
+		Service:      "payments",
+		AttemptCount: 2,
+		Payload:      encodeEnvelope(t, writeOp("user:u1", "viewer", "doc:d1")),
+	}
+	if err := p.ProcessRow(context.Background(), row); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if repo.failedID != "row-1" || repo.failedCode != "openfga_write_failed" {
+		t.Fatalf("expected failed after exhausting retries, got %+v", repo)
+	}
+	if repo.retryID != "" {
+		t.Fatalf("row should not be retried when exhausted: %+v", repo)
+	}
+}
+
+func TestProcessRow_ValidationError_IsPermanent(t *testing.T) {
+	repo := &fakeRepo{}
+	applier := &fakeApplier{err: fgaSdk.FgaApiValidationError{}}
+	p := newTestProcessor(repo, applier, 5)
+
+	row := permissions.ClaimedRow{
+		ID:      "row-1",
+		Service: "payments",
+		Payload: encodeEnvelope(t, writeOp("user:u1", "viewer", "doc:d1")),
+	}
+	if err := p.ProcessRow(context.Background(), row); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if repo.failedID != "row-1" || repo.failedCode != "openfga_write_rejected" {
+		t.Fatalf("expected permanent failure on validation error, got %+v", repo)
+	}
+	if repo.retryID != "" {
+		t.Fatalf("validation error must not be retried: %+v", repo)
+	}
+}
+
+func TestProcessRow_BookkeepingFailure_RetriesWithoutAttemptIncrement(t *testing.T) {
+	repo := &fakeRepo{recordProcessedErr: errors.New("db down")}
+	applier := &fakeApplier{}
+	p := newTestProcessor(repo, applier, 5)
+
+	row := permissions.ClaimedRow{
+		ID:           "row-1",
+		Service:      "payments",
+		AttemptCount: 4, // near the limit: must still not fail
+		Payload:      encodeEnvelope(t, writeOp("user:u1", "viewer", "doc:d1")),
+	}
+	if err := p.ProcessRow(context.Background(), row); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if repo.retryID != "row-1" || repo.retryIncAttempt {
+		t.Fatalf("expected retry WITHOUT attempt increment after bookkeeping failure, got %+v", repo)
+	}
+	if repo.failedID != "" {
+		t.Fatalf("row must not be failed after a successful OpenFGA write: %+v", repo)
+	}
+	if repo.retryCode != "bookkeeping_failed" {
+		t.Fatalf("expected bookkeeping_failed code, got %q", repo.retryCode)
+	}
+}
+
+func TestProcessRow_InvalidOperation_IsPermanent(t *testing.T) {
+	repo := &fakeRepo{}
+	applier := &fakeApplier{}
+	p := newTestProcessor(repo, applier, 5)
+
+	// An operation with an unspecified op type cannot be mapped.
+	row := permissions.ClaimedRow{
+		ID:      "row-1",
+		Service: "payments",
+		Payload: encodeEnvelope(t, &messagesv1.PermissionOperation{
+			Op:       messagesv1.PermissionOp_PERMISSION_OP_UNSPECIFIED,
+			Subject:  "user:u1",
+			Relation: "viewer",
+			Object:   "doc:d1",
+		}),
+	}
+	if err := p.ProcessRow(context.Background(), row); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if applier.called {
+		t.Fatal("applier should not be called when an operation cannot be mapped")
+	}
+	if repo.failedID != "row-1" || repo.failedCode != "invalid_operation" {
+		t.Fatalf("expected permanent failure invalid_operation, got %+v", repo)
+	}
+}
