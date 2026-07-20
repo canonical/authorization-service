@@ -23,6 +23,7 @@ import (
 	"github.com/canonical/authorization-service/internal/integration/valkey"
 	ruleRepository "github.com/canonical/authorization-service/internal/repository"
 	"github.com/canonical/authorization-service/internal/service/authz"
+	"github.com/canonical/authorization-service/internal/service/listen"
 	"github.com/canonical/authorization-service/internal/service/permissions"
 	"github.com/canonical/authorization-service/internal/service/rules"
 )
@@ -40,13 +41,13 @@ type Services struct {
 
 // Integrations holds all external service clients
 type Integrations struct {
-	jwkSetUrl      string
-	OpenFGA        openfga.OpenFGAClientInterface
-	Valkey         valkey.CacheClientInterface
-	STS            stsv1.SecurityTokenServiceClient
-	Postgres       postgres.DBClientInterface
-	KafkaConsumer  kafkaintegration.ConsumerInterface
-	KafkaPublisher kafkaintegration.PublisherInterface
+	jwkSetUrl       string
+	OpenFGA         openfga.OpenFGAClientInterface
+	Valkey          valkey.CacheClientInterface
+	STS             stsv1.SecurityTokenServiceClient
+	Postgres        postgres.DBClientInterface
+	KafkaConsumer   kafkaintegration.ConsumerInterface
+	ServiceRegistry *listen.ServiceRegistry
 
 	stsConn ClosableClientConnInterface
 }
@@ -133,12 +134,17 @@ func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Trace
 
 	// Initialize Kafka
 	if cfg.Kafka.Enabled {
+		registry, err := listen.NewServiceRegistry(cfg.Kafka.FederatedServices)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build federated service registry: %w", err)
+		}
+		integrations.ServiceRegistry = registry
+
 		kafkaClient, err := kafkaintegration.NewClient(
 			kafkaintegration.Config{
 				Brokers:       cfg.Kafka.Brokers,
 				ConsumerGroup: cfg.Kafka.ConsumerGroup,
-				Topic:         cfg.Kafka.Topic,
-				Workers:       cfg.Kafka.Workers,
+				Topics:        registry.Topics(),
 			},
 			logger,
 		)
@@ -146,12 +152,9 @@ func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Trace
 			return nil, fmt.Errorf("failed to create Kafka client: %w", err)
 		}
 		integrations.KafkaConsumer = kafkaClient
-		integrations.KafkaPublisher = kafkaClient
 	} else {
 		logger.Info("Kafka disabled, using no-op client")
-		noopKafka := kafkaintegration.NewNoopClient(logger)
-		integrations.KafkaConsumer = noopKafka
-		integrations.KafkaPublisher = noopKafka
+		integrations.KafkaConsumer = kafkaintegration.NewNoopClient(logger)
 	}
 
 	// Initialize STS
@@ -193,12 +196,6 @@ func (i *Integrations) CleanupIntegrations(logger *slog.Logger) {
 	if i.KafkaConsumer != nil {
 		if err := i.KafkaConsumer.Close(); err != nil {
 			logger.Error("Failed to close Kafka consumer", "error", err)
-		}
-	}
-
-	if i.KafkaPublisher != nil {
-		if err := i.KafkaPublisher.Close(); err != nil {
-			logger.Error("Failed to close Kafka publisher", "error", err)
 		}
 	}
 

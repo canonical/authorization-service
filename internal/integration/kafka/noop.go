@@ -7,11 +7,10 @@ import (
 	kafka "github.com/segmentio/kafka-go"
 )
 
-// Compile-time checks.
+// Compile-time check.
 var _ ConsumerInterface = (*NoopClient)(nil)
-var _ PublisherInterface = (*NoopClient)(nil)
 
-// NoopClient is a no-operation implementation of ConsumerInterface and PublisherInterface.
+// NoopClient is a no-operation implementation of ConsumerInterface.
 type NoopClient struct {
 	logger *slog.Logger
 }
@@ -25,12 +24,6 @@ func NewNoopClient(logger *slog.Logger) *NoopClient {
 func (c *NoopClient) Consume(ctx context.Context, _ func(ctx context.Context, msg kafka.Message) error) error {
 	c.logger.Info("Noop Kafka consumer started")
 	<-ctx.Done()
-	return nil
-}
-
-// Publish logs the attempt but does not send any message.
-func (c *NoopClient) Publish(_ context.Context, topic string, _ []byte, value []byte, _ ...kafka.Header) error {
-	c.logger.Debug("Noop Kafka publish", "topic", topic, "size", len(value))
 	return nil
 }
 
