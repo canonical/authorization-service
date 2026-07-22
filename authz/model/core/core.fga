@@ -17,6 +17,6 @@ type generic-asset
     define viewer: [user, role#assignee] or editor
     define editor: [user, role#assignee]
 
-condition tenant_match(tenant: string, user_tenant: string) {
-  tenant == "" || tenant == user_tenant
+condition tenant_match(tenant_enabled: bool, tenant: string, user_tenant: string) {
+  !tenant_enabled || tenant == "" || tenant == user_tenant
 }
