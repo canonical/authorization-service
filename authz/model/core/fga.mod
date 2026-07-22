@@ -1,3 +1,3 @@
-schema: "1.1"
+schema: "1.2"
 contents:
-  - core.openfga
+  - core.fga
