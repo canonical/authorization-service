@@ -66,10 +66,7 @@ func runCheck(cmd *cobra.Command, args []string) error {
 	}
 	defer integrations.CleanupIntegrations(logger)
 
-	services, err := integrations.InitializeServices(tracer, logger)
-	if err != nil {
-		return fmt.Errorf("failed to initialize services: %w", err)
-	}
+	services := integrations.InitializeServices(tracer, logger)
 
 	// Build a mock CheckRequest
 	checkReq := &authv3.CheckRequest{

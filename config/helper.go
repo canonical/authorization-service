@@ -172,7 +172,7 @@ func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Trace
 	return integrations, nil
 }
 
-func (i *Integrations) InitializeServices(tracer trace.Tracer, serviceLogger *slog.Logger) (*Services, error) {
+func (i *Integrations) InitializeServices(tracer trace.Tracer, serviceLogger *slog.Logger) *Services {
 	ruleRepo := ruleRepository.NewPostgresRuleRepository(i.Postgres)
 	matcher := rules.NewRuleMatcher()
 	resolver := rules.NewTupleResolver()
@@ -188,7 +188,7 @@ func (i *Integrations) InitializeServices(tracer trace.Tracer, serviceLogger *sl
 	return &Services{
 		Permissions:   permissions.NewService(i.Valkey, serviceLogger),
 		ExternalAuthz: authz.NewExternalAuthzService(verifier, i.STS, resourceMapper, i.OpenFGA, serviceLogger, tracer),
-	}, nil
+	}
 }
 
 func (i *Integrations) CleanupIntegrations(logger *slog.Logger) {
