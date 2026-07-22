@@ -24,4 +24,4 @@ echo -e "${GREEN}✓ Coverage report generated: coverage.html${NC}"
 
 echo ""
 echo "To run integration tests (requires Docker):"
-echo "  go test -v ./tests/integration/..."
+echo "  go test -v -race -tags integration ./tests/integration/... -timeout 5m"
