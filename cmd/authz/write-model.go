@@ -46,7 +46,7 @@ func writeModel(cmd *cobra.Command, args []string) error {
 	// Setup logger
 	logger := cfg.Logging.SetupLogger()
 
-	if err := writeAuthorizationModel(cmd.Context(), storeID, cfg, logger); err != nil {
+	if err := WriteAuthorizationModel(cmd.Context(), storeID, cfg, logger); err != nil {
 		logger.Error("Failed to write authorization model", "error", err)
 		return err
 	}
@@ -109,8 +109,8 @@ func compileModularModel() (*openfga.WriteAuthorizationModelRequest, error) {
 	return &request, nil
 }
 
-// writeAuthorizationModel writes the authorization model to OpenFGA
-func writeAuthorizationModel(ctx context.Context, storeID string, cfg *config.Config, logger *slog.Logger) error {
+// WriteAuthorizationModel writes the authorization model to OpenFGA
+func WriteAuthorizationModel(ctx context.Context, storeID string, cfg *config.Config, logger *slog.Logger) error {
 
 	if storeID == "" {
 		return fmt.Errorf("store-id is required")
