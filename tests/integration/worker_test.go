@@ -99,11 +99,22 @@ func waitForStatus(t *testing.T, pool *pgxpool.Pool, slug, idem, want string) {
 
 func countTuples(t *testing.T, pool *pgxpool.Pool, subject, relation, object string) int {
 	t.Helper()
+	baseSubject, userSetRelation := permissions.ParseSubject(subject)
+
 	var n int
-	err := pool.QueryRow(context.Background(),
-		`SELECT count(*) FROM authorization_tuples WHERE subject = $1 AND relation = $2 AND object = $3`,
-		subject, relation, object,
-	).Scan(&n)
+	var err error
+	if userSetRelation == nil {
+		err = pool.QueryRow(context.Background(),
+			`SELECT count(*) FROM authorization_tuples WHERE subject = $1 AND user_set_subject_relation IS NULL AND relation = $2 AND object = $3`,
+			baseSubject, relation, object,
+		).Scan(&n)
+	} else {
+		err = pool.QueryRow(context.Background(),
+			`SELECT count(*) FROM authorization_tuples WHERE subject = $1 AND user_set_subject_relation = $2 AND relation = $3 AND object = $4`,
+			baseSubject, *userSetRelation, relation, object,
+		).Scan(&n)
+	}
+
 	if err != nil {
 		t.Fatalf("countTuples: %v", err)
 	}
@@ -149,6 +160,37 @@ func TestWorker_HappyPath(t *testing.T) {
 
 	if n := countTuples(t, pool, subject, "member", "group:g1"); n != 1 {
 		t.Fatalf("expected tuple mirrored into authorization_tuples, got %d", n)
+	}
+
+	cancel()
+	if err := <-errCh; err != nil {
+		t.Fatalf("worker shutdown error: %v", err)
+	}
+}
+
+// TestWorker_UsersetSubject seeds a received row with a userset subject (e.g. role:admin#assignee)
+// and asserts the worker applies it, mirrors the tuple correctly, and marks the row processed.
+func TestWorker_UsersetSubject(t *testing.T) {
+	client, pool := newTestPostgres(t)
+	repo := repository.NewPostgresPermissionWorkRepository(client)
+
+	suffix := uniqueSuffix()
+	idem := "worker-userset-" + suffix
+	subject := "role:admin#assignee-" + suffix
+	insertReceivedRow(t, repo, "payments", idem, writeOperation(subject, "member", "group:g1"))
+
+	applier := &fakeApplier{}
+	proc := worker.NewProcessor(repo, applier, listen.NewDecoder(), 5, nil, testLogger)
+	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, testLogger)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	errCh := startWorker(ctx, w)
+
+	waitForStatus(t, pool, "payments", idem, "processed")
+
+	if n := countTuples(t, pool, subject, "member", "group:g1"); n != 1 {
+		t.Fatalf("expected userset tuple mirrored into authorization_tuples, got %d", n)
 	}
 
 	cancel()

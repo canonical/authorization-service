@@ -58,11 +58,24 @@ func validateOperation(op *messagesv1.PermissionOperation) error {
 	if op.GetRelation() == "" {
 		return fmt.Errorf("relation must not be empty")
 	}
-	if err := validateTypeID(op.GetSubject()); err != nil {
+	if err := validateSubjectTypeID(op.GetSubject()); err != nil {
 		return fmt.Errorf("subject: %w", err)
 	}
 	if err := validateTypeID(op.GetObject()); err != nil {
 		return fmt.Errorf("object: %w", err)
+	}
+	return nil
+}
+
+// validateSubjectTypeID checks a value has the "type:id" or "type:id#relation" shape with non-empty parts.
+func validateSubjectTypeID(v string) error {
+	base, rel, hasRel := strings.Cut(v, "#")
+	if hasRel && rel == "" {
+		return fmt.Errorf("%q has an empty userset relation", v)
+	}
+	typ, id, ok := strings.Cut(base, ":")
+	if !ok || typ == "" || id == "" {
+		return fmt.Errorf("%q is not in \"type:id\" or \"type:id#relation\" form", v)
 	}
 	return nil
 }

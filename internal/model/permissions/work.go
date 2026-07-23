@@ -3,7 +3,10 @@
 
 package permissions
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // WorkStatus is the lifecycle status of a permission_update_work row.
 type WorkStatus string
@@ -65,4 +68,23 @@ type Tuple struct {
 	Subject  string
 	Relation string
 	Object   string
+}
+
+// ParseSubject parses an OpenFGA subject string which can be "type:id" or "type:id#relation".
+// It returns the base subject "type:id" and the user_set_subject_relation if present, or nil.
+func ParseSubject(subj string) (baseSubject string, userSetRelation *string) {
+	if idx := strings.Index(subj, "#"); idx != -1 {
+		base := subj[:idx]
+		rel := subj[idx+1:]
+		return base, &rel
+	}
+	return subj, nil
+}
+
+// FormatSubject formats a base subject and optional user_set_subject_relation back to OpenFGA format.
+func FormatSubject(baseSubject string, userSetRelation *string) string {
+	if userSetRelation != nil && *userSetRelation != "" {
+		return baseSubject + "#" + *userSetRelation
+	}
+	return baseSubject
 }

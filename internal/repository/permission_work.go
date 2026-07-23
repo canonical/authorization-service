@@ -229,11 +229,20 @@ func (r *PostgresPermissionWorkRepository) RecordProcessed(ctx context.Context, 
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	for _, t := range writes {
+		baseSubject, userSetRelation := permissions.ParseSubject(t.Subject)
+
+		var suffix string
+		if userSetRelation == nil {
+			suffix = "ON CONFLICT (subject, relation, object) WHERE user_set_subject_relation IS NULL DO NOTHING"
+		} else {
+			suffix = "ON CONFLICT (subject, user_set_subject_relation, relation, object) WHERE user_set_subject_relation IS NOT NULL DO NOTHING"
+		}
+
 		query, args, err := r.db.Builder().
 			Insert("authorization_tuples").
-			Columns("service", "subject", "relation", "object").
-			Values(service, t.Subject, t.Relation, t.Object).
-			Suffix("ON CONFLICT (subject, relation, object) DO NOTHING").
+			Columns("service", "subject", "user_set_subject_relation", "relation", "object").
+			Values(service, baseSubject, userSetRelation, t.Relation, t.Object).
+			Suffix(suffix).
 			ToSql()
 		if err != nil {
 			return fmt.Errorf("failed to build tuple insert: %w", err)
@@ -244,9 +253,22 @@ func (r *PostgresPermissionWorkRepository) RecordProcessed(ctx context.Context, 
 	}
 
 	for _, t := range deletes {
+		baseSubject, userSetRelation := permissions.ParseSubject(t.Subject)
+
+		eq := sq.Eq{
+			"subject":  baseSubject,
+			"relation": t.Relation,
+			"object":   t.Object,
+		}
+		if userSetRelation == nil {
+			eq["user_set_subject_relation"] = nil
+		} else {
+			eq["user_set_subject_relation"] = *userSetRelation
+		}
+
 		query, args, err := r.db.Builder().
 			Delete("authorization_tuples").
-			Where(sq.Eq{"subject": t.Subject, "relation": t.Relation, "object": t.Object}).
+			Where(eq).
 			ToSql()
 		if err != nil {
 			return fmt.Errorf("failed to build tuple delete: %w", err)
