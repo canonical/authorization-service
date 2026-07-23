@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/netip"
 	"os"
-	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
@@ -125,13 +124,8 @@ func startKafka(ctx context.Context) (testcontainers.Container, string, error) {
 	return ctr, "localhost:" + portStr, nil
 }
 
-// startPostgres builds the project's pg_uuidv7-enabled image and starts it.
+// startPostgres starts a standard postgres container.
 func startPostgres(ctx context.Context) (testcontainers.Container, string, error) {
-	dockerfileDir, err := filepath.Abs(filepath.Join("..", "..", "docker", "dependencies", "postgres"))
-	if err != nil {
-		return nil, "", fmt.Errorf("resolving dockerfile dir: %w", err)
-	}
-
 	const (
 		user = "cerberus"
 		pass = "cerberus"
@@ -139,11 +133,7 @@ func startPostgres(ctx context.Context) (testcontainers.Container, string, error
 	)
 
 	req := testcontainers.ContainerRequest{
-		FromDockerfile: testcontainers.FromDockerfile{
-			Context:    dockerfileDir,
-			Dockerfile: "Dockerfile",
-			KeepImage:  true,
-		},
+		Image:        "postgres:14-alpine",
 		ExposedPorts: []string{"5432/tcp"},
 		Env: map[string]string{
 			"POSTGRES_USER":     user,
