@@ -36,6 +36,7 @@ type Config struct {
 	Logging         *LoggingConfig         `validate:"required"`
 	Telemetry       *TelemetryConfig       `validate:"required"`
 	Kafka           *KafkaConfig           `validate:"required"`
+	Worker          *WorkerConfig          `validate:"required"`
 }
 
 // ServerConfig contains server configuration
@@ -190,6 +191,29 @@ type KafkaConfig struct {
 	// Topic creation settings, used by the ensure-topics command.
 	TopicPartitions        int `validate:"min=1" envconfig:"KAFKA_TOPIC_PARTITIONS" default:"1"`
 	TopicReplicationFactor int `validate:"min=1" envconfig:"KAFKA_TOPIC_REPLICATION_FACTOR" default:"1"`
+}
+
+// WorkerConfig contains configuration for the async permission-update worker
+// that claims rows from permission_update_work and applies them to OpenFGA.
+//
+// The worker processes rows serially and scales horizontally by running multiple
+// instances (FOR UPDATE SKIP LOCKED assigns disjoint rows), mirroring how the
+// listener scales.
+type WorkerConfig struct {
+	Enabled      bool          `validate:"" envconfig:"WORKER_ENABLED" default:"false"`
+	BatchSize    int           `validate:"min=1" envconfig:"WORKER_BATCH_SIZE" default:"100"`
+	PollInterval time.Duration `validate:"" envconfig:"WORKER_POLL_INTERVAL" default:"1s"`
+	// MaxAttempts is the number of processing attempts (counting pre/during-write
+	// failures) after which a row is moved to 'failed'.
+	MaxAttempts int `validate:"min=1" envconfig:"WORKER_MAX_ATTEMPTS" default:"5"`
+	// RetryBackoff is the minimum delay before a failed row becomes eligible for a
+	// new claim (gates the last_attempt_at window in ClaimBatch).
+	RetryBackoff time.Duration `validate:"" envconfig:"WORKER_RETRY_BACKOFF" default:"5m"`
+	// StaleTimeout and ReaperInterval configure the stale-row reaper (a row stuck
+	// in 'processing' longer than StaleTimeout is reclaimed). Reserved for the
+	// reaper wiring; the repository seam (ReclaimStale) already exists.
+	StaleTimeout   time.Duration `validate:"" envconfig:"WORKER_STALE_TIMEOUT" default:"15m"`
+	ReaperInterval time.Duration `validate:"" envconfig:"WORKER_REAPER_INTERVAL" default:"1m"`
 }
 
 // LoggingConfig contains logging configuration

@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"testing"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -17,7 +18,9 @@ import (
 	"github.com/canonical/authorization-service/internal/repository"
 )
 
-// fakeRepo is a hand-rolled PermissionWorkRepository for ingestor tests.
+// fakeRepo is a hand-rolled PermissionWorkRepository for ingestor tests. Only
+// Insert is exercised here; the worker-side methods are stubbed to satisfy the
+// interface.
 type fakeRepo struct {
 	inserted []permissions.WorkRow
 	err      error
@@ -30,6 +33,20 @@ func (f *fakeRepo) Insert(_ context.Context, row permissions.WorkRow) error {
 	f.inserted = append(f.inserted, row)
 	return nil
 }
+
+func (f *fakeRepo) ClaimBatch(context.Context, int, time.Duration) ([]permissions.ClaimedRow, error) {
+	return nil, nil
+}
+
+func (f *fakeRepo) RecordProcessed(context.Context, string, string, []permissions.Tuple, []permissions.Tuple) error {
+	return nil
+}
+
+func (f *fakeRepo) MarkFailed(context.Context, string, string, string) error { return nil }
+
+func (f *fakeRepo) MarkRetry(context.Context, string, string, string, bool) error { return nil }
+
+func (f *fakeRepo) ReclaimStale(context.Context, time.Duration) (int64, error) { return 0, nil }
 
 // countingMetrics records permanent-failure calls.
 type countingMetrics struct {
@@ -109,7 +126,7 @@ func TestIngest_DBErrorIsTransient(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected transient error, got nil")
 	}
-	if IsPermanent(err) {
+	if permissions.IsPermanent(err) {
 		t.Errorf("DB error must be transient, got permanent: %v", err)
 	}
 }
@@ -120,7 +137,7 @@ func TestIngest_DecodeErrorIsPermanent(t *testing.T) {
 	ing := newIngestor(t, repo, metrics)
 
 	err := ing.Ingest(context.Background(), msg("payments.permissions", []byte("not-a-proto")))
-	if err == nil || !IsPermanent(err) {
+	if err == nil || !permissions.IsPermanent(err) {
 		t.Fatalf("expected permanent error, got %v", err)
 	}
 	if len(metrics.calls) != 1 || metrics.calls[0].code != "decode_failed" {
@@ -141,7 +158,7 @@ func TestIngest_ServiceMismatchIsPermanent(t *testing.T) {
 	value := marshalEnvelope(t, env)
 
 	err := ing.Ingest(context.Background(), msg("payments.permissions", value))
-	if err == nil || !IsPermanent(err) {
+	if err == nil || !permissions.IsPermanent(err) {
 		t.Fatalf("expected permanent error, got %v", err)
 	}
 	if len(metrics.calls) != 1 || metrics.calls[0].code != "validation_failed" {
@@ -155,7 +172,7 @@ func TestIngest_UnknownTopicIsPermanent(t *testing.T) {
 
 	value := marshalEnvelope(t, validEnvelope())
 	err := ing.Ingest(context.Background(), msg("other.permissions", value))
-	if err == nil || !IsPermanent(err) {
+	if err == nil || !permissions.IsPermanent(err) {
 		t.Fatalf("expected permanent error for unknown topic, got %v", err)
 	}
 }

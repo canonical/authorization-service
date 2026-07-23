@@ -10,6 +10,7 @@ import (
 	kafka "github.com/segmentio/kafka-go"
 
 	kafkaintegration "github.com/canonical/authorization-service/internal/integration/kafka"
+	"github.com/canonical/authorization-service/internal/model/permissions"
 )
 
 // Listener consumes permission-update messages from the federated services'
@@ -60,7 +61,7 @@ func (l *Listener) handleMessage(ctx context.Context, msg kafka.Message) error {
 		Offset:    msg.Offset,
 		Value:     msg.Value,
 	})
-	if err != nil && IsPermanent(err) {
+	if err != nil && permissions.IsPermanent(err) {
 		return nil
 	}
 	return err

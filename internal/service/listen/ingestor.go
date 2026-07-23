@@ -18,25 +18,8 @@ import (
 	"github.com/canonical/authorization-service/internal/repository"
 )
 
-// PermanentError marks a failure that will never succeed on retry (bad payload,
-// validation failure, topic/service mismatch). The consumer should acknowledge
-// (commit) such a message rather than redeliver it.
-type PermanentError struct {
-	Code string
-	Err  error
-}
-
-func (e *PermanentError) Error() string { return fmt.Sprintf("%s: %v", e.Code, e.Err) }
-func (e *PermanentError) Unwrap() error { return e.Err }
-
-func permanent(code string, err error) *PermanentError {
-	return &PermanentError{Code: code, Err: err}
-}
-
-// IsPermanent reports whether err is a PermanentError.
-func IsPermanent(err error) bool {
-	var p *PermanentError
-	return errors.As(err, &p)
+func permanent(code string, err error) *permissions.PermanentError {
+	return permissions.NewPermanentError(code, err)
 }
 
 // Message is the transport-agnostic view of a consumed Kafka record that the
