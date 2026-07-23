@@ -191,3 +191,83 @@ func TestWorker_PermanentFailure(t *testing.T) {
 	cancel()
 	<-errCh
 }
+
+// TestReaper_Integration verifies that the Reaper background loop correctly identifies
+// and reclaims a row stuck in 'processing' status.
+func TestReaper_Integration(t *testing.T) {
+	client, pool := newTestPostgres(t)
+	repo := repository.NewPostgresPermissionWorkRepository(client)
+
+	suffix := uniqueSuffix()
+	idem := "reaper-stale-" + suffix
+	subject := "user:u-" + suffix
+
+	// 1. Insert a row in 'received' status
+	insertReceivedRow(t, repo, "payments", idem, writeOperation(subject, "member", "group:g1"))
+
+	// 2. Claim it to move it to 'processing'
+	rows, err := repo.ClaimBatch(context.Background(), 1, time.Minute)
+	if err != nil {
+		t.Fatalf("failed to claim: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 row claimed, got %d", len(rows))
+	}
+
+	// 3. Update processing_started_at to be in the past
+	_, err = pool.Exec(context.Background(),
+		`UPDATE permission_update_work SET processing_started_at = now() - INTERVAL '30 minutes' WHERE idempotency_key = $1`,
+		idem,
+	)
+	if err != nil {
+		t.Fatalf("failed to update processing_started_at: %v", err)
+	}
+
+	// 4. Run the Reaper background loop with a 15-minute timeout
+	r := worker.NewReaper(repo, 15*time.Minute, 50*time.Millisecond, testLogger)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- r.Run(ctx) }()
+
+	// 5. Verify the row is reverted back to 'received'
+	waitForStatus(t, pool, "payments", idem, "received")
+
+	cancel()
+	<-errCh
+}
+
+// TestReaper_LockCoordination verifies that concurrent executions of ReclaimStale
+// are coordinated using a PostgreSQL advisory lock, preventing overlapping runs.
+func TestReaper_LockCoordination(t *testing.T) {
+	client, _ := newTestPostgres(t)
+	repo := repository.NewPostgresPermissionWorkRepository(client)
+
+	// Begin a transaction and lock the advisory key manually to simulate another node holding it
+	ctx := context.Background()
+	tx, err := client.Begin(ctx)
+	if err != nil {
+		t.Fatalf("failed to begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	const lockKey = 118871
+	var acquired bool
+	err = tx.QueryRow(ctx, "SELECT pg_try_advisory_xact_lock($1)", lockKey).Scan(&acquired)
+	if err != nil || !acquired {
+		t.Fatalf("failed to acquire test lock: %v (acquired=%t)", err, acquired)
+	}
+
+	// Now try to run ReclaimStale on the repository concurrently.
+	// Since the lock is held in tx, ReclaimStale must exit immediately with 0 rows and NO error.
+	n, err := repo.ReclaimStale(ctx, 15*time.Minute)
+	if err != nil {
+		t.Fatalf("unexpected error from ReclaimStale when locked: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("expected 0 rows reclaimed, got %d", n)
+	}
+}
+

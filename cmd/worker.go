@@ -74,29 +74,68 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 		logger,
 	)
 
+	runReaper := !noReaper
+	var r *worker.Reaper
+	if runReaper {
+		r = worker.NewReaper(
+			workRepo,
+			cfg.Worker.StaleTimeout,
+			cfg.Worker.ReaperInterval,
+			logger,
+		)
+	}
+
 	ctx, cancel := context.WithCancel(cmd.Context())
 	defer cancel()
 
-	errChan := make(chan error, 1)
+	numComponents := 1
+	if runReaper {
+		numComponents = 2
+	}
+
+	type componentResult struct {
+		name string
+		err  error
+	}
+
+	errChan := make(chan componentResult, numComponents)
 	go func() {
-		errChan <- w.Run(ctx)
+		errChan <- componentResult{name: "worker", err: w.Run(ctx)}
 	}()
+	if runReaper {
+		go func() {
+			errChan <- componentResult{name: "reaper", err: r.Run(ctx)}
+		}()
+	}
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
 	select {
-	case err := <-errChan:
-		logger.Error("Worker error", "error", err)
-		return err
+	case res := <-errChan:
+		if res.err != nil {
+			logger.Error("Component error", "component", res.name, "error", res.err)
+			cancel()
+			return fmt.Errorf("%s component failed: %w", res.name, res.err)
+		}
+		cancel()
 	case sig := <-sigChan:
 		logger.Info("Received signal, shutting down", "signal", sig)
 		cancel()
 	}
 
-	if err := <-errChan; err != nil {
-		logger.Error("Error during worker shutdown", "error", err)
-		return err
+	// Wait for all started components to exit
+	var firstErr error
+	for i := 0; i < numComponents; i++ {
+		if res := <-errChan; res.err != nil {
+			logger.Error("Error during component shutdown", "component", res.name, "error", res.err)
+			if firstErr == nil {
+				firstErr = fmt.Errorf("%s component failed: %w", res.name, res.err)
+			}
+		}
+	}
+	if firstErr != nil {
+		return firstErr
 	}
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.Server.GracefulShutdownTimeout)
@@ -108,4 +147,10 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 
 	logger.Info("Worker stopped")
 	return nil
+}
+
+var noReaper bool
+
+func init() {
+	workerCmd.Flags().BoolVar(&noReaper, "no-reaper", false, "Disable the in-process stale-row reaper")
 }

@@ -66,6 +66,7 @@ func TestWorker_ProcessesClaimedBatch(t *testing.T) {
 	}}}
 	proc := &recordingProcessor{done: make(chan struct{}), limit: 2}
 
+	doneCh := proc.done
 	w := NewWorker(repo, proc, 100, 5*time.Millisecond, time.Minute, testLogger())
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -75,7 +76,7 @@ func TestWorker_ProcessesClaimedBatch(t *testing.T) {
 	go func() { errCh <- w.Run(ctx) }()
 
 	select {
-	case <-proc.done:
+	case <-doneCh:
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for rows to be processed")
 	}
@@ -90,19 +91,28 @@ func TestWorker_ProcessesClaimedBatch(t *testing.T) {
 	}
 }
 
-func TestWorker_ClaimError_DoesNotStopLoop(t *testing.T) {
-	repo := &claimRepo{claimErr: errors.New("db blip")}
+func TestWorker_ClaimError_StopsLoop(t *testing.T) {
+	expectedErr := errors.New("db blip")
+	repo := &claimRepo{claimErr: expectedErr}
 	proc := &recordingProcessor{limit: 1}
 
 	w := NewWorker(repo, proc, 100, 5*time.Millisecond, time.Minute, testLogger())
 
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Run must return nil (clean shutdown) even though every claim errors.
-	if err := w.Run(ctx); err != nil {
-		t.Fatalf("expected clean shutdown, got %v", err)
+	errCh := make(chan error, 1)
+	go func() { errCh <- w.Run(ctx) }()
+
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, expectedErr) {
+			t.Fatalf("expected error %v, got %v", expectedErr, err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for worker to fail and exit")
 	}
+
 	if len(proc.seen) != 0 {
 		t.Fatalf("no rows should be processed when claims fail, got %v", proc.seen)
 	}

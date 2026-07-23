@@ -344,7 +344,29 @@ func (r *PostgresPermissionWorkRepository) MarkRetry(ctx context.Context, id, er
 }
 
 // ReclaimStale returns rows stuck in 'processing' beyond staleAfter to 'received'.
+// It uses a transaction-level advisory lock (pg_try_advisory_xact_lock) on a fixed key
+// so that only one worker/reaper can execute reclaiming at any given time.
 func (r *PostgresPermissionWorkRepository) ReclaimStale(ctx context.Context, staleAfter time.Duration) (int64, error) {
+	// Start a transaction so the advisory lock is automatically released on commit/rollback.
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to begin reclaim-stale transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Fixed lock key for stale-row reaping (0x1D057 = 118871)
+	const lockKey = 118871
+
+	var acquired bool
+	err = tx.QueryRow(ctx, "SELECT pg_try_advisory_xact_lock($1)", lockKey).Scan(&acquired)
+	if err != nil {
+		return 0, fmt.Errorf("failed to acquire advisory lock: %w", err)
+	}
+	if !acquired {
+		// Lock is held by another process; exit gracefully with no-op.
+		return 0, nil
+	}
+
 	query, args, err := r.db.Builder().
 		Update("permission_update_work").
 		Set("status", string(permissions.StatusReceived)).
@@ -355,10 +377,16 @@ func (r *PostgresPermissionWorkRepository) ReclaimStale(ctx context.Context, sta
 	if err != nil {
 		return 0, fmt.Errorf("failed to build reclaim-stale update: %w", err)
 	}
-	tag, err := r.db.Exec(ctx, query, args...)
+
+	tag, err := tx.Exec(ctx, query, args...)
 	if err != nil {
-		return 0, fmt.Errorf("failed to reclaim stale rows: %w", err)
+		return 0, fmt.Errorf("failed to execute reclaim-stale update: %w", err)
 	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("failed to commit reclaim-stale transaction: %w", err)
+	}
+
 	return tag.RowsAffected(), nil
 }
 

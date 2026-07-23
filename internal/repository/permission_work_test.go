@@ -232,10 +232,17 @@ func TestPermissionWork_ReclaimStale(t *testing.T) {
 	mockDB, pool := setupWorkMocks(t)
 
 	mockDB.EXPECT().
-		Exec(gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(ctx context.Context, query string, args ...interface{}) (interface{}, error) {
-			pool.ExpectExec(".*").WillReturnResult(pgxmock.NewResult("UPDATE", 3))
-			return pool.Exec(ctx, "test")
+		Begin(gomock.Any()).
+		DoAndReturn(func(ctx context.Context) (interface{}, error) {
+			pool.ExpectBegin()
+			pool.ExpectQuery("SELECT pg_try_advisory_xact_lock.*").
+				WithArgs(118871).
+				WillReturnRows(pgxmock.NewRows([]string{"acquired"}).AddRow(true))
+			pool.ExpectExec("UPDATE permission_update_work.*").
+				WithArgs(string(permissions.StatusReceived), string(permissions.StatusProcessing), pgxmock.AnyArg()).
+				WillReturnResult(pgxmock.NewResult("UPDATE", 3))
+			pool.ExpectCommit()
+			return pool.Begin(ctx)
 		})
 
 	repo := NewPostgresPermissionWorkRepository(mockDB)

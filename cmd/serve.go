@@ -57,11 +57,8 @@ func serve(cmd *cobra.Command, args []string) error {
 	defer integrations.CleanupIntegrations(logger)
 
 	// Initialize services
-	services, err := integrations.InitializeServices(tracer, logger)
+	services := integrations.InitializeServices(tracer, logger)
 
-	if err != nil {
-		return fmt.Errorf("couldn't initialize services object, %v", err)
-	}
 	// Start gRPC server with functional options
 	grpcServer, err := grpc.NewServer(
 		cfg.Server,

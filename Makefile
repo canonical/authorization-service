@@ -52,7 +52,11 @@ test: mocks
 
 test-int:
 	@echo "Running integration tests..."
-	@go test -v -tags integration ./tests/integration/... -timeout 5m
+	@go test -v -race -tags integration ./tests/integration/... -timeout 5m
+
+test-clear-cache:
+	@echo "Clearing test cache..."
+	@go clean -testcache
 
 test-e2e:
 	@echo "Not implemented yet"

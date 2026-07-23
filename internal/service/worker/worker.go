@@ -51,9 +51,7 @@ func NewWorker(
 }
 
 // Run polls the work table on pollInterval and processes one batch per tick,
-// blocking until ctx is cancelled. The loop is a single goroutine: processing is
-// synchronous, so a tick that fires while a batch is still being processed is
-// dropped by the ticker (it does not accumulate), and batches never overlap.
+// blocking until ctx is cancelled or an error occurs.
 func (w *Worker) Run(ctx context.Context) error {
 	w.logger.Info("Starting permission-update worker",
 		"batch_size", w.batchSize, "poll_interval", w.pollInterval.String())
@@ -66,27 +64,28 @@ func (w *Worker) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			w.processBatch(ctx)
+			if err := w.processBatch(ctx); err != nil {
+				return err
+			}
 		}
 	}
 }
 
-// processBatch claims and processes at most one batch. Errors are logged rather
-// than returned so a single bad row or transient DB blip does not stop the loop.
-func (w *Worker) processBatch(ctx context.Context) {
+// processBatch claims and processes at most one batch.
+func (w *Worker) processBatch(ctx context.Context) error {
 	rows, err := w.repo.ClaimBatch(ctx, w.batchSize, w.retryBackoff)
 	if err != nil {
 		w.logger.Error("Failed to claim work batch", "error", err)
-		return
+		return err
 	}
 	if len(rows) == 0 {
-		return
+		return nil
 	}
 
 	w.logger.Debug("Claimed work batch", "rows", len(rows))
 	for _, row := range rows {
 		if ctx.Err() != nil {
-			return
+			return ctx.Err()
 		}
 		if err := w.processor.ProcessRow(ctx, row); err != nil {
 			// ProcessRow only returns an error if it could not record the outcome
@@ -94,6 +93,8 @@ func (w *Worker) processBatch(ctx context.Context) {
 			// the stale-row reaper once its processing timeout elapses.
 			w.logger.Error("Failed to record processing outcome",
 				"service", row.Service, "message_id", row.MessageID, "row_id", row.ID, "error", err)
+			return err
 		}
 	}
+	return nil
 }
