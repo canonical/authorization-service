@@ -1,5 +1,49 @@
 # Changelog
 
+## [0.3.0](https://github.com/canonical/authorization-service/compare/v0.2.0...v0.3.0) (2026-07-24)
+
+
+### Features
+
+* add Username config for valkey/redis connection ([8bd57eb](https://github.com/canonical/authorization-service/commit/8bd57eb6050dc13b98d39bd68592e65fb9b21776))
+* **authz:** introduce modular OpenFGA core schema and folder structure ([6c76d2d](https://github.com/canonical/authorization-service/commit/6c76d2d065f2366c5082f0f603fef8fd51685513))
+* **authz:** refactor write-model command to compile modular schemas programmatically ([cdac6eb](https://github.com/canonical/authorization-service/commit/cdac6eb1e1391a279212a9eb4bad7929ff6132f5))
+* **authz:** support toggling multitenancy with tenant_enabled flag in tenant_match condition ([3fac769](https://github.com/canonical/authorization-service/commit/3fac7692925d0e2804570ba2fe475c025759ecc3))
+* **cli:** introduce top-level reaper command and --no-reaper flag ([8c83840](https://github.com/canonical/authorization-service/commit/8c83840a2822026205b4509249b7fa78d7dd04af))
+* **config:** wire multi-service listener and ensure-topics command ([2c7ddef](https://github.com/canonical/authorization-service/commit/2c7ddefc0dbf19ddad6ed3d5e11ce4cd7d1ad17f))
+* **core:** add userset subject parsing, validation, and storage mirroring ([ea26815](https://github.com/canonical/authorization-service/commit/ea268158d73b4bb82b8fe276a69954b7461fcd4b))
+* **db:** add user_set_subject_relation to authorization_tuples in migration 0003 ([778717e](https://github.com/canonical/authorization-service/commit/778717e39cc72f5fb19cc1972c933624a766cc77))
+* **docker:** add Kafka broker to development dependencies ([7b06438](https://github.com/canonical/authorization-service/commit/7b064386818d5c6435a2ff671b677ff429eb13b9))
+* introduce real message structures for Permission updates and errors ([0657beb](https://github.com/canonical/authorization-service/commit/0657beb98e4d7c8c0301ca51a01ea5f6b635471f))
+* introduce real message structures for Permission updates and errors ([#36](https://github.com/canonical/authorization-service/issues/36)) ([31e9f97](https://github.com/canonical/authorization-service/commit/31e9f971ea3a06807f9f3bb63292f327a1854c94))
+* **kafka:** add Kafka consumer and publisher integration ([40b2b76](https://github.com/canonical/authorization-service/commit/40b2b765502363d1d2e5598eee573ec141ffe2be))
+* **kafka:** consumer-group multi-topic consumption with in-order commits ([c985957](https://github.com/canonical/authorization-service/commit/c985957ada75a585cad103d1425f4a441175c469))
+* **listen:** add listener service, config, and listen CLI command ([d457265](https://github.com/canonical/authorization-service/commit/d4572659b3f84650f3bcfd21ad77e23975bd3a40))
+* **listen:** durable ingestion service, decoupled from OpenFGA ([babcbac](https://github.com/canonical/authorization-service/commit/babcbacecfb870e9ece83670c8e872df409d33ac))
+* **proto:** add WriteRequest and WriteRequestError messages ([d8da16e](https://github.com/canonical/authorization-service/commit/d8da16e93301cd742e73bc3428cf3e959cb10bfd))
+* **proto:** align permission-update envelope with ID057 spec ([181cd62](https://github.com/canonical/authorization-service/commit/181cd62bc418aa7e0c0485bfe3fed5e25daba779))
+* **repository:** add permission_update_work table and repository ([fff1415](https://github.com/canonical/authorization-service/commit/fff141599a5d7a5e92a830ab1951a2401e11bd70))
+* **repo:** use transactional postgres advisory lock in ReclaimStale ([c4124aa](https://github.com/canonical/authorization-service/commit/c4124aa1f39aedc7e1c64cbaa8bbccebcecf36c6))
+* **worker:** implement async permission-update worker processing stage ([9e493a8](https://github.com/canonical/authorization-service/commit/9e493a8ea45fb4ad7aca2190b58be966b655fd29))
+* **worker:** implement periodic background reaper service ([3bb1ebf](https://github.com/canonical/authorization-service/commit/3bb1ebf2b08b49d497ba291eccf10639d78e7469))
+* **worker:** implement retry and failure classification ([8af06bc](https://github.com/canonical/authorization-service/commit/8af06bcba2ea42e9090a8a6d7b37e55e765c6280))
+* **worker:** sort claimed batch rows by EventTime for best-effort local ordering ([f8c1079](https://github.com/canonical/authorization-service/commit/f8c1079690436b480e2e2ce62da3c13f2b4e0136))
+
+
+### Bug Fixes
+
+* add contents:read pemission ([77adc43](https://github.com/canonical/authorization-service/commit/77adc4393a7c6ce8458fe461365b39b87511bc51))
+* add missing actions permission for scan job ([9371828](https://github.com/canonical/authorization-service/commit/9371828431b522e82890a2cc618087f41e3c2193))
+* add missing actions permission for scan job ([#27](https://github.com/canonical/authorization-service/issues/27)) ([748deab](https://github.com/canonical/authorization-service/commit/748deab6cb3da49cf87e05741ae74b2b2b6bb9d9))
+* ci publish action ([79f14fd](https://github.com/canonical/authorization-service/commit/79f14fd10adfce37dd09faec282c51f398007f46))
+* ci publish action ([#16](https://github.com/canonical/authorization-service/issues/16)) ([b6fc818](https://github.com/canonical/authorization-service/commit/b6fc818a4c68a28c9504dbaf28ce5484456dc2ad))
+* **ci:** add packages write permission to ci workflow ([5e568dc](https://github.com/canonical/authorization-service/commit/5e568dc9545ca30930636f8eb7df17c61bfde830))
+* **ci:** add packages write permission to ci workflow ([9777350](https://github.com/canonical/authorization-service/commit/9777350f34342ce2d85efb83174cc3e750b0721d))
+* reorder codeql go setup and generate mocks before autobuild ([2528593](https://github.com/canonical/authorization-service/commit/25285930599c61569e09deea23634af820f8c13b))
+* replace Chisel slices with full apt packages in rockcraft.yaml ([33447bf](https://github.com/canonical/authorization-service/commit/33447bf9f413e66278dee714421ed569b89aafef))
+* replace Chisel slices with full apt packages in rockcraft.yaml ([#21](https://github.com/canonical/authorization-service/issues/21)) ([c6997c3](https://github.com/canonical/authorization-service/commit/c6997c37228c5a1d355a5158cf9d59c203b387c8))
+* scope down additional permission for gh-publish job ([0d2fbed](https://github.com/canonical/authorization-service/commit/0d2fbed14baedbf01396594a56d36f3fcc6aab79))
+
 ## [0.2.0](https://github.com/canonical/authorization-service/compare/v0.1.0...v0.2.0) (2026-04-24)
 
 
