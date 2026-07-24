@@ -10,6 +10,7 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
@@ -76,9 +77,15 @@ func NewPostgresPermissionWorkRepository(db postgres.DBClientInterface) *Postgre
 
 // Insert appends a row to permission_update_work in status 'received'.
 func (r *PostgresPermissionWorkRepository) Insert(ctx context.Context, row permissions.WorkRow) error {
+	id, err := uuid.NewV7()
+	if err != nil {
+		return fmt.Errorf("failed to generate UUIDv7: %w", err)
+	}
+
 	query, args, err := r.db.Builder().
 		Insert("permission_update_work").
 		Columns(
+			"id",
 			"service",
 			"message_id",
 			"idempotency_key",
@@ -91,6 +98,7 @@ func (r *PostgresPermissionWorkRepository) Insert(ctx context.Context, row permi
 			"kafka_offset",
 		).
 		Values(
+			id.String(),
 			row.Service,
 			row.MessageID,
 			row.IdempotencyKey,
@@ -238,10 +246,15 @@ func (r *PostgresPermissionWorkRepository) RecordProcessed(ctx context.Context, 
 			suffix = "ON CONFLICT (subject, user_set_subject_relation, relation, object) WHERE user_set_subject_relation IS NOT NULL DO NOTHING"
 		}
 
+		tupleID, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("failed to generate UUIDv7 for authorization tuple: %w", err)
+		}
+
 		query, args, err := r.db.Builder().
 			Insert("authorization_tuples").
-			Columns("service", "subject", "user_set_subject_relation", "relation", "object").
-			Values(service, baseSubject, userSetRelation, t.Relation, t.Object).
+			Columns("id", "service", "subject", "user_set_subject_relation", "relation", "object").
+			Values(tupleID.String(), service, baseSubject, userSetRelation, t.Relation, t.Object).
 			Suffix(suffix).
 			ToSql()
 		if err != nil {

@@ -34,7 +34,7 @@ Wait for all services to become healthy before proceeding to the next step.
 Once the Docker services are running and healthy, initialize the application database schema:
 
 ```bash
-./app migrate --dsn postgresql://cerberus:password@localhost:5432/cerberus up
+./bin/authz-service migrate --dsn postgresql://cerberus:password@localhost:5432/cerberus up
 ```
 
 This command will:
@@ -48,13 +48,13 @@ Deploy the embedded DSL authorization model to the OpenFGA instance:
 
 ```bash
 export STORE_ID="01GP1254CHWJC1MNGVB0WDG1T0"
-./app authz write-model "$STORE_ID"
+./bin/authz-service authz write-model "$STORE_ID"
 ```
 
 This command will:
-- Read the embedded `cerberus.v0.openfga` DSL model
-- Parse it into OpenFGA's structured format
-- Write it to the specified OpenFGA store
+- Read the embedded modular manifest file `fga.mod`
+- Programmatically load and compile all core and federated schema files (such as `core/core.fga` and any modules under `services/`) into a single authorization model
+- Write the compiled model to the specified OpenFGA store
 
 Verify the model was written successfully by checking the output logs for the model ID.
 

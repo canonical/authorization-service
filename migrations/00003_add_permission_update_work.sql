@@ -16,7 +16,7 @@ CREATE TYPE permission_update_status AS ENUM (
 -- downstream tuple application. The listener inserts rows as 'received'; a worker
 -- pool (out of scope here) later claims and processes them.
 CREATE TABLE permission_update_work (
-    id                    UUID PRIMARY KEY                  DEFAULT uuid_generate_v7(),
+    id                    UUID PRIMARY KEY,
     service               TEXT                     NOT NULL,
     message_id            TEXT                     NOT NULL,
     idempotency_key       TEXT                     NOT NULL,
@@ -54,7 +54,7 @@ CREATE INDEX idx_permission_update_work_processing_started_at
 -- Applied tuples mirror, for future queryability of the tuples Cerberus has
 -- written to OpenFGA. Populated by the worker during local bookkeeping.
 CREATE TABLE authorization_tuples (
-    id                         UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+    id                         UUID PRIMARY KEY,
     service                    TEXT        NOT NULL,
     subject                    TEXT        NOT NULL,
     user_set_subject_relation  TEXT,

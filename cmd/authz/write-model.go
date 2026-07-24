@@ -58,15 +58,15 @@ func writeModel(cmd *cobra.Command, args []string) error {
 // them programmatically using the OpenFGA transformer package into a single authorization model.
 func compileModularModel() (*openfga.WriteAuthorizationModelRequest, error) {
 	// Read the manifest file fga.mod
-	modData, err := model.ModelFS.ReadFile("core/fga.mod")
+	modData, err := model.ModelFS.ReadFile("fga.mod")
 	if err != nil {
-		return nil, fmt.Errorf("failed to read core/fga.mod from embedded FS: %w", err)
+		return nil, fmt.Errorf("failed to read fga.mod from embedded FS: %w", err)
 	}
 
 	// Parse fga.mod
 	modFile, err := transformer.TransformModFile(string(modData))
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse core/fga.mod: %w", err)
+		return nil, fmt.Errorf("failed to parse fga.mod: %w", err)
 	}
 
 	schemaVersion := modFile.Schema.Value
@@ -75,8 +75,8 @@ func compileModularModel() (*openfga.WriteAuthorizationModelRequest, error) {
 	// Load each module file listed in the manifest
 	for _, fileProp := range modFile.Contents.Value {
 		relPath := fileProp.Value
-		// Resolve the module path relative to the core folder
-		fullPath := filepath.Clean(filepath.Join("core", relPath))
+		// Resolve the module path relative to the root folder
+		fullPath := filepath.Clean(relPath)
 
 		content, err := model.ModelFS.ReadFile(fullPath)
 		if err != nil {

@@ -162,13 +162,13 @@ func TestPermissionWork_RecordProcessed_Success(t *testing.T) {
 		Begin(gomock.Any()).
 		DoAndReturn(func(ctx context.Context) (interface{}, error) {
 			pool.ExpectBegin()
-			// Direct subject write (5 args)
+			// Direct subject write (6 args including id)
 			pool.ExpectExec("INSERT INTO authorization_tuples").
-				WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).
+				WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).
 				WillReturnResult(pgxmock.NewResult("INSERT", 1))
-			// Userset subject write (5 args)
+			// Userset subject write (6 args including id)
 			pool.ExpectExec("INSERT INTO authorization_tuples").
-				WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).
+				WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).
 				WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
 			// Direct subject delete (3 args, because IS NULL does not use a placeholder)

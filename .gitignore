@@ -6,7 +6,6 @@
 *.exe~
 *.dll
 *.so
-!docker/dependencies/postgres/pg_uuidv7.so
 *.dylib
 
 # Binaries for development setup

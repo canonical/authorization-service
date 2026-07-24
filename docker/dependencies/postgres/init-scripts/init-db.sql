@@ -5,12 +5,3 @@ GRANT ALL PRIVILEGES ON DATABASE sts TO cerberus;
 
 ALTER DATABASE cerberus OWNER TO cerberus;
 ALTER DATABASE sts OWNER TO cerberus;
-
-\c openfga;
-CREATE EXTENSION IF NOT EXISTS pg_uuidv7;
-
-\c cerberus;
-CREATE EXTENSION IF NOT EXISTS pg_uuidv7;
-
-\c sts
-CREATE EXTENSION IF NOT EXISTS pg_uuidv7;
