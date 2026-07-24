@@ -1,0 +1,13 @@
+module dummy
+
+type domainAdmin
+  relations
+    define viewer: [user]
+
+type smallRole
+  relations
+    define assignee: [user]
+
+type testGroup
+  relations
+    define member: [user]

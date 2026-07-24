@@ -10,5 +10,5 @@ import "embed"
 // and are accessible in any environment (including Docker/Kubernetes) without
 // requiring runtime file copying.
 //
-//go:embed core/* services/*
+//go:embed fga.mod core/* services/*
 var ModelFS embed.FS

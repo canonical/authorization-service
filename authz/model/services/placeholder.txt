@@ -1,2 +1,0 @@
-This is a placeholder file to ensure the services directory is not empty.
-This prevents compilation errors when embedding the services directory with go:embed.

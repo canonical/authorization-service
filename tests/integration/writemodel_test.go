@@ -89,12 +89,15 @@ func TestWriteModel_Integration(t *testing.T) {
 
 	model := modelResp.GetAuthorizationModel()
 
-	// Check core types
+	// Check core and federated types
 	expectedTypes := map[string]bool{
 		"user":          false,
 		"group":         false,
 		"role":          false,
 		"generic-asset": false,
+		"domainAdmin":   false,
+		"smallRole":     false,
+		"testGroup":     false,
 	}
 
 	for _, td := range model.GetTypeDefinitions() {
