@@ -16,9 +16,9 @@ Please provide the requested information and ensure the required files are inclu
 
 ## Files included in this PR
 Please confirm that this pull request contains the required changes:
-- [ ] `authz/model/core/fga.mod` updated to include the service module
+- [ ] `authz/model/fga.mod` updated to include the service module
 - [ ] `authz/model/services/<service-slug>/rules.yaml` added or updated
-- [ ] `authz/model/services/<service-slug>/<service-slug>.openfga` added or updated
+- [ ] `authz/model/services/<service-slug>/<service-slug>.fga` added or updated
 
 ## Notes for reviewers
 Add any information that may help Cerberus reviewers understand the change set,
