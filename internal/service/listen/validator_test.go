@@ -56,6 +56,7 @@ func TestValidator_Rejects(t *testing.T) {
 		"bad subject":           func(e *messagesv1.PermissionUpdateEnvelope) { e.Operations[0].Subject = "user" },
 		"bad object empty id":   func(e *messagesv1.PermissionUpdateEnvelope) { e.Operations[0].Object = "invoice:" },
 		"bad subject empty typ": func(e *messagesv1.PermissionUpdateEnvelope) { e.Operations[0].Subject = ":u1" },
+		"bad subject empty userset relation": func(e *messagesv1.PermissionUpdateEnvelope) { e.Operations[0].Subject = "role:admin#" },
 	}
 
 	for name, mutate := range cases {
@@ -66,5 +67,14 @@ func TestValidator_Rejects(t *testing.T) {
 				t.Errorf("expected error for %q, got nil", name)
 			}
 		})
+	}
+}
+
+func TestValidator_SubjectUserset(t *testing.T) {
+	v := NewValidator()
+	env := validEnvelope()
+	env.Operations[0].Subject = "role:admin#assignee"
+	if err := v.Validate(env, "payments"); err != nil {
+		t.Fatalf("expected valid userset subject, got %v", err)
 	}
 }

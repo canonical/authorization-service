@@ -54,14 +54,25 @@ CREATE INDEX idx_permission_update_work_processing_started_at
 -- Applied tuples mirror, for future queryability of the tuples Cerberus has
 -- written to OpenFGA. Populated by the worker during local bookkeeping.
 CREATE TABLE authorization_tuples (
-    id           UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
-    service      TEXT        NOT NULL,
-    subject      TEXT        NOT NULL,
-    relation     TEXT        NOT NULL,
-    object       TEXT        NOT NULL,
-    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT uq_authorization_tuples_tuple UNIQUE (subject, relation, object)
+    id                         UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+    service                    TEXT        NOT NULL,
+    subject                    TEXT        NOT NULL,
+    user_set_subject_relation  TEXT,
+    relation                   TEXT        NOT NULL,
+    object                     TEXT        NOT NULL,
+    created_at                 TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE UNIQUE INDEX uq_authorization_tuples_tuple_without_userset
+    ON authorization_tuples (subject, relation, object)
+    WHERE user_set_subject_relation IS NULL;
+
+CREATE UNIQUE INDEX uq_authorization_tuples_tuple_with_userset
+    ON authorization_tuples (subject, user_set_subject_relation, relation, object)
+    WHERE user_set_subject_relation IS NOT NULL;
+
+CREATE INDEX idx_authorization_tuples_subject_userset
+    ON authorization_tuples (subject, user_set_subject_relation);
 
 -- +goose StatementEnd
 

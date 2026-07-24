@@ -5,11 +5,11 @@ package authz
 
 import (
 	"context"
-	_ "embed"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 
 	"github.com/kelseyhightower/envconfig"
 	openfga "github.com/openfga/go-sdk"
@@ -19,18 +19,16 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/canonical/authorization-service/authz/model"
 	"github.com/canonical/authorization-service/config"
 )
-
-//go:embed cerberus.v0.openfga
-var v0AuthorizationModelDSL string
 
 // writeModelCmd represents the write-model command
 var writeModelCmd = &cobra.Command{
 	Use:   "write-model <store-id>",
 	Short: "Write the OpenFGA authorization model to the OpenFGA instance",
 	Long: `Write the OpenFGA authorization model to the OpenFGA instance.
-This command reads the authorization model from the embedded cerberus.v0.openfga file
+This command compiles the modular authorization model from the embedded authz/model/ core manifest (fga.mod)
 and uploads it to the specified OpenFGA store.`,
 	Args: cobra.ExactArgs(1),
 	RunE: writeModel,
@@ -48,7 +46,7 @@ func writeModel(cmd *cobra.Command, args []string) error {
 	// Setup logger
 	logger := cfg.Logging.SetupLogger()
 
-	if err := writeAuthorizationModel(cmd.Context(), storeID, cfg, logger); err != nil {
+	if err := WriteAuthorizationModel(cmd.Context(), storeID, cfg, logger); err != nil {
 		logger.Error("Failed to write authorization model", "error", err)
 		return err
 	}
@@ -56,14 +54,48 @@ func writeModel(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// parseDSLToWriteRequest transforms the embedded DSL string into an SDK-compatible
-// WriteAuthorizationModelRequest using the openfga language transformer.
-func parseDSLToWriteRequest(dsl string) (*openfga.WriteAuthorizationModelRequest, error) {
-	parsedAuthModel, err := transformer.TransformDSLToProto(dsl)
+// compileModularModel reads fga.mod from ModelFS, resolves its content files, and compiles
+// them programmatically using the OpenFGA transformer package into a single authorization model.
+func compileModularModel() (*openfga.WriteAuthorizationModelRequest, error) {
+	// Read the manifest file fga.mod
+	modData, err := model.ModelFS.ReadFile("core/fga.mod")
 	if err != nil {
-		return nil, fmt.Errorf("failed to transform DSL to proto: %w", err)
+		return nil, fmt.Errorf("failed to read core/fga.mod from embedded FS: %w", err)
 	}
 
+	// Parse fga.mod
+	modFile, err := transformer.TransformModFile(string(modData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse core/fga.mod: %w", err)
+	}
+
+	schemaVersion := modFile.Schema.Value
+	var modules []transformer.ModuleFile
+
+	// Load each module file listed in the manifest
+	for _, fileProp := range modFile.Contents.Value {
+		relPath := fileProp.Value
+		// Resolve the module path relative to the core folder
+		fullPath := filepath.Clean(filepath.Join("core", relPath))
+
+		content, err := model.ModelFS.ReadFile(fullPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read module file %s from embedded FS: %w", fullPath, err)
+		}
+
+		modules = append(modules, transformer.ModuleFile{
+			Name:     relPath,
+			Contents: string(content),
+		})
+	}
+
+	// Compile modules into a single AuthorizationModel
+	parsedAuthModel, err := transformer.TransformModuleFilesToModel(modules, schemaVersion)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compile modular files to model: %w", err)
+	}
+
+	// Marshal compiled model to JSON, and then unmarshal it into SDK request
 	protoBytes, err := protojson.Marshal(parsedAuthModel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal proto to JSON: %w", err)
@@ -77,8 +109,8 @@ func parseDSLToWriteRequest(dsl string) (*openfga.WriteAuthorizationModelRequest
 	return &request, nil
 }
 
-// writeAuthorizationModel writes the authorization model to OpenFGA
-func writeAuthorizationModel(ctx context.Context, storeID string, cfg *config.Config, logger *slog.Logger) error {
+// WriteAuthorizationModel writes the authorization model to OpenFGA
+func WriteAuthorizationModel(ctx context.Context, storeID string, cfg *config.Config, logger *slog.Logger) error {
 
 	if storeID == "" {
 		return fmt.Errorf("store-id is required")
@@ -89,10 +121,10 @@ func writeAuthorizationModel(ctx context.Context, storeID string, cfg *config.Co
 		"address", cfg.OpenFGA.Address,
 	)
 
-	// Parse the embedded DSL model into a structured SDK request
-	body, err := parseDSLToWriteRequest(v0AuthorizationModelDSL)
+	// Compile the modular model from the embedded FS
+	body, err := compileModularModel()
 	if err != nil {
-		return fmt.Errorf("failed to parse authorization model DSL: %w", err)
+		return fmt.Errorf("failed to compile modular authorization model: %w", err)
 	}
 
 	// Create OpenFGA SDK client

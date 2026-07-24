@@ -162,12 +162,24 @@ func TestPermissionWork_RecordProcessed_Success(t *testing.T) {
 		Begin(gomock.Any()).
 		DoAndReturn(func(ctx context.Context) (interface{}, error) {
 			pool.ExpectBegin()
+			// Direct subject write (5 args)
 			pool.ExpectExec("INSERT INTO authorization_tuples").
-				WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).
+				WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).
 				WillReturnResult(pgxmock.NewResult("INSERT", 1))
+			// Userset subject write (5 args)
+			pool.ExpectExec("INSERT INTO authorization_tuples").
+				WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).
+				WillReturnResult(pgxmock.NewResult("INSERT", 1))
+
+			// Direct subject delete (3 args, because IS NULL does not use a placeholder)
 			pool.ExpectExec("DELETE FROM authorization_tuples").
 				WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).
 				WillReturnResult(pgxmock.NewResult("DELETE", 1))
+			// Userset subject delete (4 args)
+			pool.ExpectExec("DELETE FROM authorization_tuples").
+				WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).
+				WillReturnResult(pgxmock.NewResult("DELETE", 1))
+
 			pool.ExpectExec("UPDATE permission_update_work").
 				WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).
 				WillReturnResult(pgxmock.NewResult("UPDATE", 1))
@@ -177,8 +189,14 @@ func TestPermissionWork_RecordProcessed_Success(t *testing.T) {
 
 	repo := NewPostgresPermissionWorkRepository(mockDB)
 	err := repo.RecordProcessed(context.Background(), "row-1", "payments",
-		[]permissions.Tuple{{Subject: "user:u1", Relation: "viewer", Object: "doc:d1"}},
-		[]permissions.Tuple{{Subject: "user:u2", Relation: "editor", Object: "doc:d2"}},
+		[]permissions.Tuple{
+			{Subject: "user:u1", Relation: "viewer", Object: "doc:d1"},
+			{Subject: "role:admin#assignee", Relation: "reader", Object: "doc:d3"},
+		},
+		[]permissions.Tuple{
+			{Subject: "user:u2", Relation: "editor", Object: "doc:d2"},
+			{Subject: "role:member#assignee", Relation: "editor", Object: "doc:d4"},
+		},
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

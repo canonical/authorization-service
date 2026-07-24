@@ -6,6 +6,7 @@ package worker
 import (
 	"context"
 	"log/slog"
+	"sort"
 	"time"
 
 	"github.com/canonical/authorization-service/internal/model/permissions"
@@ -83,6 +84,23 @@ func (w *Worker) processBatch(ctx context.Context) error {
 	}
 
 	w.logger.Debug("Claimed work batch", "rows", len(rows))
+
+	// Sort the batch by event_timestamp (EventTime) as a best-effort local ordering step.
+	sort.Slice(rows, func(i, j int) bool {
+		ti := rows[i].EventTime
+		tj := rows[j].EventTime
+		if ti == nil && tj == nil {
+			return false
+		}
+		if ti == nil {
+			return true // Treat nil EventTime as older
+		}
+		if tj == nil {
+			return false
+		}
+		return ti.Before(*tj)
+	})
+
 	for _, row := range rows {
 		if ctx.Err() != nil {
 			return ctx.Err()

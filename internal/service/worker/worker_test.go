@@ -117,3 +117,52 @@ func TestWorker_ClaimError_StopsLoop(t *testing.T) {
 		t.Fatalf("no rows should be processed when claims fail, got %v", proc.seen)
 	}
 }
+
+func TestWorker_BatchSortingByEventTime(t *testing.T) {
+	t1 := time.Now().Add(-10 * time.Minute)
+	t2 := time.Now().Add(-5 * time.Minute)
+	t3 := time.Now().Add(-20 * time.Minute)
+
+	repo := &claimRepo{batches: [][]permissions.ClaimedRow{{
+		{ID: "row-latest", EventTime: &t2},
+		{ID: "row-nil-time", EventTime: nil},
+		{ID: "row-earliest", EventTime: &t3},
+		{ID: "row-middle", EventTime: &t1},
+	}}}
+
+	proc := &recordingProcessor{done: make(chan struct{}), limit: 4}
+	doneCh := proc.done
+
+	w := NewWorker(repo, proc, 100, 5*time.Millisecond, time.Minute, testLogger())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- w.Run(ctx) }()
+
+	select {
+	case <-doneCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for rows to be processed")
+	}
+
+	cancel()
+	_ = <-errCh
+
+	// The order of processing must be:
+	// 1. row-nil-time (nil EventTime is treated as older and comes first)
+	// 2. row-earliest (t3 = -20m)
+	// 3. row-middle (t1 = -10m)
+	// 4. row-latest (t2 = -5m)
+	expectedOrder := []string{"row-nil-time", "row-earliest", "row-middle", "row-latest"}
+	if len(proc.seen) != len(expectedOrder) {
+		t.Fatalf("expected %d processed rows, got %d: %v", len(expectedOrder), len(proc.seen), proc.seen)
+	}
+	for i, id := range expectedOrder {
+		if proc.seen[i] != id {
+			t.Errorf("at index %d: expected %q, got %q", i, id, proc.seen[i])
+		}
+	}
+}
+
