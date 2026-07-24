@@ -304,7 +304,22 @@ curl http://localhost:8080/healthz
 # Valkey
 redis-cli -h localhost ping
 ```
+## Service Federation
+
+Service onboarding and federation into Cerberus are managed through a dedicated pull request workflow, treating the PR as the primary source of truth for configuration and metadata.
+
+If you are a team onboarding your service, you can open your pull request with the dedicated federation template pre-loaded by clicking the button below:
+
+<p align="center">
+  <a href="https://github.com/canonical/authorization-service/compare/main...?expand=1&template=federation_onboarding.md">
+    <img src="https://img.shields.io/badge/Onboard_Service-Federation_PR_Template-0066cc?style=for-the-badge&logo=github&logoColor=white" alt="Onboard Service with Federation PR Template" />
+  </a>
+</p>
+
+Alternatively, you can manually select the `federation_onboarding.md` template when opening your Pull Request.
+
 ## Contributing
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 ## License
 See [LICENSE](LICENSE) file for details.
+
