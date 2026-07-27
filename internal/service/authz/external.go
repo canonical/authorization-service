@@ -125,7 +125,7 @@ func (s *ExternalAuthzService) Check(ctx context.Context, req *envoyAuth.CheckRe
 	}
 	userIdentity := claims.Sub
 
-	tuples, err := s.resourceMapper.Map(ctx, userIdentity, method, path)
+	tuples, matchedRule, err := s.resourceMapper.Map(ctx, userIdentity, method, path)
 	if err != nil {
 		s.logger.Error("Failed to map resource", "method", method, "path", path, "error", err)
 		return forbidden("internal error during authorization"), nil
@@ -135,6 +135,20 @@ func (s *ExternalAuthzService) Check(ctx context.Context, req *envoyAuth.CheckRe
 	if tuples == nil || len(tuples) == 0 {
 		s.logger.Debug("No authorization rule matched", "method", method, "path", path)
 		return forbidden(fmt.Sprintf("No authorization rule matched method %s path %s", method, path)), nil
+	}
+
+	// if no matched rule then return an error, if it's going through Cerberus then it needs a rule.
+	// Public endpoints must be ALLOWed via AuthorizationPolicy
+	if matchedRule == nil {
+		s.logger.Error("No matching rule was returned found")
+		return nil, fmt.Errorf("no matching rule found")
+	}
+
+	if s.multitenancyEnabled {
+		if matchedRule.Tenant == nil || *matchedRule.Tenant == "" {
+			s.logger.Error("Rule does not have an associated tenant, but multitenancy is enabled", "rule_id", matchedRule.Id)
+			return nil, fmt.Errorf("rule %s has no tenant but multitenancy is enabled", matchedRule.Id)
+		}
 	}
 
 	// Always populate check context for each tuple

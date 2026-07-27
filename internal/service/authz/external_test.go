@@ -16,6 +16,7 @@ import (
 	"io"
 	"log/slog"
 	"reflect"
+	"strings"
 	"testing"
 	"unsafe"
 
@@ -29,6 +30,7 @@ import (
 	"google.golang.org/grpc/codes"
 
 	stsv1 "github.com/canonical/authorization-service/client/v1/sts"
+	"github.com/canonical/authorization-service/internal/model/rules"
 	authz "github.com/canonical/authorization-service/internal/service/authz/mocks"
 )
 
@@ -273,7 +275,7 @@ func TestExternalAuthzService_Check_ResourceMapperError(t *testing.T) {
 		Times(1)
 	mockResourceMapper.EXPECT().
 		Map(gomock.Any(), userSub, "GET", "/api/resource").
-		Return(nil, errors.New("mapping failed")).
+		Return(nil, nil, errors.New("mapping failed")).
 		Times(1)
 	mockOpenFGA.EXPECT().BatchCheck(gomock.Any()).Times(0)
 
@@ -322,7 +324,7 @@ func TestExternalAuthzService_Check_NoMatchingRules(t *testing.T) {
 	// Mapper returns empty slice — no matching rule.
 	mockResourceMapper.EXPECT().
 		Map(gomock.Any(), userSub, "DELETE", "/api/resource").
-		Return([]client.ClientBatchCheckItem{}, nil).
+		Return([]client.ClientBatchCheckItem{}, nil, nil).
 		Times(1)
 	mockOpenFGA.EXPECT().BatchCheck(gomock.Any()).Times(0)
 
@@ -374,7 +376,7 @@ func TestExternalAuthzService_Check_QueryStringStripped(t *testing.T) {
 	// Mapper must receive path WITHOUT the query string.
 	mockResourceMapper.EXPECT().
 		Map(gomock.Any(), userSub, "GET", "/api/resource").
-		Return([]client.ClientBatchCheckItem{}, nil).
+		Return([]client.ClientBatchCheckItem{}, nil, nil).
 		Times(1)
 
 	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
@@ -423,7 +425,7 @@ func TestExternalAuthzService_Check_FGABatchCheckError(t *testing.T) {
 		Times(1)
 	mockResourceMapper.EXPECT().
 		Map(gomock.Any(), userSub, "GET", "/api/resource").
-		Return(tuples, nil).
+		Return(tuples, &rules.RuleWithTuples{Id: "rule-1"}, nil).
 		Times(1)
 
 	batchReqMock := &mockBatchCheckRequest{
@@ -483,7 +485,7 @@ func TestExternalAuthzService_Check_FGAResultNotOK(t *testing.T) {
 		Times(1)
 	mockResourceMapper.EXPECT().
 		Map(gomock.Any(), userSub, "GET", "/api/resource").
-		Return(tuples, nil).
+		Return(tuples, &rules.RuleWithTuples{Id: "rule-1"}, nil).
 		Times(1)
 
 	// Response with nil Result — GetResultOk() returns false.
@@ -544,7 +546,7 @@ func TestExternalAuthzService_Check_FGAResultHasError(t *testing.T) {
 		Times(1)
 	mockResourceMapper.EXPECT().
 		Map(gomock.Any(), userSub, "GET", "/api/resource").
-		Return(tuples, nil).
+		Return(tuples, &rules.RuleWithTuples{Id: "rule-1"}, nil).
 		Times(1)
 
 	checkErr := openfga.CheckError{Message: openfga.PtrString("model evaluation error")}
@@ -609,7 +611,7 @@ func TestExternalAuthzService_Check_FGAAccessDenied(t *testing.T) {
 		Times(1)
 	mockResourceMapper.EXPECT().
 		Map(gomock.Any(), userSub, "GET", "/api/resource").
-		Return(tuples, nil).
+		Return(tuples, &rules.RuleWithTuples{Id: "rule-1"}, nil).
 		Times(1)
 
 	resultMap := map[string]openfga.BatchCheckSingleResult{
@@ -678,7 +680,7 @@ func TestExternalAuthzService_Check_FullSuccess(t *testing.T) {
 		Times(1)
 	mockResourceMapper.EXPECT().
 		Map(gomock.Any(), userSub, "GET", "/api/resource").
-		Return(tuples, nil).
+		Return(tuples, &rules.RuleWithTuples{Id: "rule-1"}, nil).
 		Times(1)
 
 	resultMap := map[string]openfga.BatchCheckSingleResult{
@@ -1109,9 +1111,10 @@ func TestExternalAuthzService_Check_Multitenancy(t *testing.T) {
 				Verify(gomock.Any(), accessToken).
 				Return(idToken, nil).
 				Times(1)
+			tenantVal := orgID
 			mockResourceMapper.EXPECT().
 				Map(gomock.Any(), userSub, "GET", "/api/resource").
-				Return(tuples, nil).
+				Return(tuples, &rules.RuleWithTuples{Id: "rule-1", Tenant: &tenantVal}, nil).
 				Times(1)
 
 			resultMap := map[string]openfga.BatchCheckSingleResult{
@@ -1156,5 +1159,100 @@ func TestExternalAuthzService_Check_Multitenancy(t *testing.T) {
 				t.Errorf("expected status code %d, got %d", codes.OK, resp.Status.Code)
 			}
 		})
+	}
+}
+
+func TestExternalAuthzService_Check_Multitenancy_MissingTenant(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSTS := authz.NewMockSecurityTokenServiceClient(ctrl)
+	mockResourceMapper := authz.NewMockResourceMapperInterface(ctrl)
+	mockOpenFGA := authz.NewMockOpenFGAClientInterface(ctrl)
+	mockVerifier := authz.NewMockoidcVerifier(ctrl)
+
+	accessToken := "test.access.token"
+	userSub := "alice@example.com"
+	claimsJSON, _ := json.Marshal(map[string]string{"sub": userSub, "org": "Canonical"})
+	idToken := newTestIDToken(t, claimsJSON)
+
+	tuples := []client.ClientBatchCheckItem{
+		{User: "user:alice", Relation: "reader", Object: "document:1"},
+	}
+
+	mockSTS.EXPECT().
+		ExchangeSession(gomock.Any(), gomock.Any()).
+		Return(&stsv1.ExchangeResponse{AccessToken: accessToken}, nil).
+		Times(1)
+	mockVerifier.EXPECT().
+		Verify(gomock.Any(), accessToken).
+		Return(idToken, nil).
+		Times(1)
+	// Return matched rule with nil/empty tenant
+	mockResourceMapper.EXPECT().
+		Map(gomock.Any(), userSub, "GET", "/api/resource").
+		Return(tuples, &rules.RuleWithTuples{Id: "rule-1", Tenant: nil}, nil).
+		Times(1)
+
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, true, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+
+	resp, err := svc.Check(context.Background(), buildCheckRequest(
+		map[string]string{"cookie": "session_id=valid-session"}, "GET", "/api/resource",
+	))
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if resp != nil {
+		t.Errorf("expected nil response, got %v", resp)
+	}
+}
+
+func TestExternalAuthzService_Check_MissingMatchedRule(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSTS := authz.NewMockSecurityTokenServiceClient(ctrl)
+	mockResourceMapper := authz.NewMockResourceMapperInterface(ctrl)
+	mockOpenFGA := authz.NewMockOpenFGAClientInterface(ctrl)
+	mockVerifier := authz.NewMockoidcVerifier(ctrl)
+
+	accessToken := "test.access.token"
+	userSub := "alice@example.com"
+	claimsJSON, _ := json.Marshal(map[string]string{"sub": userSub, "org": "Canonical"})
+	idToken := newTestIDToken(t, claimsJSON)
+
+	tuples := []client.ClientBatchCheckItem{
+		{User: "user:alice", Relation: "reader", Object: "document:1"},
+	}
+
+	mockSTS.EXPECT().
+		ExchangeSession(gomock.Any(), gomock.Any()).
+		Return(&stsv1.ExchangeResponse{AccessToken: accessToken}, nil).
+		Times(1)
+	mockVerifier.EXPECT().
+		Verify(gomock.Any(), accessToken).
+		Return(idToken, nil).
+		Times(1)
+	// Return non-empty tuples but nil matchedRule
+	mockResourceMapper.EXPECT().
+		Map(gomock.Any(), userSub, "GET", "/api/resource").
+		Return(tuples, nil, nil).
+		Times(1)
+
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+
+	resp, err := svc.Check(context.Background(), buildCheckRequest(
+		map[string]string{"cookie": "session_id=valid-session"}, "GET", "/api/resource",
+	))
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "no matching rule found") {
+		t.Errorf("expected error message to contain 'no matching rule found', got %v", err)
+	}
+	if resp != nil {
+		t.Errorf("expected nil response, got %v", resp)
 	}
 }
