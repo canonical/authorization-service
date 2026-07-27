@@ -28,6 +28,7 @@ import (
 	stsv1 "github.com/canonical/authorization-service/client/v1/sts"
 	cmdauthz "github.com/canonical/authorization-service/cmd/authz"
 	"github.com/canonical/authorization-service/config"
+	"github.com/canonical/authorization-service/internal/model/rules"
 	authz "github.com/canonical/authorization-service/internal/service/authz"
 	authzMocks "github.com/canonical/authorization-service/internal/service/authz/mocks"
 )
@@ -160,19 +161,21 @@ func TestCheck_EnvoyIntegration(t *testing.T) {
 		Return(newTestIDToken(t, claimsBobJSON), nil).
 		AnyTimes()
 
+	tenantCanonical := "Canonical"
+
 	// Mock resource mapper mapping HTTP request to our written relation tuple
 	mockResourceMapper.EXPECT().
 		Map(gomock.Any(), "alice@example.com", "GET", "/ready").
 		Return([]client.ClientBatchCheckItem{
 			{User: "user:alice", Relation: "member", Object: "group:g1", CorrelationId: "corr-alice"},
-		}, nil).
+		}, &rules.RuleWithTuples{Id: "rule-alice", Tenant: &tenantCanonical}, nil).
 		AnyTimes()
 
 	mockResourceMapper.EXPECT().
 		Map(gomock.Any(), "bob@example.com", "GET", "/ready").
 		Return([]client.ClientBatchCheckItem{
 			{User: "user:alice", Relation: "member", Object: "group:g1", CorrelationId: "corr-bob"}, // bob tries to evaluate Alice's access
-		}, nil).
+		}, &rules.RuleWithTuples{Id: "rule-bob", Tenant: &tenantCanonical}, nil).
 		AnyTimes()
 
 	// Instantiate ExternalAuthzService with MultitenancyEnabled = true and register
