@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"path/filepath"
 
-	"github.com/kelseyhightower/envconfig"
 	openfga "github.com/openfga/go-sdk"
 	"github.com/openfga/go-sdk/client"
 	"github.com/openfga/go-sdk/credentials"
@@ -38,9 +37,9 @@ and uploads it to the specified OpenFGA store.`,
 func writeModel(cmd *cobra.Command, args []string) error {
 	storeID := args[0]
 
-	cfg := &config.Config{}
-	if err := envconfig.Process("", cfg); err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
+	cfg, err := config.LoadConfig(cmd)
+	if err != nil {
+		return err
 	}
 
 	// Setup logger

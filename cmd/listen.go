@@ -7,7 +7,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/kelseyhightower/envconfig"
 	"github.com/spf13/cobra"
 
 	"github.com/canonical/authorization-service/config"
@@ -27,13 +26,9 @@ Configuration is loaded from environment variables.`,
 }
 
 func runListen(cmd *cobra.Command, _ []string) error {
-	cfg := &config.Config{}
-	if err := envconfig.Process("", cfg); err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
-
-	if err := cfg.Validate(); err != nil {
-		return fmt.Errorf("invalid configuration: %w", err)
+	cfg, err := config.LoadConfig(cmd)
+	if err != nil {
+		return err
 	}
 
 	logger := cfg.Logging.SetupLogger()

@@ -10,7 +10,6 @@ import (
 
 	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	typev3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
-	"github.com/kelseyhightower/envconfig"
 	"github.com/spf13/cobra"
 
 	"github.com/canonical/authorization-service/config"
@@ -46,10 +45,9 @@ func init() {
 func runCheck(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	// Load configuration from environment variables
-	cfg := &config.Config{}
-	if err := envconfig.Process("", cfg); err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
+	cfg, err := config.LoadConfig(cmd)
+	if err != nil {
+		return err
 	}
 
 	logger := cfg.Logging.SetupLogger()

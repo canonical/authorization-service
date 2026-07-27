@@ -1,0 +1,131 @@
+# Authorization Service Configuration Example
+# Copy this file to config.yaml and customize as needed.
+
+server:
+  # The port on which the gRPC server will run.
+  grpc_port: 9091
+  # The port on which the HTTP REST API Gateway will run.
+  http_port: 8070
+  # The IP address/host on which the server binds.
+  host: "0.0.0.0"
+  # Duration to wait for active requests to finish before shutting down.
+  shutdown_timeout: 15s
+  # Set to true to run in development mode.
+  development: false
+
+ext_authz_service:
+  # The URL to fetch JWKs for JWT signature validation.
+  jwk_set_url: "http://localhost:8080/.well-known/jwks.json"
+
+open_fga:
+  # The address of the OpenFGA instance.
+  address: "http://localhost:8081"
+  # The Store ID of the OpenFGA workspace. (Required)
+  store_id: "your-openfga-store-id"
+  # The ID of the compiled authorization model. (Required)
+  authorization_model_id: "your-openfga-authz-model-id"
+  # API Key for OpenFGA authentication. (Required)
+  api_key: "your-openfga-api-key"
+  # Timeout for OpenFGA requests.
+  timeout: 10s
+
+valkey:
+  # Set to true to enable Valkey caching.
+  enabled: false
+  # Valkey host and port.
+  address: "localhost:6379"
+  # Optional username.
+  username: ""
+  # Optional password.
+  password: ""
+  # Valkey database index (0-15).
+  db: 0
+  # Connection pool size.
+  pool_size: 10
+  # Timeout for Valkey operations.
+  timeout: 5s
+  # Set to true to connect using TLS.
+  use_tls: false
+
+postgres:
+  # Database host.
+  host: "localhost"
+  # Database port.
+  port: 5432
+  # Database user.
+  user: "authz"
+  # Database password.
+  password: "authz-password"
+  # Database name.
+  db_name: "cerberus"
+  # SSL connection mode (disable, require, verify-ca, verify-full).
+  ssl_mode: "disable"
+  # Maximum number of open connections to the database.
+  max_open_conns: 25
+  # Maximum number of idle connections in the pool.
+  max_idle_conns: 5
+  # Maximum amount of time a connection may be reused.
+  conn_max_lifetime: 30m
+  # Maximum amount of time a connection may be idle.
+  conn_max_idle_time: 5m
+  # Connection timeout.
+  connect_timeout: 10s
+
+sts:
+  # The address of the Secure Token Service.
+  address: "localhost:9090"
+  # Set to true to connect to STS using TLS.
+  use_tls: false
+  # Timeout for STS client requests.
+  timeout: 10s
+  # Set to true to proactively check connection upon startup.
+  eager_connection_check: false
+
+kafka:
+  # Set to true to enable the Kafka permission-update consumer.
+  enabled: false
+  # Comma-separated list of bootstrap brokers.
+  brokers:
+    - "localhost:9092"
+  # Federated service slugs to subscribe to.
+  federated_services:
+    - "identity"
+    - "billing"
+  # Consumer group ID for the consumer.
+  consumer_group: "authz-listener"
+  # Partition count for automatically-created topics.
+  topic_partitions: 1
+  # Replication factor for automatically-created topics.
+  topic_replication_factor: 1
+
+worker:
+  # Set to true to enable the async permission-update worker.
+  enabled: false
+  # Batch size for claims from the PostgreSQL queue.
+  batch_size: 100
+  # Interval between queue polls.
+  poll_interval: 1s
+  # Maximum processing attempts before marking a row as failed.
+  max_attempts: 5
+  # Duration to wait before retrying processing of a failed row.
+  retry_backoff: 5m
+  # Duration after which a processing row is considered stale and reclaimed.
+  stale_timeout: 15m
+  # Interval for scanning and reclaiming stale rows.
+  reaper_interval: 1m
+
+logging:
+  # Log level (debug, info, warn, error).
+  level: "info"
+  # Log output format (json, text).
+  format: "json"
+
+telemetry:
+  # Set to true to enable OpenTelemetry exporting.
+  enabled: false
+  # OTLP collector gRPC/HTTP endpoint.
+  otlp_endpoint: ""
+  # Service name reported to the collector.
+  service_name: "authorization-service"
+  # Service version reported to the collector.
+  service_version: "v1.0.0"
