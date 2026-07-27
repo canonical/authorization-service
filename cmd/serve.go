@@ -10,7 +10,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/kelseyhightower/envconfig"
 	"github.com/spf13/cobra"
 
 	"github.com/canonical/authorization-service/config"
@@ -31,10 +30,9 @@ Configuration is loaded from environment variables.`,
 
 // serve is the main serve command handler
 func serve(cmd *cobra.Command, args []string) error {
-	// Load configuration from environment variables
-	cfg := &config.Config{}
-	if err := envconfig.Process("", cfg); err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
+	cfg, err := config.LoadConfig(cmd)
+	if err != nil {
+		return err
 	}
 
 	// Setup logger

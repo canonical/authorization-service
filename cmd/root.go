@@ -39,7 +39,24 @@ func Execute() {
 	}
 }
 
+var configFile string
+
 func init() {
+	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "", "config file (default is ./cerberus.yaml)")
+	rootCmd.PersistentFlags().Int("grpc-port", 9091, "gRPC port")
+	rootCmd.PersistentFlags().Int("http-port", 8070, "HTTP REST port")
+	rootCmd.PersistentFlags().String("server-host", "0.0.0.0", "Server bind host")
+	rootCmd.PersistentFlags().String("db-host", "localhost", "PostgreSQL database host")
+	rootCmd.PersistentFlags().Int("db-port", 5432, "PostgreSQL database port")
+	rootCmd.PersistentFlags().String("db-name", "cerberus", "PostgreSQL database name")
+	rootCmd.PersistentFlags().String("db-user", "authz", "PostgreSQL database user")
+	rootCmd.PersistentFlags().Bool("dev", false, "Enable development mode")
+	rootCmd.PersistentFlags().String("log-level", "info", "Logging level (debug, info, warn, error)")
+	rootCmd.PersistentFlags().String("log-format", "json", "Logging format (json, text)")
+	rootCmd.PersistentFlags().String("fga-address", "http://localhost:8081", "OpenFGA server address")
+	rootCmd.PersistentFlags().String("fga-store-id", "", "OpenFGA store ID")
+	rootCmd.PersistentFlags().String("fga-model-id", "", "OpenFGA authorization model ID")
+
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(serveCmd)
 	rootCmd.AddCommand(migrateCmd)
