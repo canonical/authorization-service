@@ -169,100 +169,125 @@ Provides utilities for checking permissions and writing models to OpenFGA direct
 ---
 
 ## Configuration
-Configuration is managed through environment variables using the `envconfig` library.
+Configuration is managed through **Viper**, providing a robust, multi-layered system. Configuration can be passed via:
+1. **Cobra CLI Flags** (highest priority)
+2. **Environment Variables** (nested paths mapped to structured uppercase words)
+3. **YAML Config File** (loaded from `./cerberus.yaml`, `/etc/authz/cerberus.yaml`, or specified with `-c` / `--config`)
+4. **Go-defined Defaults** (lowest priority)
 
-### Server Configuration
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `GRPC_PORT` | int | `9091` | gRPC server port |
-| `HTTP_PORT` | int | `8070` | REST gateway port |
-| `SERVER_HOST` | string | `0.0.0.0` | Server bind address |
-| `SERVER_SHUTDOWN_TIMEOUT` | duration | `15s` | Graceful shutdown timeout |
-| `DEV` | bool | `false` | Enable development mode (e.g. gRPC reflection) |
+To view or start with a baseline YAML configuration, refer to the provided [cerberus.yaml.example](cerberus.yaml.example) file.
 
-### External Authz Service Configuration
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `EXTAUTHZ_JWK_SET_URL` | string | `http://localhost:8080/.well-known/jwks.json` | JWKS URL to verify external JWT tokens |
+### CLI Configuration Flags
+The following flags are available globally across all CLI commands to quickly override settings:
+* `-c, --config <path>`: Path to a custom YAML configuration file.
+* `--grpc-port <int>`: Overrides the gRPC server port.
+* `--http-port <int>`: Overrides the HTTP API Gateway port.
+* `--server-host <string>`: Overrides the server bind host address.
+* `--db-host <string>`: Overrides the PostgreSQL database host.
+* `--db-port <int>`: Overrides the PostgreSQL database port.
+* `--db-name <string>`: Overrides the PostgreSQL database name.
+* `--db-user <string>`: Overrides the PostgreSQL database user.
+* `--dev`: Enables development mode.
+* `--log-level <string>`: Overrides the logging level.
+* `--log-format <string>`: Overrides the logging format (`json` or `text`).
+* `--fga-address <string>`: Overrides the OpenFGA server address.
+* `--fga-store-id <string>`: Overrides the OpenFGA Store ID.
+* `--fga-model-id <string>`: Overrides the OpenFGA Authorization Model ID.
 
-### OpenFGA Configuration
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `OPENFGA_ADDRESS` | string | `http://localhost:8081` | OpenFGA server address |
-| `OPENFGA_STORE_ID` | string | *(Required)* | OpenFGA store ID |
-| `OPENFGA_AUTHZ_MODEL_ID` | string | *(Required)* | OpenFGA authorization model ID |
-| `OPENFGA_API_KEY` | string | *(Required)* | OpenFGA authentication API token |
-| `OPENFGA_TIMEOUT` | duration | `10s` | Request timeout |
+### Structured Environment Variables & YAML Keys
 
-### Valkey Configuration
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `VALKEY_ENABLED` | bool | `false` | Enable Valkey caching |
-| `VALKEY_ADDRESS` | string | `localhost:6379` | Valkey server address (Required if enabled) |
-| `VALKEY_USERNAME` | string | `""` | Valkey username |
-| `VALKEY_PASSWORD` | string | `""` | Valkey password |
-| `VALKEY_DB` | int | `0` | Database index |
-| `VALKEY_POOL_SIZE` | int | `10` | Max connection pool size |
-| `VALKEY_TIMEOUT` | duration | `5s` | Read/write timeout |
-| `VALKEY_USE_TLS` | bool | `false` | Establish secure TLS connection |
+#### Server Configuration
+| YAML Path | Environment Variable | Type | Default | Description |
+|-----------|----------------------|------|---------|-------------|
+| `server.grpc_port` | `SERVER_GRPC_PORT` | int | `9091` | gRPC server port |
+| `server.http_port` | `SERVER_HTTP_PORT` | int | `8070` | REST gateway port |
+| `server.host` | `SERVER_HOST` | string | `0.0.0.0` | Server bind address |
+| `server.shutdown_timeout` | `SERVER_SHUTDOWN_TIMEOUT` | duration | `15s` | Graceful shutdown timeout |
+| `server.development` | `SERVER_DEVELOPMENT` | bool | `false` | Enable development mode (e.g. gRPC reflection) |
 
-### Postgres Configuration
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `POSTGRES_HOST` | string | `localhost` | Database host |
-| `POSTGRES_PORT` | int | `5432` | Database port |
-| `POSTGRES_USER` | string | `authz` | Database user |
-| `POSTGRES_PASSWORD` | string | `authz-password` | Database password |
-| `POSTGRES_DB` | string | `cerberus` | Database name |
-| `POSTGRES_SSL_MODE` | string | `disable` | SSL mode: `disable`, `require`, `verify-ca`, `verify-full` |
-| `POSTGRES_MAX_OPEN_CONNS` | int | `25` | Maximum open database connections |
-| `POSTGRES_MAX_IDLE_CONNS` | int | `5` | Maximum idle database connections |
-| `POSTGRES_CONN_MAX_LIFETIME` | duration | `30m` | Maximum connection lifetime |
-| `POSTGRES_CONN_MAX_IDLE_TIME` | duration | `5m` | Maximum idle connection lifetime |
-| `POSTGRES_CONNECT_TIMEOUT` | duration | `10s` | Connection timeout |
+#### External Authz Service Configuration
+| YAML Path | Environment Variable | Type | Default | Description |
+|-----------|----------------------|------|---------|-------------|
+| `ext_authz_service.jwk_set_url` | `EXT_AUTHZ_SERVICE_JWK_SET_URL` | string | `http://localhost:8080/.well-known/jwks.json` | JWKS URL to verify external JWT tokens |
 
-### STS Configuration
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `STS_ADDRESS` | string | `localhost:9090` | Secure Token Service server address |
-| `STS_USE_TLS` | bool | `false` | Establish secure TLS connection to STS |
-| `STS_TIMEOUT` | duration | `10s` | Request timeout |
-| `STS_EAGER_CONNECTION_CHECK` | bool | `false` | Block startup until connection to STS is ready |
+#### OpenFGA Configuration
+| YAML Path | Environment Variable | Type | Default | Description |
+|-----------|----------------------|------|---------|-------------|
+| `open_fga.address` | `OPEN_FGA_ADDRESS` | string | `http://localhost:8081` | OpenFGA server address |
+| `open_fga.store_id` | `OPEN_FGA_STORE_ID` | string | *(Required)* | OpenFGA store ID |
+| `open_fga.authorization_model_id`| `OPEN_FGA_AUTHORIZATION_MODEL_ID` | string | *(Required)* | OpenFGA authorization model ID |
+| `open_fga.api_key` | `OPEN_FGA_API_KEY` | string | *(Required)* | OpenFGA authentication API token |
+| `open_fga.timeout` | `OPEN_FGA_TIMEOUT` | duration | `10s` | Request timeout |
 
-### Kafka Configuration
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `KAFKA_ENABLED` | bool | `false` | Enable Kafka listener |
-| `KAFKA_BROKERS` | []string | `localhost:9092` | Kafka broker addresses (Required if enabled) |
-| `FEDERATED_SERVICES` | []string | *(Required if enabled)* | Service slugs whose permission topics are to be federated |
-| `KAFKA_CONSUMER_GROUP` | string | `authz-listener` | Kafka consumer group ID |
-| `KAFKA_TOPIC_PARTITIONS` | int | `1` | Default partition count for auto-created topics |
-| `KAFKA_TOPIC_REPLICATION_FACTOR` | int | `1` | Default replication factor for auto-created topics |
+#### Valkey Configuration
+| YAML Path | Environment Variable | Type | Default | Description |
+|-----------|----------------------|------|---------|-------------|
+| `valkey.enabled` | `VALKEY_ENABLED` | bool | `false` | Enable Valkey caching |
+| `valkey.address` | `VALKEY_ADDRESS` | string | `localhost:6379` | Valkey server address (Required if enabled) |
+| `valkey.username` | `VALKEY_USERNAME` | string | `""` | Valkey username |
+| `valkey.password` | `VALKEY_PASSWORD` | string | `""` | Valkey password |
+| `valkey.db` | `VALKEY_DB` | int | `0` | Database index |
+| `valkey.pool_size` | `VALKEY_POOL_SIZE` | int | `10` | Max connection pool size |
+| `valkey.timeout` | `VALKEY_TIMEOUT` | duration | `5s` | Read/write timeout |
+| `valkey.use_tls` | `VALKEY_USE_TLS` | bool | `false` | Establish secure TLS connection |
 
-### Worker Configuration
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `WORKER_ENABLED` | bool | `false` | Enable the permission update background worker |
-| `WORKER_BATCH_SIZE` | int | `100` | Processing batch size from work table |
-| `WORKER_POLL_INTERVAL` | duration | `1s` | Ingestion poll interval |
-| `WORKER_MAX_ATTEMPTS` | int | `5` | Maximum retries before a row is marked failed |
-| `WORKER_RETRY_BACKOFF` | duration | `5m` | Delay before a failed row can be claimed again |
-| `WORKER_STALE_TIMEOUT` | duration | `15m` | Max duration a row can sit in processing state before reclamation |
-| `WORKER_REAPER_INTERVAL` | duration | `1m` | Execution interval of the in-process worker reaper |
+#### Postgres Configuration
+| YAML Path | Environment Variable | Type | Default | Description |
+|-----------|----------------------|------|---------|-------------|
+| `postgres.host` | `POSTGRES_HOST` | string | `localhost` | Database host |
+| `postgres.port` | `POSTGRES_PORT` | int | `5432` | Database port |
+| `postgres.user` | `POSTGRES_USER` | string | `authz` | Database user |
+| `postgres.password` | `POSTGRES_PASSWORD` | string | `authz-password` | Database password |
+| `postgres.db_name` | `POSTGRES_DB_NAME` | string | `cerberus` | Database name |
+| `postgres.ssl_mode` | `POSTGRES_SSL_MODE` | string | `disable` | SSL mode: `disable`, `require`, `verify-ca`, `verify-full` |
+| `postgres.max_open_conns` | `POSTGRES_MAX_OPEN_CONNS` | int | `25` | Maximum open database connections |
+| `postgres.max_idle_conns` | `POSTGRES_MAX_IDLE_CONNS` | int | `5` | Maximum idle database connections |
+| `postgres.conn_max_lifetime` | `POSTGRES_CONN_MAX_LIFETIME` | duration | `30m` | Maximum connection lifetime |
+| `postgres.conn_max_idle_time` | `POSTGRES_CONN_MAX_IDLE_TIME` | duration | `5m` | Maximum idle connection lifetime |
+| `postgres.connect_timeout` | `POSTGRES_CONNECT_TIMEOUT` | duration | `10s` | Connection timeout |
 
-### Logging Configuration
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `LOG_LEVEL` | string | `info` | Log level: `debug`, `info`, `warn`, `error` |
-| `LOG_FORMAT` | string | `json` | Log output format: `json` or `text` |
+#### STS Configuration
+| YAML Path | Environment Variable | Type | Default | Description |
+|-----------|----------------------|------|---------|-------------|
+| `sts.address` | `STS_ADDRESS` | string | `localhost:9090` | Secure Token Service server address |
+| `sts.use_tls` | `STS_USE_TLS` | bool | `false` | Establish secure TLS connection to STS |
+| `sts.timeout` | `STS_TIMEOUT` | duration | `10s` | Request timeout |
+| `sts.eager_connection_check` | `STS_EAGER_CONNECTION_CHECK` | bool | `false` | Block startup until connection to STS is ready |
 
-### Telemetry Configuration
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `TELEMETRY_ENABLED` | bool | `false` | Enable OTel tracer |
-| `OTEL_EXPORTER_OTLP_ENDPOINT`| string | `""` | OTLP gRPC endpoint |
-| `OTEL_SERVICE_NAME` | string | `authorization-service` | Service name in exported traces |
-| `OTEL_SERVICE_VERSION` | string | `v1.0.0` | Service version in exported traces |
+#### Kafka Configuration
+| YAML Path | Environment Variable | Type | Default | Description |
+|-----------|----------------------|------|---------|-------------|
+| `kafka.enabled` | `KAFKA_ENABLED` | bool | `false` | Enable Kafka listener |
+| `kafka.brokers` | `KAFKA_BROKERS` | []string | `localhost:9092` | Kafka broker addresses (Required if enabled) |
+| `kafka.federated_services` | `KAFKA_FEDERATED_SERVICES` | []string | *(Required if enabled)* | Service slugs whose permission topics are to be federated |
+| `kafka.consumer_group` | `KAFKA_CONSUMER_GROUP` | string | `authz-listener` | Kafka consumer group ID |
+| `kafka.topic_partitions` | `KAFKA_TOPIC_PARTITIONS` | int | `1` | Default partition count for auto-created topics |
+| `kafka.topic_replication_factor` | `KAFKA_TOPIC_REPLICATION_FACTOR` | int | `1` | Default replication factor for auto-created topics |
+
+#### Worker Configuration
+| YAML Path | Environment Variable | Type | Default | Description |
+|-----------|----------------------|------|---------|-------------|
+| `worker.enabled` | `WORKER_ENABLED` | bool | `false` | Enable the permission update background worker |
+| `worker.batch_size` | `WORKER_BATCH_SIZE` | int | `100` | Processing batch size from work table |
+| `worker.poll_interval` | `WORKER_POLL_INTERVAL` | duration | `1s` | Ingestion poll interval |
+| `worker.max_attempts` | `WORKER_MAX_ATTEMPTS` | int | `5` | Maximum retries before a row is marked failed |
+| `worker.retry_backoff` | `WORKER_RETRY_BACKOFF` | duration | `5m` | Delay before a failed row can be claimed again |
+| `worker.stale_timeout` | `WORKER_STALE_TIMEOUT` | duration | `15m` | Max duration a row can sit in processing state before reclamation |
+| `worker.reaper_interval` | `WORKER_REAPER_INTERVAL` | duration | `1m` | Execution interval of the in-process worker reaper |
+
+#### Logging Configuration
+| YAML Path | Environment Variable | Type | Default | Description |
+|-----------|----------------------|------|---------|-------------|
+| `logging.level` | `LOGGING_LEVEL` | string | `info` | Log level: `debug`, `info`, `warn`, `error` |
+| `logging.format` | `LOGGING_FORMAT` | string | `json` | Log output format: `json` or `text` |
+
+#### Telemetry Configuration
+| YAML Path | Environment Variable | Type | Default | Description |
+|-----------|----------------------|------|---------|-------------|
+| `telemetry.enabled` | `TELEMETRY_ENABLED` | bool | `false` | Enable OTel tracer |
+| `telemetry.otlp_endpoint` | `TELEMETRY_OTLP_ENDPOINT`| string | `""` | OTLP gRPC endpoint |
+| `telemetry.service_name` | `TELEMETRY_SERVICE_NAME` | string | `authorization-service` | Service name in exported traces |
+| `telemetry.service_version` | `TELEMETRY_SERVICE_VERSION` | string | `v1.0.0` | Service version in exported traces |
 
 ---
 
