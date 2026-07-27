@@ -45,10 +45,11 @@ var _ ExternalAuthzServiceInterface = (*ExternalAuthzService)(nil)
 type ExternalAuthzService struct {
 	envoyAuth.UnimplementedAuthorizationServer
 
-	verifier       oidcVerifier
-	sts            stsv1.SecurityTokenServiceClient
-	resourceMapper rules.ResourceMapperInterface
-	fga            openfga.OpenFGAClientInterface
+	verifier            oidcVerifier
+	sts                 stsv1.SecurityTokenServiceClient
+	resourceMapper      rules.ResourceMapperInterface
+	fga                 openfga.OpenFGAClientInterface
+	multitenancyEnabled bool
 
 	logger *slog.Logger
 	tracer trace.Tracer
@@ -59,16 +60,18 @@ func NewExternalAuthzService(
 	sts stsv1.SecurityTokenServiceClient,
 	resourceMapper rules.ResourceMapperInterface,
 	fga openfga.OpenFGAClientInterface,
+	multitenancyEnabled bool,
 	logger *slog.Logger,
 	tracer trace.Tracer,
 ) *ExternalAuthzService {
 	return &ExternalAuthzService{
-		verifier:       verifier,
-		sts:            sts,
-		resourceMapper: resourceMapper,
-		fga:            fga,
-		logger:         logger,
-		tracer:         tracer,
+		verifier:            verifier,
+		sts:                 sts,
+		resourceMapper:      resourceMapper,
+		fga:                 fga,
+		multitenancyEnabled: multitenancyEnabled,
+		logger:              logger,
+		tracer:              tracer,
 	}
 }
 
@@ -114,12 +117,13 @@ func (s *ExternalAuthzService) Check(ctx context.Context, req *envoyAuth.CheckRe
 		return forbidden(err.Error()), nil
 	}
 
-	userIdentity, err := s.extractJWTSubject(ctx, exchangeResp.GetAccessToken())
-	if err != nil || userIdentity == "" {
-		s.logger.Debug("Failed to extract subject from JWT", "error", err)
+	claims, err := s.extractJWTClaims(ctx, exchangeResp.GetAccessToken())
+	if err != nil || claims.Sub == "" {
+		s.logger.Debug("Failed to extract claims from JWT", "error", err)
 		// If there is no explicit subject, we can't perform an authz check.
 		return unauthorized("issue with STS JWT"), nil
 	}
+	userIdentity := claims.Sub
 
 	tuples, err := s.resourceMapper.Map(ctx, userIdentity, method, path)
 	if err != nil {
@@ -131,6 +135,15 @@ func (s *ExternalAuthzService) Check(ctx context.Context, req *envoyAuth.CheckRe
 	if tuples == nil || len(tuples) == 0 {
 		s.logger.Debug("No authorization rule matched", "method", method, "path", path)
 		return forbidden(fmt.Sprintf("No authorization rule matched method %s path %s", method, path)), nil
+	}
+
+	// Always populate check context for each tuple
+	for i := range tuples {
+		checkCtx := map[string]interface{}{
+			"tenant_enabled": s.multitenancyEnabled,
+			"user_tenant":    claims.Org,
+		}
+		tuples[i].Context = &checkCtx
 	}
 
 	// [4] Query OpenFGA.
@@ -172,27 +185,29 @@ func (s *ExternalAuthzService) Check(ctx context.Context, req *envoyAuth.CheckRe
 	return okResponse(exchangeResp.AccessToken), nil
 }
 
-// extractJWTSubject validates the JWT using the OIDC key set and returns the "sub" claim
-func (s *ExternalAuthzService) extractJWTSubject(ctx context.Context, token string) (string, error) {
+type tokenClaims struct {
+	Sub string `json:"sub"`
+	Org string `json:"org"`
+}
+
+// extractJWTClaims validates the JWT using the OIDC key set and returns the claims
+func (s *ExternalAuthzService) extractJWTClaims(ctx context.Context, token string) (*tokenClaims, error) {
 	// Verify and parse the token
 	idToken, err := s.verifier.Verify(ctx, token)
 	if err != nil {
-		return "", fmt.Errorf("failed to verify token: %w", err)
+		return nil, fmt.Errorf("failed to verify token: %w", err)
 	}
 
-	var claims struct {
-		Sub string `json:"sub"`
-	}
-
+	var claims tokenClaims
 	if err := idToken.Claims(&claims); err != nil {
-		return "", fmt.Errorf("failed to extract claims: %w", err)
+		return nil, fmt.Errorf("failed to extract claims: %w", err)
 	}
 
 	if claims.Sub == "" {
-		return "", fmt.Errorf("token does not contain a 'sub' claim")
+		return nil, fmt.Errorf("token does not contain a 'sub' claim")
 	}
 
-	return claims.Sub, nil
+	return &claims, nil
 }
 
 // okResponse builds a successful CheckResponse that forwards the JWT as a bearer token.

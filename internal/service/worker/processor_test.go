@@ -131,7 +131,42 @@ func deleteOp(subject, relation, object string) *messagesv1.PermissionOperation 
 }
 
 func newTestProcessor(repo *fakeRepo, applier *fakeApplier, maxAttempts int) *Processor {
-	return NewProcessor(repo, applier, listenDecoder(), maxAttempts, nil, testLogger())
+	return NewProcessor(repo, applier, listenDecoder(), maxAttempts, false, nil, testLogger())
+}
+
+func TestProcessRow_Success_Multitenancy(t *testing.T) {
+	repo := &fakeRepo{}
+	applier := &fakeApplier{}
+	p := NewProcessor(repo, applier, listenDecoder(), 5, true, nil, testLogger())
+
+	row := permissions.ClaimedRow{
+		ID:      "row-1",
+		Service: "payments",
+		Payload: encodeEnvelope(t,
+			writeOp("user:u1", "viewer", "doc:d1"),
+		),
+	}
+	if err := p.ProcessRow(context.Background(), row); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !applier.called || len(applier.writes) != 1 {
+		t.Fatalf("applier not called with expected writes: %+v", applier)
+	}
+	writeTuple := applier.writes[0]
+	if writeTuple.User != "user:u1" || writeTuple.Relation != "viewer" || writeTuple.Object != "doc:d1" {
+		t.Fatalf("unexpected mapped tuple: %+v", writeTuple)
+	}
+	if writeTuple.Condition == nil {
+		t.Fatal("expected tuple to have a condition but got nil")
+	}
+	if writeTuple.Condition.Name != "tenant_match" {
+		t.Errorf("expected condition name 'tenant_match', got %q", writeTuple.Condition.Name)
+	}
+	ctxMap := *writeTuple.Condition.Context
+	if ctxMap["tenant"] != "payments" {
+		t.Errorf("expected condition context tenant to be 'payments', got %v", ctxMap["tenant"])
+	}
 }
 
 func TestProcessRow_Success_WritesAndDeletes(t *testing.T) {

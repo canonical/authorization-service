@@ -34,12 +34,13 @@ type TupleApplier interface {
 
 // Processor applies a single claimed work row to OpenFGA and records the outcome.
 type Processor struct {
-	repo        repository.PermissionWorkRepository
-	applier     TupleApplier
-	decoder     *listen.Decoder
-	metrics     Metrics
-	maxAttempts int
-	logger      *slog.Logger
+	repo                repository.PermissionWorkRepository
+	applier             TupleApplier
+	decoder             *listen.Decoder
+	metrics             Metrics
+	maxAttempts         int
+	multitenancyEnabled bool
+	logger              *slog.Logger
 	// now is injectable for tests; defaults to time.Now.
 	now func() time.Time
 }
@@ -50,6 +51,7 @@ func NewProcessor(
 	applier TupleApplier,
 	decoder *listen.Decoder,
 	maxAttempts int,
+	multitenancyEnabled bool,
 	metrics Metrics,
 	logger *slog.Logger,
 ) *Processor {
@@ -57,13 +59,14 @@ func NewProcessor(
 		metrics = NoopMetrics{}
 	}
 	return &Processor{
-		repo:        repo,
-		applier:     applier,
-		decoder:     decoder,
-		metrics:     metrics,
-		maxAttempts: maxAttempts,
-		logger:      logger,
-		now:         time.Now,
+		repo:                repo,
+		applier:             applier,
+		decoder:             decoder,
+		metrics:             metrics,
+		maxAttempts:         maxAttempts,
+		multitenancyEnabled: multitenancyEnabled,
+		logger:              logger,
+		now:                 time.Now,
 	}
 }
 
@@ -113,13 +116,26 @@ func (p *Processor) buildTuples(row permissions.ClaimedRow) ([]client.ClientTupl
 		writes  []client.ClientTupleKey
 		deletes []client.ClientTupleKeyWithoutCondition
 	)
+
+	var condition *fgaSdk.RelationshipCondition
+	if p.multitenancyEnabled {
+		tenantID := p.getTenantID(row.Service)
+		condition = &fgaSdk.RelationshipCondition{
+			Name: "tenant_match",
+			Context: &map[string]interface{}{
+				"tenant": tenantID,
+			},
+		}
+	}
+
 	for _, op := range env.GetOperations() {
 		switch op.GetOp() {
 		case messagesv1.PermissionOp_PERMISSION_OP_WRITE:
 			writes = append(writes, client.ClientTupleKey{
-				User:     op.GetSubject(),
-				Relation: op.GetRelation(),
-				Object:   op.GetObject(),
+				User:      op.GetSubject(),
+				Relation:  op.GetRelation(),
+				Object:    op.GetObject(),
+				Condition: condition,
 			})
 		case messagesv1.PermissionOp_PERMISSION_OP_DELETE:
 			deletes = append(deletes, client.ClientTupleKeyWithoutCondition{
@@ -133,6 +149,11 @@ func (p *Processor) buildTuples(row permissions.ClaimedRow) ([]client.ClientTupl
 		}
 	}
 	return writes, deletes, nil
+}
+
+// getTenantID is a placeholder implementation
+func (p *Processor) getTenantID(service string) string {
+	return service
 }
 
 // classifyAndRecord decides whether an OpenFGA write error is permanent or

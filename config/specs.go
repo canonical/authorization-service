@@ -27,6 +27,7 @@ import (
 
 // Config represents the application configuration
 type Config struct {
+	MultitenancyEnabled bool                   `validate:"" envconfig:"MULTITENANCY_ENABLED" mapstructure:"multitenancy_enabled" default:"false"`
 	Server          *ServerConfig          `validate:"required" mapstructure:"server"`
 	ExtAuthzService *ExtAuthzServiceConfig `validate:"required" mapstructure:"ext_authz_service"`
 	OpenFGA         *OpenFGAConfig         `validate:"required" mapstructure:"open_fga"`

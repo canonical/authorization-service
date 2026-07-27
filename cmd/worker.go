@@ -57,6 +57,7 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 		applier,
 		listen.NewDecoder(),
 		cfg.Worker.MaxAttempts,
+		cfg.MultitenancyEnabled,
 		nil, // metrics: no-op until an OTel-backed implementation is wired
 		logger,
 	)
