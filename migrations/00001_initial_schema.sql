@@ -15,9 +15,16 @@ CREATE TYPE http_method AS ENUM (
     'OPTIONS'
 );
 
+CREATE TABLE federated_service (
+    id          UUID PRIMARY KEY,
+    slug        TEXT NOT NULL UNIQUE,
+    description TEXT,
+    tenant      TEXT
+);
+
 CREATE TABLE authorization_rule (
     id            UUID PRIMARY KEY,
-    service_id    UUID        NOT NULL,
+    service_id    UUID        NOT NULL REFERENCES federated_service (id) ON DELETE CASCADE,
     method        http_method NOT NULL,
     segment_count SMALLINT    NOT NULL,
     static_prefix TEXT        NOT NULL,
@@ -40,6 +47,7 @@ CREATE TABLE authorization_rule_tuple (
 -- +goose StatementBegin
 DROP TABLE authorization_rule_tuple;
 DROP TABLE authorization_rule;
+DROP TABLE federated_service;
 DROP TYPE http_method;
 
 -- +goose StatementEnd

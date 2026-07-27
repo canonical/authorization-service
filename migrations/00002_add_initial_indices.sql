@@ -6,10 +6,16 @@
 CREATE INDEX idx_authorization_rule_lookup ON authorization_rule (method, static_prefix, segment_count);
 
 CREATE INDEX idx_authorization_rule_tuple_rule_id ON authorization_rule_tuple (rule_id);
+
+CREATE INDEX idx_authorization_rule_service_id ON authorization_rule (service_id);
+
+CREATE INDEX idx_federated_service_slug ON federated_service (slug);
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
+DROP INDEX idx_federated_service_slug;
+DROP INDEX idx_authorization_rule_service_id;
 DROP INDEX idx_authorization_rule_tuple_rule_id;
 DROP INDEX idx_authorization_rule_lookup;
 -- +goose StatementEnd
