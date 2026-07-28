@@ -20,5 +20,5 @@ type TupleResolverInterface interface {
 }
 
 type ResourceMapperInterface interface {
-	Map(ctx context.Context, userID, method, path string) ([]client.ClientBatchCheckItem, error)
+	Map(ctx context.Context, userID, method, path string) ([]client.ClientBatchCheckItem, *rules.RuleWithTuples, error)
 }

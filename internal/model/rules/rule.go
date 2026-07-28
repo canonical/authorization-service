@@ -21,11 +21,13 @@ type RuleTuple struct {
 type RuleWithTuples struct {
 	Id           string       `json:"id"`
 	ServiceId    string       `json:"service_id"`
+	ServiceSlug  string       `json:"service_slug"`
 	Method       string       `json:"method"`
 	SegmentCount int          `json:"segment_count"`
 	StaticPrefix string       `json:"static_prefix"`
 	PathRegex    string       `json:"path_regex"`
 	Priority     int          `json:"priority"`
+	Tenant       *string      `json:"tenant"`
 	RuleTuples   []*RuleTuple `json:"rule_tuples"`
 }
 

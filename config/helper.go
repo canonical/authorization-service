@@ -41,20 +41,24 @@ type Services struct {
 
 // Integrations holds all external service clients
 type Integrations struct {
-	jwkSetUrl       string
-	OpenFGA         openfga.OpenFGAClientInterface
-	Valkey          valkey.CacheClientInterface
-	STS             stsv1.SecurityTokenServiceClient
-	Postgres        postgres.DBClientInterface
-	KafkaConsumer   kafkaintegration.ConsumerInterface
-	ServiceRegistry *listen.ServiceRegistry
+	jwkSetUrl           string
+	MultitenancyEnabled bool
+	OpenFGA             openfga.OpenFGAClientInterface
+	Valkey              valkey.CacheClientInterface
+	STS                 stsv1.SecurityTokenServiceClient
+	Postgres            postgres.DBClientInterface
+	KafkaConsumer       kafkaintegration.ConsumerInterface
+	ServiceRegistry     *listen.ServiceRegistry
 
 	stsConn ClosableClientConnInterface
 }
 
 func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Tracer) (*Integrations, error) {
 	var err error
-	integrations := &Integrations{jwkSetUrl: cfg.ExtAuthzService.JwkSetURL}
+	integrations := &Integrations{
+		jwkSetUrl:           cfg.ExtAuthzService.JwkSetURL,
+		MultitenancyEnabled: cfg.MultitenancyEnabled,
+	}
 
 	// Initialize OpenFGA
 	creds, err := credentials.NewCredentials(credentials.Credentials{
@@ -187,7 +191,7 @@ func (i *Integrations) InitializeServices(tracer trace.Tracer, serviceLogger *sl
 
 	return &Services{
 		Permissions:   permissions.NewService(i.Valkey, serviceLogger),
-		ExternalAuthz: authz.NewExternalAuthzService(verifier, i.STS, resourceMapper, i.OpenFGA, serviceLogger, tracer),
+		ExternalAuthz: authz.NewExternalAuthzService(verifier, i.STS, resourceMapper, i.OpenFGA, i.MultitenancyEnabled, serviceLogger, tracer),
 	}
 }
 

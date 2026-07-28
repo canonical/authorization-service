@@ -149,7 +149,7 @@ func TestWorker_HappyPath(t *testing.T) {
 	insertReceivedRow(t, repo, "payments", idem, writeOperation(subject, "member", "group:g1"))
 
 	applier := &fakeApplier{}
-	proc := worker.NewProcessor(repo, applier, listen.NewDecoder(), 5, nil, testLogger)
+	proc := worker.NewProcessor(repo, applier, listen.NewDecoder(), 5, false, nil, testLogger)
 	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, testLogger)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -180,7 +180,7 @@ func TestWorker_UsersetSubject(t *testing.T) {
 	insertReceivedRow(t, repo, "payments", idem, writeOperation(subject, "member", "group:g1"))
 
 	applier := &fakeApplier{}
-	proc := worker.NewProcessor(repo, applier, listen.NewDecoder(), 5, nil, testLogger)
+	proc := worker.NewProcessor(repo, applier, listen.NewDecoder(), 5, false, nil, testLogger)
 	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, testLogger)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -221,7 +221,7 @@ func TestWorker_PermanentFailure(t *testing.T) {
 	}
 
 	applier := &fakeApplier{}
-	proc := worker.NewProcessor(repo, applier, listen.NewDecoder(), 5, nil, testLogger)
+	proc := worker.NewProcessor(repo, applier, listen.NewDecoder(), 5, false, nil, testLogger)
 	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, testLogger)
 
 	ctx, cancel := context.WithCancel(context.Background())

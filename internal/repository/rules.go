@@ -37,10 +37,12 @@ func (r *PostgresRuleRepository) buildFindCandidatesQuery(method string, pathPre
 	return r.db.Builder().
 		Select(
 			"r.id", "r.service_id", "r.method", "r.segment_count", "r.static_prefix", "r.path_regex", "r.priority",
+			"s.slug", "s.tenant",
 			"t.id", "t.rule_id", "t.user_resource_type", "t.permission", "t.object_resource_type", "t.object_resource_id",
 		).
 		From("authorization_rule r").
 		Join("authorization_rule_tuple t ON t.rule_id = r.id").
+		Join("federated_service s ON s.id = r.service_id").
 		Where(sq.Eq{"r.method": method}).
 		Where(sq.Expr("r.static_prefix = ANY(?)", pathPrefixes)).
 		Where(sq.LtOrEq{"r.segment_count": segmentCount}).
@@ -135,6 +137,8 @@ func scanRulesWithTuples(rows pgx.Rows) ([]*rules.RuleWithTuples, error) {
 			staticPrefix string
 			pathRegex    string
 			priority     int
+			serviceSlug  string
+			tenant       *string
 
 			tupleID            string
 			tupleRuleID        string
@@ -152,6 +156,8 @@ func scanRulesWithTuples(rows pgx.Rows) ([]*rules.RuleWithTuples, error) {
 			&staticPrefix,
 			&pathRegex,
 			&priority,
+			&serviceSlug,
+			&tenant,
 			&tupleID,
 			&tupleRuleID,
 			&userResourceType,
@@ -167,11 +173,13 @@ func scanRulesWithTuples(rows pgx.Rows) ([]*rules.RuleWithTuples, error) {
 			r = &rules.RuleWithTuples{
 				Id:           ruleID,
 				ServiceId:    serviceID,
+				ServiceSlug:  serviceSlug,
 				Method:       method,
 				SegmentCount: segmentCount,
 				StaticPrefix: staticPrefix,
 				PathRegex:    pathRegex,
 				Priority:     priority,
+				Tenant:       tenant,
 			}
 			ruleIndex[ruleID] = r
 			ruleOrder = append(ruleOrder, ruleID)

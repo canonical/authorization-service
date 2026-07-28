@@ -122,34 +122,34 @@ func NewResourceMapper(repo repository.RuleRepository, matcher RuleMatcherInterf
 
 // Map takes an HTTP method and path, looks up candidate rules from the database,
 // matches the first applicable rule, resolves its tuple, and returns the result.
-func (rm *ResourceMapper) Map(ctx context.Context, userID, method, path string) ([]client.ClientBatchCheckItem, error) {
+func (rm *ResourceMapper) Map(ctx context.Context, userID, method, path string) ([]client.ClientBatchCheckItem, *rules.RuleWithTuples, error) {
 	candidates, err := rm.repo.FindCandidates(ctx, method, path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find rule candidates: %w", err)
+		return nil, nil, fmt.Errorf("failed to find rule candidates: %w", err)
 	}
 
 	if len(candidates) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	matchedRule, err := rm.matcher.Match(candidates, path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to match rule: %w", err)
+		return nil, nil, fmt.Errorf("failed to match rule: %w", err)
 	}
 
 	if matchedRule == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	// Extract named capture groups from the path using the matched rule's regex.
 	regexMatches, err := extractRegexMatches(matchedRule.PathRegex, path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract regex match: %w", err)
+		return nil, nil, fmt.Errorf("failed to extract regex match: %w", err)
 	}
 
 	tuples, err := rm.resolver.Resolve(userID, matchedRule, regexMatches)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve tuples: %w", err)
+		return nil, nil, fmt.Errorf("failed to resolve tuples: %w", err)
 	}
 
 	batchReqItems := make([]client.ClientBatchCheckItem, 0, len(tuples))
@@ -162,7 +162,7 @@ func (rm *ResourceMapper) Map(ctx context.Context, userID, method, path string) 
 		})
 	}
 
-	return batchReqItems, nil
+	return batchReqItems, matchedRule, nil
 }
 
 // extractRegexMatches compiles the path regex and extracts all named capture groups

@@ -73,6 +73,9 @@ func LoadConfig(cmd *cobra.Command) (*Config, error) {
 
 // setViperDefaults sets default values for all Viper configuration paths
 func setViperDefaults(v *viper.Viper) {
+	// Multitenancy
+	v.SetDefault("multitenancy_enabled", false)
+
 	// Server
 	v.SetDefault("server.grpc_port", 9091)
 	v.SetDefault("server.http_port", 8070)

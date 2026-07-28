@@ -304,7 +304,7 @@ func TestResourceMapper_Map(t *testing.T) {
 			matchedRule.PathRegex = ""
 			tc.setupMocks()
 			mapper := NewResourceMapper(mockRepo, mockMatcher, mockResolver)
-			result, err := mapper.Map(ctx, userID, method, path)
+			result, matched, err := mapper.Map(ctx, userID, method, path)
 
 			if tc.expectedError != "" {
 				require.Error(t, err)
@@ -312,6 +312,11 @@ func TestResourceMapper_Map(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				assert.Equal(t, tc.expected, result)
+				if tc.expected != nil {
+					assert.Equal(t, matchedRule, matched)
+				} else {
+					assert.Nil(t, matched)
+				}
 			}
 		})
 	}
