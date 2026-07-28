@@ -28,16 +28,16 @@ import (
 // Config represents the application configuration
 type Config struct {
 	MultitenancyEnabled bool                   `validate:"" envconfig:"MULTITENANCY_ENABLED" mapstructure:"multitenancy_enabled" default:"false"`
-	Server          *ServerConfig          `validate:"required" mapstructure:"server"`
-	ExtAuthzService *ExtAuthzServiceConfig `validate:"required" mapstructure:"ext_authz_service"`
-	OpenFGA         *OpenFGAConfig         `validate:"required" mapstructure:"open_fga"`
-	Valkey          *ValkeyConfig          `validate:"required" mapstructure:"valkey"`
-	STS             *STSConfig             `validate:"required" mapstructure:"sts"`
-	Postgres        *PostgresConfig        `validate:"required" mapstructure:"postgres"`
-	Logging         *LoggingConfig         `validate:"required" mapstructure:"logging"`
-	Telemetry       *TelemetryConfig       `validate:"required" mapstructure:"telemetry"`
-	Kafka           *KafkaConfig           `validate:"required" mapstructure:"kafka"`
-	Worker          *WorkerConfig          `validate:"required" mapstructure:"worker"`
+	Server              *ServerConfig          `validate:"required" mapstructure:"server"`
+	ExtAuthzService     *ExtAuthzServiceConfig `validate:"required" mapstructure:"ext_authz_service"`
+	OpenFGA             *OpenFGAConfig         `validate:"required" mapstructure:"open_fga"`
+	Valkey              *ValkeyConfig          `validate:"required" mapstructure:"valkey"`
+	STS                 *STSConfig             `validate:"required" mapstructure:"sts"`
+	Postgres            *PostgresConfig        `validate:"required" mapstructure:"postgres"`
+	Logging             *LoggingConfig         `validate:"required" mapstructure:"logging"`
+	Telemetry           *TelemetryConfig       `validate:"required" mapstructure:"telemetry"`
+	Kafka               *KafkaConfig           `validate:"required" mapstructure:"kafka"`
+	Worker              *WorkerConfig          `validate:"required" mapstructure:"worker"`
 }
 
 // ServerConfig contains server configuration

@@ -52,10 +52,10 @@ func TestValidator_Rejects(t *testing.T) {
 		"unspecified op": func(e *messagesv1.PermissionUpdateEnvelope) {
 			e.Operations[0].Op = messagesv1.PermissionOp_PERMISSION_OP_UNSPECIFIED
 		},
-		"empty relation":        func(e *messagesv1.PermissionUpdateEnvelope) { e.Operations[0].Relation = "" },
-		"bad subject":           func(e *messagesv1.PermissionUpdateEnvelope) { e.Operations[0].Subject = "user" },
-		"bad object empty id":   func(e *messagesv1.PermissionUpdateEnvelope) { e.Operations[0].Object = "invoice:" },
-		"bad subject empty typ": func(e *messagesv1.PermissionUpdateEnvelope) { e.Operations[0].Subject = ":u1" },
+		"empty relation":                     func(e *messagesv1.PermissionUpdateEnvelope) { e.Operations[0].Relation = "" },
+		"bad subject":                        func(e *messagesv1.PermissionUpdateEnvelope) { e.Operations[0].Subject = "user" },
+		"bad object empty id":                func(e *messagesv1.PermissionUpdateEnvelope) { e.Operations[0].Object = "invoice:" },
+		"bad subject empty typ":              func(e *messagesv1.PermissionUpdateEnvelope) { e.Operations[0].Subject = ":u1" },
 		"bad subject empty userset relation": func(e *messagesv1.PermissionUpdateEnvelope) { e.Operations[0].Subject = "role:admin#" },
 	}
 

@@ -64,4 +64,5 @@ func init() {
 	rootCmd.AddCommand(listenCmd)
 	rootCmd.AddCommand(workerCmd)
 	rootCmd.AddCommand(reaperCmd)
+	rootCmd.AddCommand(seedCmd)
 }
