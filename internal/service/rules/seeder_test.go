@@ -7,6 +7,7 @@ import (
 	"context"
 	"regexp"
 	"testing"
+	"testing/fstest"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
@@ -481,4 +482,65 @@ func TestSeedService(t *testing.T) {
 
 		assert.NoError(t, pool.ExpectationsWereMet())
 	})
+}
+
+func TestLoadSeedFilesFromFS(t *testing.T) {
+	// GIVEN an in-memory MapFS with valid and invalid files, and subfolders
+	fsys := fstest.MapFS{
+		"services/service-a/rules.yaml": &fstest.MapFile{
+			Data: []byte(`version: "1"
+service: "service-a"
+revision: "2026.07.28.1"
+description: "Service A rules"
+rules:
+  - method: "GET"
+    match: "/api/a"
+    tuples:
+      - userResourceType: "user"
+        permission: "viewer"
+        objectResourceType: "a"
+        objectResourceId: "static-id"
+`),
+		},
+		"services/service-b/rules.yaml": &fstest.MapFile{
+			Data: []byte(`version: "1"
+service: "service-b"
+revision: "1.0.0"
+rules:
+  - method: "POST"
+    match: "/api/b"
+    tuples:
+      - userResourceType: "user"
+        permission: "editor"
+        objectResourceType: "b"
+        objectResourceId: "static-id"
+`),
+		},
+		"services/service-c/not-rules.txt": &fstest.MapFile{
+			Data: []byte(`some random text`),
+		},
+	}
+
+	// WHEN scanning services/ directory
+	files, err := LoadSeedFilesFromFS(fsys, "services")
+
+	// THEN scanning succeeds and finds exactly two rules.yaml files
+	require.NoError(t, err)
+	require.Len(t, files, 2)
+
+	// AND the files contain correct unmarshaled data
+	var foundA, foundB bool
+	for _, f := range files {
+		if f.Service == "service-a" {
+			foundA = true
+			assert.Equal(t, "2026.07.28.1", f.Revision)
+			assert.Equal(t, "services/service-a/rules.yaml", f.FilePath)
+		} else if f.Service == "service-b" {
+			foundB = true
+			assert.Equal(t, "1.0.0", f.Revision)
+			assert.Equal(t, "services/service-b/rules.yaml", f.FilePath)
+		}
+	}
+	assert.True(t, foundA)
+	assert.True(t, foundB)
 }

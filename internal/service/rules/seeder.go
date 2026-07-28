@@ -6,8 +6,8 @@ package rules
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -32,13 +32,18 @@ func NewRuleSeeder(db postgres.DBClientInterface, repo *repository.PostgresRuleR
 
 // LoadSeedFiles recursively scans the root directory for any rules.yaml files.
 func LoadSeedFiles(root string) ([]rules.SeedFile, error) {
+	return LoadSeedFilesFromFS(os.DirFS(root), ".")
+}
+
+// LoadSeedFilesFromFS recursively scans the given fs.FS starting at root for any rules.yaml files.
+func LoadSeedFilesFromFS(fsys fs.FS, root string) ([]rules.SeedFile, error) {
 	var files []rules.SeedFile
-	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+	err := fs.WalkDir(fsys, root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if !d.IsDir() && d.Name() == "rules.yaml" {
-			content, err := os.ReadFile(path)
+			content, err := fs.ReadFile(fsys, path)
 			if err != nil {
 				return fmt.Errorf("failed to read seed file %s: %w", path, err)
 			}

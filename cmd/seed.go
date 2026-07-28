@@ -9,8 +9,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/canonical/authorization-service/authz/model"
 	"github.com/canonical/authorization-service/config"
 	"github.com/canonical/authorization-service/internal/integration/postgres"
+	"github.com/canonical/authorization-service/internal/model/rules"
 	"github.com/canonical/authorization-service/internal/repository"
 	ruleservice "github.com/canonical/authorization-service/internal/service/rules"
 )
@@ -25,6 +27,7 @@ into the database, comparing revisions naturally and replacing them atomically.`
 
 func init() {
 	seedCmd.Flags().StringP("dir", "d", "authz/model/services", "Directory to scan for rules.yaml files")
+	seedCmd.Flags().Bool("dry-run", false, "Only validate route rules files without applying them to the database")
 }
 
 func runSeedCmd(cmd *cobra.Command, _ []string) error {
@@ -39,6 +42,67 @@ func runSeedCmd(cmd *cobra.Command, _ []string) error {
 	tracer, tracerShutdown, err := cfg.Telemetry.SetupTelemetry(cmd.Context(), logger)
 	if err != nil {
 		return fmt.Errorf("telemetry setup failed: %w", err)
+	}
+
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
+	dirSpecified := cmd.Flags().Changed("dir")
+
+	if dirSpecified && !dryRun {
+		return fmt.Errorf("the --dir / -d flag can only be used during dry-run validation")
+	}
+
+	var seedFiles []rules.SeedFile
+
+	if dirSpecified {
+		scanDir, _ := cmd.Flags().GetString("dir")
+		logger.Info("Scanning for route rules in physical directory", "directory", scanDir)
+		var err error
+		seedFiles, err = ruleservice.LoadSeedFiles(scanDir)
+		if err != nil {
+			logger.Error("Failed to scan directory for rules.yaml files", "error", err, "directory", scanDir)
+			return err
+		}
+	} else {
+		logger.Info("Scanning for embedded route rules")
+		var err error
+		seedFiles, err = ruleservice.LoadSeedFilesFromFS(model.ModelFS, "services")
+		if err != nil {
+			logger.Error("Failed to scan embedded filesystem for rules.yaml files", "error", err)
+			return err
+		}
+	}
+
+	if len(seedFiles) == 0 {
+		logger.Info("No rules.yaml files found to seed")
+		return nil
+	}
+
+	if dryRun {
+		logger.Info("Dry-run mode enabled. Performing only file validation.")
+		var failedCount int
+		for _, sf := range seedFiles {
+			logger.Info("Validating rules file", "path", sf.FilePath, "service", sf.Service, "revision", sf.Revision)
+			if err := ruleservice.ValidateSeedFile(sf); err != nil {
+				logger.Error("Validation failed", "path", sf.FilePath, "service", sf.Service, "error", err)
+				failedCount++
+			} else {
+				logger.Info("Validation succeeded", "path", sf.FilePath, "service", sf.Service, "revision", sf.Revision)
+			}
+		}
+
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.Server.GracefulShutdownTimeout)
+		defer shutdownCancel()
+
+		if err := tracerShutdown(shutdownCtx); err != nil {
+			return fmt.Errorf("error shutting down tracer: %w", err)
+		}
+
+		if failedCount > 0 {
+			return fmt.Errorf("validation failed for %d file(s)", failedCount)
+		}
+
+		logger.Info("Dry-run validation completed successfully")
+		return nil
 	}
 
 	// Initialize Postgres Client manually to avoid needing other services (like Valkey/OpenFGA) to be online.
@@ -64,21 +128,6 @@ func runSeedCmd(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("postgres client initialization failed: %w", err)
 	}
 	defer pgClient.Close()
-
-	// Locate rules.yaml files
-	scanDir, _ := cmd.Flags().GetString("dir")
-	logger.Info("Scanning for route rules", "directory", scanDir)
-
-	seedFiles, err := ruleservice.LoadSeedFiles(scanDir)
-	if err != nil {
-		logger.Error("Failed to scan directory for rules.yaml files", "error", err, "directory", scanDir)
-		return err
-	}
-
-	if len(seedFiles) == 0 {
-		logger.Info("No rules.yaml files found to seed")
-		return nil
-	}
 
 	repo := repository.NewPostgresRuleRepository(pgClient)
 	seeder := ruleservice.NewRuleSeeder(pgClient, repo)
