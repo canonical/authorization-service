@@ -24,6 +24,7 @@ CREATE TABLE federated_service (
 
 CREATE TABLE authorization_rule (
     id            UUID PRIMARY KEY,
+    revision      TEXT        NOT NULL,
     service_id    UUID        NOT NULL REFERENCES federated_service (id) ON DELETE CASCADE,
     method        http_method NOT NULL,
     segment_count SMALLINT    NOT NULL,

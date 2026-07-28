@@ -28,6 +28,7 @@ type RuleWithTuples struct {
 	PathRegex    string       `json:"path_regex"`
 	Priority     int          `json:"priority"`
 	Tenant       *string      `json:"tenant"`
+	Revision     string       `json:"revision"`
 	RuleTuples   []*RuleTuple `json:"rule_tuples"`
 }
 

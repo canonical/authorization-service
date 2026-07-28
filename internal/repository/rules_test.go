@@ -155,6 +155,7 @@ func TestBuildFindCandidatesQuery(t *testing.T) {
 
 	expectedSQL := "SELECT r.id, r.service_id, r.method, r.segment_count, r.static_prefix, r.path_regex, r.priority, " +
 		"s.slug, s.tenant, " +
+		"r.revision, " +
 		"t.id, t.rule_id, t.user_resource_type, t.permission, t.object_resource_type, t.object_resource_id " +
 		"FROM authorization_rule r " +
 		"JOIN authorization_rule_tuple t ON t.rule_id = r.id " +
@@ -236,6 +237,7 @@ func TestFindCandidates_EmptyInputs(t *testing.T) {
 var ruleColumns = []string{
 	"id", "service_id", "method", "segment_count", "static_prefix", "path_regex", "priority",
 	"slug", "tenant",
+	"revision",
 	"id", "rule_id", "user_resource_type", "permission", "object_resource_type", "object_resource_id",
 }
 
@@ -246,6 +248,7 @@ func TestFindCandidates_SingleRuleSingleTuple(t *testing.T) {
 	rows := pool.NewRows(ruleColumns).AddRow(
 		"1", "10", "GET", 4, "/api/v1/groups/", `^/api/v1/groups/(?<groupId>\d+)$`, 0,
 		"payments", nil,
+		"rev-1",
 		"100", "1", "user", "edit", "group", "{groupId}",
 	)
 
@@ -314,8 +317,8 @@ func TestFindCandidates_SingleRuleMultipleTuples(t *testing.T) {
 	repo := NewPostgresRuleRepository(mockDB)
 
 	rows := pool.NewRows(ruleColumns).
-		AddRow("1", "10", "POST", 3, "/api/v1/", `^/api/v1/items$`, 0, "payments", nil, "100", "1", "user", "read", "item", "static-val").
-		AddRow("1", "10", "POST", 3, "/api/v1/", `^/api/v1/items$`, 0, "payments", nil, "101", "1", "admin", "write", "item", "other-val")
+		AddRow("1", "10", "POST", 3, "/api/v1/", `^/api/v1/items$`, 0, "payments", nil, "rev-1", "100", "1", "user", "read", "item", "static-val").
+		AddRow("1", "10", "POST", 3, "/api/v1/", `^/api/v1/items$`, 0, "payments", nil, "rev-1", "101", "1", "admin", "write", "item", "other-val")
 
 	mockDB.EXPECT().
 		Query(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -348,8 +351,8 @@ func TestFindCandidates_MultipleRules(t *testing.T) {
 	repo := NewPostgresRuleRepository(mockDB)
 
 	rows := pool.NewRows(ruleColumns).
-		AddRow("1", "10", "GET", 2, "/api/", `^/api/v1$`, 0, "payments", nil, "100", "1", "user", "read", "api", "v1").
-		AddRow("2", "10", "GET", 2, "/api/", `^/api/v2$`, 1, "payments", nil, "200", "2", "user", "read", "api", "v2")
+		AddRow("1", "10", "GET", 2, "/api/", `^/api/v1$`, 0, "payments", nil, "rev-1", "100", "1", "user", "read", "api", "v1").
+		AddRow("2", "10", "GET", 2, "/api/", `^/api/v2$`, 1, "payments", nil, "rev-2", "200", "2", "user", "read", "api", "v2")
 
 	mockDB.EXPECT().
 		Query(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -446,8 +449,8 @@ func TestFindCandidates_RowsError(t *testing.T) {
 
 	rowErr := errors.New("unexpected EOF")
 	rows := pool.NewRows(ruleColumns).
-		AddRow("1", "10", "GET", 2, "/api/", `^/api/v1$`, 0, "payments", nil, "100", "1", "user", "read", "api", "v1").
-		AddRow("2", "10", "GET", 2, "/api/", `^/api/v2$`, 1, "payments", nil, "200", "2", "user", "read", "api", "v2").
+		AddRow("1", "10", "GET", 2, "/api/", `^/api/v1$`, 0, "payments", nil, "rev-1", "100", "1", "user", "read", "api", "v1").
+		AddRow("2", "10", "GET", 2, "/api/", `^/api/v2$`, 1, "payments", nil, "rev-2", "200", "2", "user", "read", "api", "v2").
 		RowError(1, rowErr)
 
 	mockDB.EXPECT().
@@ -525,9 +528,9 @@ func TestScanRulesWithTuples_PreservesRuleOrder(t *testing.T) {
 	t.Cleanup(func() { pool.Close() })
 
 	rows := pool.NewRows(ruleColumns).
-		AddRow("3", "10", "GET", 1, "/", `^/c$`, 0, "payments", nil, "300", "3", "user", "edit", "res", "c").
-		AddRow("1", "10", "GET", 1, "/", `^/a$`, 1, "payments", nil, "100", "1", "user", "edit", "res", "a").
-		AddRow("2", "10", "GET", 1, "/", `^/b$`, 2, "payments", nil, "200", "2", "user", "edit", "res", "b")
+		AddRow("3", "10", "GET", 1, "/", `^/c$`, 0, "payments", nil, "rev-3", "300", "3", "user", "edit", "res", "c").
+		AddRow("1", "10", "GET", 1, "/", `^/a$`, 1, "payments", nil, "rev-1", "100", "1", "user", "edit", "res", "a").
+		AddRow("2", "10", "GET", 1, "/", `^/b$`, 2, "payments", nil, "rev-2", "200", "2", "user", "edit", "res", "b")
 
 	pool.ExpectQuery("test").WillReturnRows(rows)
 	pgxRows, err := pool.Query(context.Background(), "test")
