@@ -154,6 +154,29 @@ Starts the background worker that polls the PostgreSQL work queue and applies th
 ```
 Scans the work queue for processing jobs that have timed out and returns them to the queue to be retried.
 
+### `seed` - Seeding & Validation of Route Rules
+Handles loading, verifying, and seeding versioned `rules.yaml` routing rules:
+```bash
+./bin/app seed
+```
+Seeds embedded rules into the PostgreSQL database. Compares and replaces revisions atomically.
+
+- **`validate` Subcommand**:
+  Validates route rules syntax and structure without requiring an active database or environment variables:
+  ```bash
+  # Validate default embedded rules
+  ./bin/app seed validate
+
+  # Validate rules under a custom directory
+  ./bin/app seed validate --dir path/to/services
+  ```
+
+- **Dry-Run Mode**:
+  You can also perform the same config-independent validation using the dry-run flag:
+  ```bash
+  ./bin/app seed --dry-run
+  ```
+
 ### `authz` - Authorization Model Management
 Provides utilities for checking permissions and writing models to OpenFGA directly:
 ```bash

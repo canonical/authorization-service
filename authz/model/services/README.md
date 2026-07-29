@@ -107,17 +107,28 @@ Before submitting your PR, it is highly recommended to validate your configurati
 make build
 ```
 
-### Dry-run Validation (No DB or external services required)
-To validate the syntax and structure of the `rules.yaml` files without needing a running database or OpenFGA, run the `seed` command with the `--dry-run` and `--dir` flags, passing mock values for the required configuration variables:
+### Route Rules Validation (No environment or DB required)
+To validate the syntax and structure of the `rules.yaml` files, you can use the `seed validate` command. Both `seed validate` and `seed --dry-run` are completely independent of environment configurations or active databases.
 
+To validate files in a custom physical directory:
 ```bash
-SERVER_DEVELOPMENT=true OPEN_FGA_STORE_ID=dummy OPEN_FGA_AUTHORIZATION_MODEL_ID=dummy OPEN_FGA_API_KEY=dummy ./bin/app seed --dry-run --dir authz/model/services
-# Output
-{"time":"2026-07-29T09:52:25.025737452+02:00","level":"INFO","msg":"Starting database seed command"}
-{"time":"2026-07-29T09:52:25.025782796+02:00","level":"INFO","msg":"Telemetry is disabled"}
-{"time":"2026-07-29T09:52:25.025788413+02:00","level":"INFO","msg":"Scanning for route rules in physical directory","directory":"authz/model/services"}
-{"time":"2026-07-29T09:52:25.02593316+02:00","level":"INFO","msg":"Dry-run mode enabled. Performing only file validation."}
-{"time":"2026-07-29T09:52:25.025938177+02:00","level":"INFO","msg":"Validating rules file","path":"dummy/rules.yaml","service":"dummy","revision":"2026.07.24.1"}
-{"time":"2026-07-29T09:52:25.025958544+02:00","level":"INFO","msg":"Validation succeeded","path":"dummy/rules.yaml","service":"dummy","revision":"2026.07.24.1"}
-{"time":"2026-07-29T09:52:25.025969159+02:00","level":"INFO","msg":"Dry-run validation completed successfully"}
+./bin/app seed validate --dir authz/model/services
 ```
+
+To validate embedded rules:
+```bash
+./bin/app seed validate
+```
+
+Example output:
+```json
+{"time":"2026-07-29T11:03:08.628088638+02:00","level":"INFO","msg":"Starting route rules validation"}
+{"time":"2026-07-29T11:03:08.628158476+02:00","level":"INFO","msg":"Scanning for embedded route rules"}
+{"time":"2026-07-29T11:03:08.628304697+02:00","level":"INFO","msg":"Validating rules file","path":"services/dummy/rules.yaml","service":"dummy","revision":"2026.07.24.1"}
+{"time":"2026-07-29T11:03:08.628343658+02:00","level":"INFO","msg":"Validation succeeded","path":"services/dummy/rules.yaml","service":"dummy","revision":"2026.07.24.1"}
+{"time":"2026-07-29T11:03:08.628350313+02:00","level":"INFO","msg":"Validation completed successfully"}
+```
+
+> [!TIP]
+> You can also use `./bin/app seed --dry-run` which behaves identically and is also fully independent of environment variables and configurations.
+
