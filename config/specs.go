@@ -103,7 +103,7 @@ type PostgresConfig struct {
 func (c *LoggingConfig) SetupLogger() *slog.Logger {
 	var handler slog.Handler
 	opts := &slog.HandlerOptions{
-		Level: parseLogLevel(c.Level),
+		Level: ParseLogLevel(c.Level),
 	}
 	if c.Format == "json" {
 		handler = slog.NewJSONHandler(os.Stdout, opts)
@@ -278,7 +278,8 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-func parseLogLevel(level string) slog.Level {
+// ParseLogLevel converts a string representation of a log level to slog.Level.
+func ParseLogLevel(level string) slog.Level {
 	switch level {
 	case "debug":
 		return slog.LevelDebug
