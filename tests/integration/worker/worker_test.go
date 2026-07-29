@@ -1,6 +1,6 @@
 //go:build integration
 
-package integration
+package worker
 
 import (
 	"context"
@@ -10,13 +10,15 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/openfga/go-sdk/client"
+	"google.golang.org/protobuf/proto"
 
 	messagesv1 "github.com/canonical/authorization-service/api/v1"
 	"github.com/canonical/authorization-service/internal/model/permissions"
+	"github.com/canonical/authorization-service/internal/integration/postgres"
 	"github.com/canonical/authorization-service/internal/repository"
 	"github.com/canonical/authorization-service/internal/service/listen"
 	"github.com/canonical/authorization-service/internal/service/worker"
-	"google.golang.org/protobuf/proto"
+	"github.com/canonical/authorization-service/tests/integration/suite"
 )
 
 // fakeApplier is an in-memory TupleApplier for the integration tests: OpenFGA is
@@ -39,6 +41,11 @@ func (a *fakeApplier) ApplyTuples(_ context.Context, writes []client.ClientTuple
 	a.applied++
 	a.lastKeys = writes
 	return nil
+}
+
+// newTestPostgres is a package-level helper that redirects to the suite helper.
+func newTestPostgres(t *testing.T) (*postgres.Client, *pgxpool.Pool) {
+	return suite.NewTestPostgres(t, pgDSN, pgConfig)
 }
 
 // insertReceivedRow inserts a 'received' work row via the real repository and
@@ -143,14 +150,14 @@ func TestWorker_HappyPath(t *testing.T) {
 	client, pool := newTestPostgres(t)
 	repo := repository.NewPostgresPermissionWorkRepository(client)
 
-	suffix := uniqueSuffix()
+	suffix := suite.UniqueSuffix()
 	idem := "worker-happy-" + suffix
 	subject := "user:u-" + suffix
 	insertReceivedRow(t, repo, "payments", idem, writeOperation(subject, "member", "group:g1"))
 
 	applier := &fakeApplier{}
-	proc := worker.NewProcessor(repo, applier, listen.NewDecoder(), 5, false, nil, testLogger)
-	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, testLogger)
+	proc := worker.NewProcessor(repo, applier, listen.NewDecoder(), 5, false, nil, suite.TestLogger)
+	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, suite.TestLogger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -174,14 +181,14 @@ func TestWorker_UsersetSubject(t *testing.T) {
 	client, pool := newTestPostgres(t)
 	repo := repository.NewPostgresPermissionWorkRepository(client)
 
-	suffix := uniqueSuffix()
+	suffix := suite.UniqueSuffix()
 	idem := "worker-userset-" + suffix
 	subject := "role:admin#assignee-" + suffix
 	insertReceivedRow(t, repo, "payments", idem, writeOperation(subject, "member", "group:g1"))
 
 	applier := &fakeApplier{}
-	proc := worker.NewProcessor(repo, applier, listen.NewDecoder(), 5, false, nil, testLogger)
-	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, testLogger)
+	proc := worker.NewProcessor(repo, applier, listen.NewDecoder(), 5, false, nil, suite.TestLogger)
+	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, suite.TestLogger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -205,7 +212,7 @@ func TestWorker_PermanentFailure(t *testing.T) {
 	client, pool := newTestPostgres(t)
 	repo := repository.NewPostgresPermissionWorkRepository(client)
 
-	suffix := uniqueSuffix()
+	suffix := suite.UniqueSuffix()
 	idem := "worker-bad-" + suffix
 	// Insert a row with a deliberately corrupt payload (not a valid envelope).
 	row := permissions.WorkRow{
@@ -221,8 +228,8 @@ func TestWorker_PermanentFailure(t *testing.T) {
 	}
 
 	applier := &fakeApplier{}
-	proc := worker.NewProcessor(repo, applier, listen.NewDecoder(), 5, false, nil, testLogger)
-	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, testLogger)
+	proc := worker.NewProcessor(repo, applier, listen.NewDecoder(), 5, false, nil, suite.TestLogger)
+	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, suite.TestLogger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -240,7 +247,7 @@ func TestReaper_Integration(t *testing.T) {
 	client, pool := newTestPostgres(t)
 	repo := repository.NewPostgresPermissionWorkRepository(client)
 
-	suffix := uniqueSuffix()
+	suffix := suite.UniqueSuffix()
 	idem := "reaper-stale-" + suffix
 	subject := "user:u-" + suffix
 
@@ -266,7 +273,7 @@ func TestReaper_Integration(t *testing.T) {
 	}
 
 	// 4. Run the Reaper background loop with a 15-minute timeout
-	r := worker.NewReaper(repo, 15*time.Minute, 50*time.Millisecond, testLogger)
+	r := worker.NewReaper(repo, 15*time.Minute, 50*time.Millisecond, suite.TestLogger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -312,4 +319,3 @@ func TestReaper_LockCoordination(t *testing.T) {
 		t.Fatalf("expected 0 rows reclaimed, got %d", n)
 	}
 }
-

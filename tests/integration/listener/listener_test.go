@@ -1,6 +1,6 @@
 //go:build integration
 
-package integration
+package listener
 
 import (
 	"context"
@@ -8,29 +8,17 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"go.opentelemetry.io/otel/trace/noop"
 
 	kafkaintegration "github.com/canonical/authorization-service/internal/integration/kafka"
 	"github.com/canonical/authorization-service/internal/integration/postgres"
 	"github.com/canonical/authorization-service/internal/repository"
 	"github.com/canonical/authorization-service/internal/service/listen"
+	"github.com/canonical/authorization-service/tests/integration/suite"
 )
 
 // newTestPostgres opens a postgres.Client and a raw pool against the test DB.
 func newTestPostgres(t *testing.T) (*postgres.Client, *pgxpool.Pool) {
-	t.Helper()
-	pool, err := pgxpool.New(context.Background(), pgDSN)
-	if err != nil {
-		t.Fatalf("pgxpool: %v", err)
-	}
-	t.Cleanup(func() { pool.Close() })
-
-	client, err := postgres.NewClient(pgConfig, testLogger, noop.NewTracerProvider().Tracer("test"))
-	if err != nil {
-		t.Fatalf("postgres client: %v", err)
-	}
-	t.Cleanup(func() { client.Close() })
-	return client, pool
+	return suite.NewTestPostgres(t, pgDSN, pgConfig)
 }
 
 // newTestListener wires a Listener backed by the test containers, subscribing to
@@ -38,7 +26,7 @@ func newTestPostgres(t *testing.T) (*postgres.Client, *pgxpool.Pool) {
 func newTestListener(t *testing.T, group string, db postgres.DBClientInterface) *listen.Listener {
 	t.Helper()
 
-	registry, err := listen.NewServiceRegistry(federatedServices)
+	registry, err := listen.NewServiceRegistry(suite.FederatedServices)
 	if err != nil {
 		t.Fatalf("registry: %v", err)
 	}
@@ -47,7 +35,7 @@ func newTestListener(t *testing.T, group string, db postgres.DBClientInterface) 
 		Brokers:       []string{kafkaBroker},
 		ConsumerGroup: group,
 		Topics:        registry.Topics(),
-	}, testLogger)
+	}, suite.TestLogger)
 	if err != nil {
 		t.Fatalf("newTestListener kafka client: %v", err)
 	}
@@ -55,9 +43,9 @@ func newTestListener(t *testing.T, group string, db postgres.DBClientInterface) 
 
 	repo := repository.NewPostgresPermissionWorkRepository(db)
 	ingestor := listen.NewIngestionService(
-		registry, listen.NewDecoder(), listen.NewValidator(), repo, nil, testLogger,
+		registry, listen.NewDecoder(), listen.NewValidator(), repo, nil, suite.TestLogger,
 	)
-	return listen.NewListener(kafkaClient, ingestor, testLogger)
+	return listen.NewListener(kafkaClient, ingestor, suite.TestLogger)
 }
 
 func startListener(ctx context.Context, l *listen.Listener) <-chan error {
@@ -104,11 +92,11 @@ func waitForWorkRow(t *testing.T, pool *pgxpool.Pool, service, idempotencyKey st
 // TestListener_HappyPath publishes one valid envelope and asserts a 'received'
 // row is durably persisted.
 func TestListener_HappyPath(t *testing.T) {
-	suffix := uniqueSuffix()
+	suffix := suite.UniqueSuffix()
 	idem := "idem-happy-" + suffix
 
 	client, pool := newTestPostgres(t)
-	publishEnvelope(t, "payments", sampleEnvelope("payments", idem))
+	suite.PublishEnvelope(t, kafkaBroker, "payments", suite.SampleEnvelope("payments", idem))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -125,12 +113,12 @@ func TestListener_HappyPath(t *testing.T) {
 // TestListener_DuplicateDelivery publishes the same idempotency key twice and
 // asserts only a single row exists.
 func TestListener_DuplicateDelivery(t *testing.T) {
-	suffix := uniqueSuffix()
+	suffix := suite.UniqueSuffix()
 	idem := "idem-dup-" + suffix
 
 	client, pool := newTestPostgres(t)
-	publishEnvelope(t, "payments", sampleEnvelope("payments", idem))
-	publishEnvelope(t, "payments", sampleEnvelope("payments", idem))
+	suite.PublishEnvelope(t, kafkaBroker, "payments", suite.SampleEnvelope("payments", idem))
+	suite.PublishEnvelope(t, kafkaBroker, "payments", suite.SampleEnvelope("payments", idem))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -150,13 +138,13 @@ func TestListener_DuplicateDelivery(t *testing.T) {
 // TestListener_ServiceMismatchNotPersisted publishes an envelope whose service
 // field does not match the topic slug; it must fail validation and not persist.
 func TestListener_ServiceMismatchNotPersisted(t *testing.T) {
-	suffix := uniqueSuffix()
+	suffix := suite.UniqueSuffix()
 	idem := "idem-mismatch-" + suffix
 
 	client, pool := newTestPostgres(t)
 
-	env := sampleEnvelope("invoicing", idem) // service=invoicing...
-	publishEnvelope(t, "payments", env)      // ...published to payments.permissions
+	env := suite.SampleEnvelope("invoicing", idem) // service=invoicing...
+	suite.PublishEnvelope(t, kafkaBroker, "payments", env)      // ...published to payments.permissions
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

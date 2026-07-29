@@ -38,6 +38,7 @@ func (r *PostgresRuleRepository) buildFindCandidatesQuery(method string, pathPre
 		Select(
 			"r.id", "r.service_id", "r.method", "r.segment_count", "r.static_prefix", "r.path_regex", "r.priority",
 			"s.slug", "s.tenant",
+			"r.revision",
 			"t.id", "t.rule_id", "t.user_resource_type", "t.permission", "t.object_resource_type", "t.object_resource_id",
 		).
 		From("authorization_rule r").
@@ -139,6 +140,7 @@ func scanRulesWithTuples(rows pgx.Rows) ([]*rules.RuleWithTuples, error) {
 			priority     int
 			serviceSlug  string
 			tenant       *string
+			revision     string
 
 			tupleID            string
 			tupleRuleID        string
@@ -158,6 +160,7 @@ func scanRulesWithTuples(rows pgx.Rows) ([]*rules.RuleWithTuples, error) {
 			&priority,
 			&serviceSlug,
 			&tenant,
+			&revision,
 			&tupleID,
 			&tupleRuleID,
 			&userResourceType,
@@ -180,6 +183,7 @@ func scanRulesWithTuples(rows pgx.Rows) ([]*rules.RuleWithTuples, error) {
 				PathRegex:    pathRegex,
 				Priority:     priority,
 				Tenant:       tenant,
+				Revision:     revision,
 			}
 			ruleIndex[ruleID] = r
 			ruleOrder = append(ruleOrder, ruleID)

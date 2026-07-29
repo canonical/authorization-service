@@ -2,7 +2,7 @@
 
 This document provides a brief explanation of how the Envoy External Authorisation integration test suite works.
 
-The integration test suite is located in [check_integration_test.go](file:///home/barco/GolandProjects/authorization-service/tests/integration/check_integration_test.go).
+The integration test suite is located in [check_integration_test.go](file:///home/barco/GolandProjects/authorization-service/tests/integration/check/check_integration_test.go).
 
 ---
 

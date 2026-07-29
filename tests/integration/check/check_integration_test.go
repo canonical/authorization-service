@@ -1,6 +1,6 @@
 //go:build integration
 
-package integration
+package check
 
 import (
 	"context"
@@ -31,6 +31,7 @@ import (
 	"github.com/canonical/authorization-service/internal/model/rules"
 	authz "github.com/canonical/authorization-service/internal/service/authz"
 	authzMocks "github.com/canonical/authorization-service/internal/service/authz/mocks"
+	"github.com/canonical/authorization-service/tests/integration/suite"
 )
 
 // newTestIDToken creates an *oidc.IDToken with the given claims JSON set via reflection.
@@ -91,7 +92,7 @@ func TestCheck_EnvoyIntegration(t *testing.T) {
 			Timeout: 10 * time.Second,
 		},
 	}
-	err = cmdauthz.WriteAuthorizationModel(ctx, storeID, cfg, testLogger)
+	err = cmdauthz.WriteAuthorizationModel(ctx, storeID, cfg, suite.TestLogger)
 	if err != nil {
 		t.Fatalf("failed to write authorization model: %v", err)
 	}
@@ -185,7 +186,7 @@ func TestCheck_EnvoyIntegration(t *testing.T) {
 		mockResourceMapper,
 		fgaClient,
 		true, // multitenancyEnabled = true
-		testLogger,
+		suite.TestLogger,
 		noop.NewTracerProvider().Tracer("test"),
 	)
 	extSvcMultitenant.Register(grpcServer)
@@ -361,7 +362,7 @@ static_resources:
 		mockResourceMapper,
 		fgaClient,
 		false, // multitenancyEnabled = false
-		testLogger,
+		suite.TestLogger,
 		noop.NewTracerProvider().Tracer("test"),
 	)
 	extSvcSingleTenant.Register(grpcServer2)

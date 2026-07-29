@@ -165,4 +165,3 @@ func TestWorker_BatchSortingByEventTime(t *testing.T) {
 		}
 	}
 }
-

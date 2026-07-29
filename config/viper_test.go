@@ -100,7 +100,7 @@ func TestLoadConfig_FlagsOverride(t *testing.T) {
 
 	cmd := &cobra.Command{}
 	cmd.Flags().String("config", "", "")
-	cmd.Flags().Int("grpc-port", 7777, "") // Flag value
+	cmd.Flags().Int("grpc-port", 7777, "")   // Flag value
 	_ = cmd.Flags().Set("grpc-port", "7777") // Emulate explicit CLI passing
 
 	// WHEN loading the configuration

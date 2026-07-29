@@ -14,7 +14,7 @@ WHERE service_id = '00000000-0000-0000-0000-000000000001';
 -- | Rule 1: GET /api/v1/groups/{groupId}           |
 -- | Checks: user can "read" a specific group       |
 -- +-----------------------------------------------+
-INSERT INTO authorization_rule (id, service_id, method, segment_count, static_prefix, path_regex, priority)
+INSERT INTO authorization_rule (id, service_id, method, segment_count, static_prefix, path_regex, priority, revision)
 VALUES (
            '00000000-0000-0000-0000-000000000010',
            '00000000-0000-0000-0000-000000000001',
@@ -22,7 +22,8 @@ VALUES (
            4,
            '/api/v1/groups/',
            '^/api/v1/groups/(?<groupId>[^/]+)$',
-           10
+           10,
+           '2026.06.11.1'
        );
 
 INSERT INTO authorization_rule_tuple (id, rule_id, user_resource_type, object_resource_type, object_resource_id, permission)
@@ -47,7 +48,7 @@ VALUES (
 -- | Rule 2: POST /api/v1/groups/{groupId}/members  |
 -- | Checks: user can "write" a specific group      |
 -- +-----------------------------------------------+
-INSERT INTO authorization_rule (id, service_id, method, segment_count, static_prefix, path_regex, priority)
+INSERT INTO authorization_rule (id, service_id, method, segment_count, static_prefix, path_regex, priority, revision)
 VALUES (
            '00000000-0000-0000-0000-000000000020',
            '00000000-0000-0000-0000-000000000001',
@@ -55,7 +56,8 @@ VALUES (
            5,
            '/api/v1/groups/',
            '^/api/v1/groups/(?<groupId>[^/]+)/members$',
-           10
+           10,
+           '2026.06.11.1'
        );
 
 INSERT INTO authorization_rule_tuple (id, rule_id, user_resource_type, object_resource_type, object_resource_id, permission)
@@ -73,7 +75,7 @@ VALUES (
 -- | Checks: user is "admin" on the platform object |
 -- | (wildcard: matches any admin sub-path)         |
 -- +-----------------------------------------------+
-INSERT INTO authorization_rule (id, service_id, method, segment_count, static_prefix, path_regex, priority)
+INSERT INTO authorization_rule (id, service_id, method, segment_count, static_prefix, path_regex, priority, revision)
 VALUES (
            '00000000-0000-0000-0000-000000000030',
            '00000000-0000-0000-0000-000000000001',
@@ -81,7 +83,8 @@ VALUES (
            3,
            '/api/v1/admin/',
            '^/api/v1/admin/.*$',
-           20
+           20,
+           '2026.06.11.1'
        );
 
 INSERT INTO authorization_rule_tuple (id, rule_id, user_resource_type, object_resource_type, object_resource_id, permission)
@@ -98,7 +101,7 @@ VALUES (
 -- | Rule 4: POST /api/v1/groups/{groupId}/members/{memberId}  |
 -- | Checks: user can "write" a specific group                 |
 -- +-----------------------------------------------------------+
-INSERT INTO authorization_rule (id, service_id, method, segment_count, static_prefix, path_regex, priority)
+INSERT INTO authorization_rule (id, service_id, method, segment_count, static_prefix, path_regex, priority, revision)
 VALUES (
            '00000000-0000-0000-0000-000000000040',
            '00000000-0000-0000-0000-000000000001',
@@ -106,7 +109,8 @@ VALUES (
            6,
            '/api/v1/groups/',
            '^/api/v1/groups/(?P<groupId>[^/]+)/members/(?<memberId>[^/]+)$',
-           10
+           10,
+           '2026.06.11.1'
        );
 INSERT INTO authorization_rule_tuple (id, rule_id, user_resource_type, object_resource_type, object_resource_id, permission)
 VALUES (

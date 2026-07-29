@@ -1,6 +1,6 @@
 //go:build integration
 
-package integration
+package suite
 
 import (
 	"context"
@@ -15,72 +15,29 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jackc/pgx/v5/pgxpool"
 	dockercontainer "github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"
 	"github.com/pressly/goose/v3"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"google.golang.org/protobuf/proto"
-
+	"go.opentelemetry.io/otel/trace/noop"
 	kafka "github.com/segmentio/kafka-go"
 
 	messagesv1 "github.com/canonical/authorization-service/api/v1"
 	"github.com/canonical/authorization-service/internal/integration/postgres"
 	"github.com/canonical/authorization-service/internal/service/listen"
-	"github.com/canonical/authorization-service/internal/testutil"
 	"github.com/canonical/authorization-service/migrations"
 )
 
-// Federated services under test. Each maps to a "<slug>.permissions" topic.
-var federatedServices = []string{"payments", "invoicing"}
+var FederatedServices = []string{"payments", "invoicing"}
 
-func topicFor(slug string) string { return slug + listen.TopicSuffix }
+func TopicFor(slug string) string { return slug + listen.TopicSuffix }
 
-var (
-	kafkaBroker string
-	pgDSN       string
-	pgConfig    postgres.Config
-	testLogger  = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-)
+var TestLogger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-func TestMain(m *testing.M) {
-	os.Exit(run(m))
-}
-
-func run(m *testing.M) int {
-	ctx := context.Background()
-
-	kafkaCtr, broker, err := startKafka(ctx)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to start Kafka: %v\n", err)
-		return 1
-	}
-	defer testutil.StopContainer(ctx, kafkaCtr)
-	kafkaBroker = broker
-
-	pgCtr, dsn, err := startPostgres(ctx)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to start Postgres: %v\n", err)
-		return 1
-	}
-	defer testutil.StopContainer(ctx, pgCtr)
-	pgDSN = dsn
-
-	if err := runMigrations(ctx, dsn); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to run migrations: %v\n", err)
-		return 1
-	}
-
-	if err := createKafkaTopics(ctx, kafkaBroker); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to create Kafka topics: %v\n", err)
-		return 1
-	}
-
-	return m.Run()
-}
-
-// startKafka starts a KRaft-mode Kafka container and returns the broker address.
-func startKafka(ctx context.Context) (testcontainers.Container, string, error) {
+func StartKafka(ctx context.Context) (testcontainers.Container, string, error) {
 	l, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		return nil, "", fmt.Errorf("finding free port: %w", err)
@@ -124,8 +81,7 @@ func startKafka(ctx context.Context) (testcontainers.Container, string, error) {
 	return ctr, "localhost:" + portStr, nil
 }
 
-// startPostgres starts a standard postgres container.
-func startPostgres(ctx context.Context) (testcontainers.Container, string, error) {
+func StartPostgres(ctx context.Context) (testcontainers.Container, string, postgres.Config, error) {
 	const (
 		user = "cerberus"
 		pass = "cerberus"
@@ -147,25 +103,26 @@ func startPostgres(ctx context.Context) (testcontainers.Container, string, error
 		ContainerRequest: req,
 		Started:          true,
 	})
+	var emptyConfig postgres.Config
 	if err != nil {
-		return nil, "", fmt.Errorf("starting Postgres: %w", err)
+		return nil, "", emptyConfig, fmt.Errorf("starting Postgres: %w", err)
 	}
 
 	host, err := ctr.Host(ctx)
 	if err != nil {
-		return nil, "", fmt.Errorf("getting Postgres host: %w", err)
+		return nil, "", emptyConfig, fmt.Errorf("getting Postgres host: %w", err)
 	}
 	mappedPort, err := ctr.MappedPort(ctx, "5432/tcp")
 	if err != nil {
-		return nil, "", fmt.Errorf("getting Postgres port: %w", err)
+		return nil, "", emptyConfig, fmt.Errorf("getting Postgres port: %w", err)
 	}
 
 	portNum, err := strconv.Atoi(mappedPort.Port())
 	if err != nil {
-		return nil, "", fmt.Errorf("parsing Postgres port: %w", err)
+		return nil, "", emptyConfig, fmt.Errorf("parsing Postgres port: %w", err)
 	}
 
-	pgConfig = postgres.Config{
+	pgConfig := postgres.Config{
 		Host:           host,
 		Port:           portNum,
 		User:           user,
@@ -177,18 +134,16 @@ func startPostgres(ctx context.Context) (testcontainers.Container, string, error
 
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		host, mappedPort.Port(), user, pass, db)
-	return ctr, dsn, nil
+	return ctr, dsn, pgConfig, nil
 }
 
-// runMigrations applies all goose migrations against the test database.
-func runMigrations(ctx context.Context, dsn string) error {
+func RunMigrations(ctx context.Context, dsn string) error {
 	db, err := sql.Open("pgx/v5", dsn)
 	if err != nil {
 		return fmt.Errorf("opening db: %w", err)
 	}
 	defer db.Close()
 
-	// Wait for the extension-enabled DB to accept connections.
 	deadline := time.Now().Add(30 * time.Second)
 	for {
 		if err = db.PingContext(ctx); err == nil {
@@ -210,9 +165,7 @@ func runMigrations(ctx context.Context, dsn string) error {
 	return nil
 }
 
-// createKafkaTopics pre-creates every federated service's permissions topic via
-// the kafka-go admin API so tests never hit the auto-create race.
-func createKafkaTopics(ctx context.Context, broker string) error {
+func CreateKafkaTopics(ctx context.Context, broker string) error {
 	conn, err := kafka.DialContext(ctx, "tcp", broker)
 	if err != nil {
 		return fmt.Errorf("dialing kafka: %w", err)
@@ -229,10 +182,10 @@ func createKafkaTopics(ctx context.Context, broker string) error {
 	}
 	defer controllerConn.Close()
 
-	specs := make([]kafka.TopicConfig, 0, len(federatedServices))
-	for _, slug := range federatedServices {
+	specs := make([]kafka.TopicConfig, 0, len(FederatedServices))
+	for _, slug := range FederatedServices {
 		specs = append(specs, kafka.TopicConfig{
-			Topic:             topicFor(slug),
+			Topic:             TopicFor(slug),
 			NumPartitions:     1,
 			ReplicationFactor: 1,
 		})
@@ -243,25 +196,36 @@ func createKafkaTopics(ctx context.Context, broker string) error {
 	return nil
 }
 
-// ── Per-test helpers ─────────────────────────────────────────────────────────
+func NewTestPostgres(t *testing.T, dsn string, cfg postgres.Config) (*postgres.Client, *pgxpool.Pool) {
+	t.Helper()
+	pool, err := pgxpool.New(context.Background(), dsn)
+	if err != nil {
+		t.Fatalf("pgxpool: %v", err)
+	}
+	t.Cleanup(func() { pool.Close() })
 
-// publishEnvelope serializes and publishes one PermissionUpdateEnvelope to the
-// given service's permissions topic, keyed by idempotency key.
-func publishEnvelope(t *testing.T, slug string, env *messagesv1.PermissionUpdateEnvelope) {
+	client, err := postgres.NewClient(cfg, TestLogger, noop.NewTracerProvider().Tracer("test"))
+	if err != nil {
+		t.Fatalf("postgres client: %v", err)
+	}
+	t.Cleanup(func() { client.Close() })
+	return client, pool
+}
+
+func PublishEnvelope(t *testing.T, broker, slug string, env *messagesv1.PermissionUpdateEnvelope) {
 	t.Helper()
 	data, err := proto.Marshal(env)
 	if err != nil {
 		t.Fatalf("publishEnvelope marshal: %v", err)
 	}
-	publishRaw(t, slug, []byte(env.GetIdempotencyKey()), data)
+	PublishRaw(t, broker, slug, []byte(env.GetIdempotencyKey()), data)
 }
 
-// publishRaw publishes arbitrary bytes to a service's permissions topic.
-func publishRaw(t *testing.T, slug string, key, value []byte) {
+func PublishRaw(t *testing.T, broker, slug string, key, value []byte) {
 	t.Helper()
 	w := &kafka.Writer{
-		Addr:                   kafka.TCP(kafkaBroker),
-		Topic:                  topicFor(slug),
+		Addr:                   kafka.TCP(broker),
+		Topic:                  TopicFor(slug),
 		Balancer:               &kafka.LeastBytes{},
 		AllowAutoTopicCreation: true,
 	}
@@ -271,13 +235,11 @@ func publishRaw(t *testing.T, slug string, key, value []byte) {
 	}
 }
 
-// uniqueSuffix returns a short string unique within the test run.
-func uniqueSuffix() string {
+func UniqueSuffix() string {
 	return strconv.FormatInt(time.Now().UnixNano(), 36)
 }
 
-// sampleEnvelope builds a minimal valid envelope for a service.
-func sampleEnvelope(slug, idempotencyKey string) *messagesv1.PermissionUpdateEnvelope {
+func SampleEnvelope(slug, idempotencyKey string) *messagesv1.PermissionUpdateEnvelope {
 	return &messagesv1.PermissionUpdateEnvelope{
 		Version:        "1",
 		Service:        slug,
