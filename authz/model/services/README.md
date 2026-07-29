@@ -104,12 +104,20 @@ Before submitting your PR, it is highly recommended to validate your configurati
 
 ### Build Cerberus
 ```bash
-go build -o cerberus ./cmd/authz
+make build
 ```
 
-### Validate and Seed Local Files
-You can execute the local seeder targeting your service's configuration directory:
+### Dry-run Validation (No DB or external services required)
+To validate the syntax and structure of the `rules.yaml` files without needing a running database or OpenFGA, run the `seed` command with the `--dry-run` and `--dir` flags, passing mock values for the required configuration variables:
+
 ```bash
-./cerberus seed --dir authz/model/services
+SERVER_DEVELOPMENT=true OPEN_FGA_STORE_ID=dummy OPEN_FGA_AUTHORIZATION_MODEL_ID=dummy OPEN_FGA_API_KEY=dummy ./bin/app seed --dry-run --dir authz/model/services
+# Output
+{"time":"2026-07-29T09:52:25.025737452+02:00","level":"INFO","msg":"Starting database seed command"}
+{"time":"2026-07-29T09:52:25.025782796+02:00","level":"INFO","msg":"Telemetry is disabled"}
+{"time":"2026-07-29T09:52:25.025788413+02:00","level":"INFO","msg":"Scanning for route rules in physical directory","directory":"authz/model/services"}
+{"time":"2026-07-29T09:52:25.02593316+02:00","level":"INFO","msg":"Dry-run mode enabled. Performing only file validation."}
+{"time":"2026-07-29T09:52:25.025938177+02:00","level":"INFO","msg":"Validating rules file","path":"dummy/rules.yaml","service":"dummy","revision":"2026.07.24.1"}
+{"time":"2026-07-29T09:52:25.025958544+02:00","level":"INFO","msg":"Validation succeeded","path":"dummy/rules.yaml","service":"dummy","revision":"2026.07.24.1"}
+{"time":"2026-07-29T09:52:25.025969159+02:00","level":"INFO","msg":"Dry-run validation completed successfully"}
 ```
-*Note: Make sure your local PostgreSQL database is running, as the seed command checks revisions and validates schemas directly against the database inside an isolated transaction.*
