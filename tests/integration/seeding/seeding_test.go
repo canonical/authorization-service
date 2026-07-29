@@ -1,6 +1,6 @@
 //go:build integration
 
-package integration
+package seeding
 
 import (
 	"context"
@@ -12,8 +12,15 @@ import (
 
 	"github.com/canonical/authorization-service/internal/model/rules"
 	"github.com/canonical/authorization-service/internal/repository"
+	"github.com/canonical/authorization-service/internal/integration/postgres"
 	ruleservice "github.com/canonical/authorization-service/internal/service/rules"
+	"github.com/canonical/authorization-service/tests/integration/suite"
 )
+
+// newTestPostgres is a package-level helper that redirects to the suite helper.
+func newTestPostgres(t *testing.T) (*postgres.Client, *pgxpool.Pool) {
+	return suite.NewTestPostgres(t, pgDSN, pgConfig)
+}
 
 // cleanRulesTables removes all rows from seeding-related tables to ensure test isolation.
 func cleanRulesTables(t *testing.T, pool *pgxpool.Pool) {

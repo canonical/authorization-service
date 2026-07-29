@@ -1,6 +1,6 @@
 //go:build integration
 
-package integration
+package worker
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"github.com/canonical/authorization-service/internal/repository"
 	"github.com/canonical/authorization-service/internal/service/listen"
 	"github.com/canonical/authorization-service/internal/service/worker"
+	"github.com/canonical/authorization-service/tests/integration/suite"
 )
 
 type multitenancyFakeApplier struct {
@@ -33,7 +34,7 @@ func TestWorker_MultitenancyEnabled_Integration(t *testing.T) {
 	client, pool := newTestPostgres(t)
 	repo := repository.NewPostgresPermissionWorkRepository(client)
 
-	suffix := uniqueSuffix()
+	suffix := suite.UniqueSuffix()
 	idem := "worker-multitenancy-" + suffix
 	subject := "user:u-" + suffix
 	serviceName := "payments"
@@ -42,8 +43,8 @@ func TestWorker_MultitenancyEnabled_Integration(t *testing.T) {
 
 	applier := &multitenancyFakeApplier{}
 	// Create Processor with multitenancyEnabled = true
-	proc := worker.NewProcessor(repo, applier, listen.NewDecoder(), 5, true, nil, testLogger)
-	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, testLogger)
+	proc := worker.NewProcessor(repo, applier, listen.NewDecoder(), 5, true, nil, suite.TestLogger)
+	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, suite.TestLogger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -85,7 +86,7 @@ func TestWorker_MultitenancyDisabled_Integration(t *testing.T) {
 	client, pool := newTestPostgres(t)
 	repo := repository.NewPostgresPermissionWorkRepository(client)
 
-	suffix := uniqueSuffix()
+	suffix := suite.UniqueSuffix()
 	idem := "worker-no-multitenancy-" + suffix
 	subject := "user:u-" + suffix
 	serviceName := "payments"
@@ -94,8 +95,8 @@ func TestWorker_MultitenancyDisabled_Integration(t *testing.T) {
 
 	applier := &multitenancyFakeApplier{}
 	// Create Processor with multitenancyEnabled = false
-	proc := worker.NewProcessor(repo, applier, listen.NewDecoder(), 5, false, nil, testLogger)
-	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, testLogger)
+	proc := worker.NewProcessor(repo, applier, listen.NewDecoder(), 5, false, nil, suite.TestLogger)
+	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, suite.TestLogger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

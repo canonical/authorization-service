@@ -1,6 +1,6 @@
 //go:build integration
 
-package integration
+package check
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 
 	"github.com/canonical/authorization-service/cmd/authz"
 	"github.com/canonical/authorization-service/config"
+	"github.com/canonical/authorization-service/tests/integration/suite"
 )
 
 /*
@@ -91,7 +92,7 @@ func TestTenantMatch_Integration(t *testing.T) {
 	}
 
 	// 4. Upload the compiled modular model
-	err = authz.WriteAuthorizationModel(ctx, storeID, cfg, testLogger)
+	err = authz.WriteAuthorizationModel(ctx, storeID, cfg, suite.TestLogger)
 	if err != nil {
 		t.Fatalf("failed to write modular authorization model: %v", err)
 	}

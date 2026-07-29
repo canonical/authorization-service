@@ -1,6 +1,6 @@
 //go:build integration
 
-package integration
+package listener
 
 import (
 	"context"
@@ -14,33 +14,34 @@ import (
 	messagesv1 "github.com/canonical/authorization-service/api/v1"
 	kafkaintegration "github.com/canonical/authorization-service/internal/integration/kafka"
 	"github.com/canonical/authorization-service/internal/service/listen"
+	"github.com/canonical/authorization-service/tests/integration/suite"
 )
 
 // TestKafkaConsumerGroup_MultiTopic verifies the consumer group receives messages
 // published across multiple "<slug>.permissions" topics, and that msg.Topic
 // carries the originating topic (used for service resolution).
 func TestKafkaConsumerGroup_MultiTopic(t *testing.T) {
-	suffix := uniqueSuffix()
+	suffix := suite.UniqueSuffix()
 	group := "kafka-multitopic-" + suffix
 
-	registry, err := listen.NewServiceRegistry(federatedServices)
+	registry, err := listen.NewServiceRegistry(suite.FederatedServices)
 	if err != nil {
 		t.Fatalf("registry: %v", err)
 	}
 
 	// Publish one envelope to each federated service's topic.
 	want := map[string]string{} // topic -> idempotency key
-	for _, slug := range federatedServices {
+	for _, slug := range suite.FederatedServices {
 		idem := "idem-" + slug + "-" + suffix
-		publishEnvelope(t, slug, sampleEnvelope(slug, idem))
-		want[topicFor(slug)] = idem
+		suite.PublishEnvelope(t, kafkaBroker, slug, suite.SampleEnvelope(slug, idem))
+		want[suite.TopicFor(slug)] = idem
 	}
 
 	c, err := kafkaintegration.NewClient(kafkaintegration.Config{
 		Brokers:       []string{kafkaBroker},
 		ConsumerGroup: group,
 		Topics:        registry.Topics(),
-	}, testLogger)
+	}, suite.TestLogger)
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}
@@ -90,7 +91,7 @@ func TestKafkaConsumerGroup_MultiTopic(t *testing.T) {
 func TestNoopConsume(t *testing.T) {
 	t.Parallel()
 
-	noop := kafkaintegration.NewNoopClient(testLogger)
+	noop := kafkaintegration.NewNoopClient(suite.TestLogger)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
