@@ -18,10 +18,5 @@ jobs:
         with:
           go-version: '1.26'
 
-      - name: Run Rules Dry-Run Validation
-        env:
-          SERVER_DEVELOPMENT: "true"
-          OPEN_FGA_STORE_ID: "dummy"
-          OPEN_FGA_AUTHORIZATION_MODEL_ID: "dummy"
-          OPEN_FGA_API_KEY: "dummy"
-        run: go run main.go seed --dry-run
+      - name: Run Rules Validation
+        run: go run main.go seed validate
