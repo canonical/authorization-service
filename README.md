@@ -154,6 +154,12 @@ Starts the background worker that polls the PostgreSQL work queue and applies th
 ```
 Scans the work queue for processing jobs that have timed out and returns them to the queue to be retried.
 
+### `ensure-topics` - Idempotently Create Kafka Topics
+```bash
+./bin/app ensure-topics
+```
+Creates the `<slug>.permissions` Kafka topic for every federated service listed in the `FEDERATED_SERVICES` configuration. Existing topics are left untouched, making this command safe to run repeatedly.
+
 ### `seed` - Seeding & Validation of Route Rules
 Handles loading, verifying, and seeding versioned `rules.yaml` routing rules:
 ```bash
@@ -179,10 +185,18 @@ Seeds embedded rules into the PostgreSQL database. Compares and replaces revisio
 
 ### `authz` - Authorization Model Management
 Provides utilities for checking permissions and writing models to OpenFGA directly:
-```bash
-./bin/app authz check <subject> <relation> <object>
-./bin/app authz write-model <file-path>
-```
+
+- **`check` Subcommand**:
+  Simulates an Envoy External Authorization `Check` request using a session cookie to test STS integration:
+  ```bash
+  ./bin/app authz check --cookie "session=abc123xyz" --path "/api/resource" --method "GET"
+  ```
+
+- **`write-model` Subcommand**:
+  Compiles the modular authorization model from the embedded manifest and writes it to the specified OpenFGA store:
+  ```bash
+  ./bin/app authz write-model <store-id>
+  ```
 
 ### `version` - Show Version
 ```bash
