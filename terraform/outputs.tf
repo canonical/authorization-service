@@ -41,3 +41,8 @@ output "cerberus_grpc" {
   value       = "authorization-service.${kubernetes_namespace.cerberus.metadata[0].name}.svc.cluster.local:9091"
   description = "The internal gRPC endpoint for the Cerberus service."
 }
+
+output "kafka_brokers" {
+  value       = local.kafka_brokers
+  description = "The active Kafka broker endpoints used by Cerberus."
+}

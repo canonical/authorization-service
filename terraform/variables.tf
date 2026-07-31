@@ -155,3 +155,75 @@ variable "external_openfga_api_key" {
   sensitive   = true
   description = "API key for authentication with the external OpenFGA instance."
 }
+
+# -----------------------------------------------------------------------------
+# Kafka Configuration
+# -----------------------------------------------------------------------------
+
+variable "kafka_enabled" {
+  type        = bool
+  default     = false
+  description = "Whether to enable Kafka-based permission-update event ingestion."
+}
+
+variable "deploy_kafka" {
+  type        = bool
+  default     = false
+  description = "Whether to deploy a lightweight, single-node KRaft-based Kafka instance inside the cluster."
+}
+
+variable "external_kafka_brokers" {
+  type        = list(string)
+  default     = []
+  description = "Addresses of external Kafka brokers. (Required if kafka_enabled is true and deploy_kafka is false)."
+}
+
+variable "kafka_federated_services" {
+  type        = list(string)
+  default     = ["service-a", "service-b"]
+  description = "List of federated service slugs whose permissions topics are to be created and listened to."
+}
+
+variable "kafka_consumer_group" {
+  type        = string
+  default     = "authz-listener"
+  description = "The Kafka consumer group ID for the Cerberus listener."
+}
+
+variable "kafka_topic_partitions" {
+  type        = number
+  default     = 1
+  description = "The default number of partitions for auto-created Kafka topics."
+}
+
+variable "kafka_topic_replication_factor" {
+  type        = number
+  default     = 1
+  description = "The default replication factor for auto-created Kafka topics."
+}
+
+# -----------------------------------------------------------------------------
+# Worker Configuration
+# -----------------------------------------------------------------------------
+
+variable "worker_enabled" {
+  type        = bool
+  default     = false
+  description = "Whether to deploy the permission-update background worker (which includes the in-process reaper)."
+}
+
+# -----------------------------------------------------------------------------
+# Replicas & Scale
+# -----------------------------------------------------------------------------
+
+variable "cerberus_listener_replicas" {
+  type        = number
+  default     = 1
+  description = "Number of instances of the Kafka listener to run."
+}
+
+variable "cerberus_worker_replicas" {
+  type        = number
+  default     = 1
+  description = "Number of instances of the background worker to run."
+}

@@ -38,4 +38,8 @@ locals {
   sts_address              = var.sts_address
   sts_use_tls              = var.sts_use_tls ? "true" : "false"
   sts_eager_connection_check = var.sts_eager_connection_check ? "true" : "false"
+
+  # Resolve Kafka parameters
+  kafka_brokers = var.deploy_kafka ? ["kafka:9092"] : var.external_kafka_brokers
+  worker_enabled = var.kafka_enabled || var.worker_enabled
 }
