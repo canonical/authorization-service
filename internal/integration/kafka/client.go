@@ -14,6 +14,9 @@ import (
 type ConsumerInterface interface {
 	Consume(ctx context.Context, handler func(ctx context.Context, msg kafka.Message) error) error
 	Close() error
+	// Stats returns a snapshot of the underlying reader's statistics, for
+	// exposing consumer lag and throughput as metrics.
+	Stats() kafka.ReaderStats
 }
 
 // Compile-time check.
@@ -149,6 +152,11 @@ func (c *Client) handleWithRetry(ctx context.Context, handler func(ctx context.C
 			}
 		}
 	}
+}
+
+// Stats returns a snapshot of the underlying reader's statistics.
+func (c *Client) Stats() kafka.ReaderStats {
+	return c.reader.Stats()
 }
 
 // Close closes the reader. Safe to call multiple times.
