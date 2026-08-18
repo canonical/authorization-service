@@ -243,7 +243,8 @@ var ruleColumns = []string{
 
 func TestFindCandidates_SingleRuleSingleTuple(t *testing.T) {
 	mockDB, pool := setupMocks(t)
-	repo := NewPostgresRuleRepository(mockDB, nil)
+	metrics := &fakeQueryMetrics{}
+	repo := NewPostgresRuleRepository(mockDB, metrics)
 
 	rows := pool.NewRows(ruleColumns).AddRow(
 		"1", "10", "GET", 4, "/api/v1/groups/", `^/api/v1/groups/(?<groupId>\d+)$`, 0,
@@ -310,6 +311,7 @@ func TestFindCandidates_SingleRuleSingleTuple(t *testing.T) {
 	if tup.ObjectResourceId != "{groupId}" {
 		t.Errorf("tuple ObjectResourceId = %q, want %q", tup.ObjectResourceId, "{groupId}")
 	}
+	assertObserveQuery(t, metrics, "find_candidates", false)
 }
 
 func TestFindCandidates_SingleRuleMultipleTuples(t *testing.T) {
@@ -401,7 +403,8 @@ func TestFindCandidates_NoRows(t *testing.T) {
 
 func TestFindCandidates_QueryError(t *testing.T) {
 	mockDB, _ := setupMocks(t)
-	repo := NewPostgresRuleRepository(mockDB, nil)
+	metrics := &fakeQueryMetrics{}
+	repo := NewPostgresRuleRepository(mockDB, metrics)
 
 	dbErr := errors.New("connection refused")
 	mockDB.EXPECT().
@@ -418,6 +421,7 @@ func TestFindCandidates_QueryError(t *testing.T) {
 	if !errors.Is(err, dbErr) {
 		t.Errorf("expected error to wrap %v, got %v", dbErr, err)
 	}
+	assertObserveQuery(t, metrics, "find_candidates", true)
 }
 
 func TestFindCandidates_ScanError(t *testing.T) {
