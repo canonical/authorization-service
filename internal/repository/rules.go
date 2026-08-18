@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
@@ -24,12 +25,17 @@ var _ RuleRepository = (*PostgresRuleRepository)(nil)
 
 // PostgresRuleRepository implements RuleRepository using PostgreSQL.
 type PostgresRuleRepository struct {
-	db postgres.DBClientInterface
+	db      postgres.DBClientInterface
+	metrics Metrics
 }
 
-// NewPostgresRuleRepository creates a new PostgresRuleRepository.
-func NewPostgresRuleRepository(db postgres.DBClientInterface) *PostgresRuleRepository {
-	return &PostgresRuleRepository{db: db}
+// NewPostgresRuleRepository creates a new PostgresRuleRepository. If metrics
+// is nil a no-op is used.
+func NewPostgresRuleRepository(db postgres.DBClientInterface, metrics Metrics) *PostgresRuleRepository {
+	if metrics == nil {
+		metrics = NoopMetrics{}
+	}
+	return &PostgresRuleRepository{db: db, metrics: metrics}
 }
 
 // buildFindCandidatesQuery builds the SQL query for finding candidate rules using Squirrel.
@@ -54,7 +60,10 @@ func (r *PostgresRuleRepository) buildFindCandidatesQuery(method string, pathPre
 }
 
 // FindCandidates retrieves candidate rules (with their tuples) for the given HTTP method and path.
-func (r *PostgresRuleRepository) FindCandidates(ctx context.Context, method, path string) ([]*rules.RuleWithTuples, error) {
+func (r *PostgresRuleRepository) FindCandidates(ctx context.Context, method, path string) (result []*rules.RuleWithTuples, err error) {
+	start := time.Now()
+	defer func() { r.metrics.ObserveQuery("find_candidates", err, time.Since(start)) }()
+
 	if method == "" || path == "" {
 		return nil, fmt.Errorf("method and path cannot be empty")
 	}

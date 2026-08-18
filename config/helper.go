@@ -12,6 +12,7 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/openfga/go-sdk/client"
 	"github.com/openfga/go-sdk/credentials"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/canonical/authorization-service/internal/integration/postgres"
 	"github.com/canonical/authorization-service/internal/integration/sts"
 	"github.com/canonical/authorization-service/internal/integration/valkey"
+	"github.com/canonical/authorization-service/internal/metrics"
 	ruleRepository "github.com/canonical/authorization-service/internal/repository"
 	"github.com/canonical/authorization-service/internal/service/authz"
 	"github.com/canonical/authorization-service/internal/service/listen"
@@ -176,8 +178,11 @@ func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Trace
 	return integrations, nil
 }
 
-func (i *Integrations) InitializeServices(tracer trace.Tracer, serviceLogger *slog.Logger) *Services {
-	ruleRepo := ruleRepository.NewPostgresRuleRepository(i.Postgres)
+// InitializeServices builds the business-logic services. reg registers the
+// recorders backing each service's Metrics seam; pass a fresh
+// internal/metrics.NewRegistry() per process.
+func (i *Integrations) InitializeServices(tracer trace.Tracer, serviceLogger *slog.Logger, reg *prometheus.Registry) *Services {
+	ruleRepo := ruleRepository.NewPostgresRuleRepository(i.Postgres, metrics.NewRepositoryRecorder(reg))
 	matcher := rules.NewRuleMatcher()
 	resolver := rules.NewTupleResolver()
 	resourceMapper := rules.NewResourceMapper(ruleRepo, matcher, resolver)
@@ -190,8 +195,8 @@ func (i *Integrations) InitializeServices(tracer trace.Tracer, serviceLogger *sl
 	})
 
 	return &Services{
-		Permissions:   permissions.NewService(i.Valkey, serviceLogger),
-		ExternalAuthz: authz.NewExternalAuthzService(verifier, i.STS, resourceMapper, i.OpenFGA, i.MultitenancyEnabled, serviceLogger, tracer),
+		Permissions:   permissions.NewService(i.Valkey, metrics.NewPermissionsRecorder(reg), serviceLogger),
+		ExternalAuthz: authz.NewExternalAuthzService(verifier, i.STS, resourceMapper, i.OpenFGA, i.MultitenancyEnabled, metrics.NewCheckRecorder(reg), serviceLogger, tracer),
 	}
 }
 

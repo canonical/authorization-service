@@ -26,8 +26,9 @@ var _ ServiceInterface = (*Service)(nil)
 
 // Service handles permission registration and management
 type Service struct {
-	cache  valkey.CacheClientInterface
-	logger *slog.Logger
+	cache   valkey.CacheClientInterface
+	metrics Metrics
+	logger  *slog.Logger
 }
 
 // Permission represents a service's permission definition
@@ -40,17 +41,24 @@ type Permission struct {
 	RegisteredAt time.Time              `json:"registered_at"`
 }
 
-// NewService creates a new permissions service
-func NewService(cache valkey.CacheClientInterface, logger *slog.Logger) *Service {
+// NewService creates a new permissions service. If metrics is nil a no-op is used.
+func NewService(cache valkey.CacheClientInterface, metrics Metrics, logger *slog.Logger) *Service {
+	if metrics == nil {
+		metrics = NoopMetrics{}
+	}
 	return &Service{
-		cache:  cache,
-		logger: logger,
+		cache:   cache,
+		metrics: metrics,
+		logger:  logger,
 	}
 }
 
 // Register registers or updates permissions for a service
-func (s *Service) Register(ctx context.Context, serviceID, serviceName string, permissions map[string]interface{}, version string) (*Permission, error) {
-	perm := &Permission{
+func (s *Service) Register(ctx context.Context, serviceID, serviceName string, permissions map[string]interface{}, version string) (perm *Permission, err error) {
+	start := time.Now()
+	defer func() { s.metrics.ObserveOperation("register", err, time.Since(start)) }()
+
+	perm = &Permission{
 		ID:           uuid.New().String(),
 		ServiceID:    serviceID,
 		ServiceName:  serviceName,
@@ -74,23 +82,29 @@ func (s *Service) Register(ctx context.Context, serviceID, serviceName string, p
 }
 
 // Get retrieves permissions for a service
-func (s *Service) Get(ctx context.Context, serviceID string) (*Permission, error) {
+func (s *Service) Get(ctx context.Context, serviceID string) (perm *Permission, err error) {
+	start := time.Now()
+	defer func() { s.metrics.ObserveOperation("get", err, time.Since(start)) }()
+
 	key := fmt.Sprintf("permissions:%s", serviceID)
 	data, err := s.cache.Get(ctx, key)
 	if err != nil {
 		return nil, fmt.Errorf("permission not found: %w", err)
 	}
 
-	var perm Permission
-	if err := json.Unmarshal([]byte(data), &perm); err != nil {
+	var p Permission
+	if err := json.Unmarshal([]byte(data), &p); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal permission: %w", err)
 	}
 
-	return &perm, nil
+	return &p, nil
 }
 
 // Delete removes permissions for a service
-func (s *Service) Delete(ctx context.Context, serviceID string) error {
+func (s *Service) Delete(ctx context.Context, serviceID string) (err error) {
+	start := time.Now()
+	defer func() { s.metrics.ObserveOperation("delete", err, time.Since(start)) }()
+
 	key := fmt.Sprintf("permissions:%s", serviceID)
 	if err := s.cache.Delete(ctx, key); err != nil {
 		return fmt.Errorf("failed to delete permission: %w", err)
