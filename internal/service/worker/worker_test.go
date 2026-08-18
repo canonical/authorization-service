@@ -67,7 +67,7 @@ func TestWorker_ProcessesClaimedBatch(t *testing.T) {
 	proc := &recordingProcessor{done: make(chan struct{}), limit: 2}
 
 	doneCh := proc.done
-	w := NewWorker(repo, proc, 100, 5*time.Millisecond, time.Minute, testLogger())
+	w := NewWorker(repo, proc, 100, 5*time.Millisecond, time.Minute, nil, testLogger())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -96,7 +96,7 @@ func TestWorker_ClaimError_StopsLoop(t *testing.T) {
 	repo := &claimRepo{claimErr: expectedErr}
 	proc := &recordingProcessor{limit: 1}
 
-	w := NewWorker(repo, proc, 100, 5*time.Millisecond, time.Minute, testLogger())
+	w := NewWorker(repo, proc, 100, 5*time.Millisecond, time.Minute, nil, testLogger())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -133,7 +133,7 @@ func TestWorker_BatchSortingByEventTime(t *testing.T) {
 	proc := &recordingProcessor{done: make(chan struct{}), limit: 4}
 	doneCh := proc.done
 
-	w := NewWorker(repo, proc, 100, 5*time.Millisecond, time.Minute, testLogger())
+	w := NewWorker(repo, proc, 100, 5*time.Millisecond, time.Minute, nil, testLogger())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

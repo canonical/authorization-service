@@ -32,7 +32,7 @@ func (a *multitenancyFakeApplier) ApplyTuples(_ context.Context, writes []client
 
 func TestWorker_MultitenancyEnabled_Integration(t *testing.T) {
 	client, pool := newTestPostgres(t)
-	repo := repository.NewPostgresPermissionWorkRepository(client)
+	repo := repository.NewPostgresPermissionWorkRepository(client, nil)
 
 	suffix := suite.UniqueSuffix()
 	idem := "worker-multitenancy-" + suffix
@@ -44,7 +44,7 @@ func TestWorker_MultitenancyEnabled_Integration(t *testing.T) {
 	applier := &multitenancyFakeApplier{}
 	// Create Processor with multitenancyEnabled = true
 	proc := worker.NewProcessor(repo, applier, listen.NewDecoder(), 5, true, nil, suite.TestLogger)
-	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, suite.TestLogger)
+	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, nil, suite.TestLogger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -84,7 +84,7 @@ func TestWorker_MultitenancyEnabled_Integration(t *testing.T) {
 
 func TestWorker_MultitenancyDisabled_Integration(t *testing.T) {
 	client, pool := newTestPostgres(t)
-	repo := repository.NewPostgresPermissionWorkRepository(client)
+	repo := repository.NewPostgresPermissionWorkRepository(client, nil)
 
 	suffix := suite.UniqueSuffix()
 	idem := "worker-no-multitenancy-" + suffix
@@ -96,7 +96,7 @@ func TestWorker_MultitenancyDisabled_Integration(t *testing.T) {
 	applier := &multitenancyFakeApplier{}
 	// Create Processor with multitenancyEnabled = false
 	proc := worker.NewProcessor(repo, applier, listen.NewDecoder(), 5, false, nil, suite.TestLogger)
-	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, suite.TestLogger)
+	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, nil, suite.TestLogger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

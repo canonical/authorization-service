@@ -45,7 +45,7 @@ func TestReaper_ReclaimsStaleRows(t *testing.T) {
 		done:         make(chan struct{}),
 	}
 	doneCh := repo.done
-	r := NewReaper(repo, 15*time.Minute, 5*time.Millisecond, testLogger())
+	r := NewReaper(repo, 15*time.Minute, 5*time.Millisecond, nil, testLogger())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -81,7 +81,7 @@ func TestReaper_ErrorStopsLoop(t *testing.T) {
 		limit:      1,
 		done:       make(chan struct{}),
 	}
-	r := NewReaper(repo, 10*time.Minute, 5*time.Millisecond, testLogger())
+	r := NewReaper(repo, 10*time.Minute, 5*time.Millisecond, nil, testLogger())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

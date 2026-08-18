@@ -123,7 +123,7 @@ func TestExternalAuthzService_Check_NoSubjectEarlyReturn(t *testing.T) {
 	mockResourceMapper.EXPECT().Map(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 	mockOpenFGA.EXPECT().BatchCheck(gomock.Any()).Times(0)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, nil, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "session_id=abc123xyz"}, "GET", "/api/resource",
@@ -156,7 +156,7 @@ func TestExternalAuthzService_Check_NoCookieHeader(t *testing.T) {
 	mockSTS.EXPECT().ExchangeSession(gomock.Any(), gomock.Any()).Times(0)
 	mockVerifier.EXPECT().Verify(gomock.Any(), gomock.Any()).Times(0)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, nil, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(map[string]string{}, "GET", "/api"))
 	if err != nil {
@@ -189,7 +189,7 @@ func TestExternalAuthzService_Check_NoSessionCookie(t *testing.T) {
 	mockSTS.EXPECT().ExchangeSession(gomock.Any(), gomock.Any()).Times(0)
 	mockVerifier.EXPECT().Verify(gomock.Any(), gomock.Any()).Times(0)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, nil, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "other-cookie=value123; another=value456"}, "GET", "/api",
@@ -226,7 +226,7 @@ func TestExternalAuthzService_Check_ExchangeSessionError(t *testing.T) {
 		Times(1)
 	mockVerifier.EXPECT().Verify(gomock.Any(), gomock.Any()).Times(0)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, nil, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "session_id=invalid-session"}, "GET", "/api",
@@ -279,7 +279,7 @@ func TestExternalAuthzService_Check_ResourceMapperError(t *testing.T) {
 		Times(1)
 	mockOpenFGA.EXPECT().BatchCheck(gomock.Any()).Times(0)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, nil, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "session_id=mysession"}, "GET", "/api/resource",
@@ -328,7 +328,7 @@ func TestExternalAuthzService_Check_NoMatchingRules(t *testing.T) {
 		Times(1)
 	mockOpenFGA.EXPECT().BatchCheck(gomock.Any()).Times(0)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, nil, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "session_id=mysession"}, "DELETE", "/api/resource",
@@ -379,7 +379,7 @@ func TestExternalAuthzService_Check_QueryStringStripped(t *testing.T) {
 		Return([]client.ClientBatchCheckItem{}, nil, nil).
 		Times(1)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, nil, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	// Path contains a query string that should be stripped.
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
@@ -437,7 +437,7 @@ func TestExternalAuthzService_Check_FGABatchCheckError(t *testing.T) {
 		Return(batchReqMock).
 		Times(1)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, nil, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "session_id=s"}, "GET", "/api/resource",
@@ -498,7 +498,7 @@ func TestExternalAuthzService_Check_FGAResultNotOK(t *testing.T) {
 		Return(batchReqMock).
 		Times(1)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, nil, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "session_id=s"}, "GET", "/api/resource",
@@ -562,7 +562,7 @@ func TestExternalAuthzService_Check_FGAResultHasError(t *testing.T) {
 		Return(batchReqMock).
 		Times(1)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, nil, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "session_id=s"}, "GET", "/api/resource",
@@ -626,7 +626,7 @@ func TestExternalAuthzService_Check_FGAAccessDenied(t *testing.T) {
 		Return(batchReqMock).
 		Times(1)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, nil, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "session_id=s"}, "GET", "/api/resource",
@@ -695,7 +695,7 @@ func TestExternalAuthzService_Check_FullSuccess(t *testing.T) {
 		Return(batchReqMock).
 		Times(1)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, nil, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "session_id=valid-session"}, "GET", "/api/resource",
@@ -745,7 +745,7 @@ func TestExternalAuthzService_Check_MultipleCookies(t *testing.T) {
 		Return(nil, fmt.Errorf("token does not contain a 'sub' claim")).
 		Times(1)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, nil, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "foo=bar; session_id=mysessionvalue; baz=qux"}, "GET", "/api",
@@ -785,7 +785,7 @@ func TestExternalAuthzService_Check_CookieWithSpaces(t *testing.T) {
 		Return(nil, fmt.Errorf("token does not contain a 'sub' claim")).
 		Times(1)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, nil, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "  foo=bar  ;  session_id=spaced-value  ;  baz=qux  "}, "GET", "/api",
@@ -811,7 +811,7 @@ func TestExternalAuthzService_Register(t *testing.T) {
 
 	mockVerifier.EXPECT().Verify(gomock.Any(), gomock.Any()).Times(0)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, nil, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	// Verify the service implements the interface — compile-time check suffices.
 	var _ ExternalAuthzServiceInterface = svc
@@ -1049,7 +1049,7 @@ func TestNewExternalAuthzService(t *testing.T) {
 
 	mockVerifier.EXPECT().Verify(gomock.Any(), gomock.Any()).Times(0)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, logger, tracer)
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, nil, logger, tracer)
 
 	if svc == nil {
 		t.Fatal("NewExternalAuthzService returned nil")
@@ -1147,7 +1147,7 @@ func TestExternalAuthzService_Check_Multitenancy(t *testing.T) {
 				Return(batchReqMock).
 				Times(1)
 
-			svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, tc.multitenancyEnabled, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+			svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, tc.multitenancyEnabled, nil, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 			resp, err := svc.Check(context.Background(), buildCheckRequest(
 				map[string]string{"cookie": "session_id=valid-session"}, "GET", "/api/resource",
@@ -1194,7 +1194,7 @@ func TestExternalAuthzService_Check_Multitenancy_MissingTenant(t *testing.T) {
 		Return(tuples, &rules.RuleWithTuples{Id: "rule-1", Tenant: nil}, nil).
 		Times(1)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, true, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, true, nil, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "session_id=valid-session"}, "GET", "/api/resource",
@@ -1240,7 +1240,7 @@ func TestExternalAuthzService_Check_MissingMatchedRule(t *testing.T) {
 		Return(tuples, nil, nil).
 		Times(1)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, nil, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "session_id=valid-session"}, "GET", "/api/resource",

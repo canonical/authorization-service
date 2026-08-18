@@ -186,6 +186,7 @@ func TestCheck_EnvoyIntegration(t *testing.T) {
 		mockResourceMapper,
 		fgaClient,
 		true, // multitenancyEnabled = true
+		nil,
 		suite.TestLogger,
 		noop.NewTracerProvider().Tracer("test"),
 	)
@@ -362,6 +363,7 @@ static_resources:
 		mockResourceMapper,
 		fgaClient,
 		false, // multitenancyEnabled = false
+		nil,
 		suite.TestLogger,
 		noop.NewTracerProvider().Tracer("test"),
 	)

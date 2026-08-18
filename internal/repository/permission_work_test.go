@@ -53,7 +53,7 @@ func TestPermissionWork_Insert_Success(t *testing.T) {
 			return pool.Exec(ctx, "test")
 		})
 
-	repo := NewPostgresPermissionWorkRepository(mockDB)
+	repo := NewPostgresPermissionWorkRepository(mockDB, nil)
 	if err := repo.Insert(context.Background(), sampleRow()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestPermissionWork_Insert_Duplicate(t *testing.T) {
 			return pool.Exec(ctx, "test")
 		})
 
-	repo := NewPostgresPermissionWorkRepository(mockDB)
+	repo := NewPostgresPermissionWorkRepository(mockDB, nil)
 	err := repo.Insert(context.Background(), sampleRow())
 	if !errors.Is(err, ErrDuplicate) {
 		t.Fatalf("expected ErrDuplicate, got %v", err)
@@ -86,7 +86,7 @@ func TestPermissionWork_Insert_OtherError(t *testing.T) {
 			return pool.Exec(ctx, "test")
 		})
 
-	repo := NewPostgresPermissionWorkRepository(mockDB)
+	repo := NewPostgresPermissionWorkRepository(mockDB, nil)
 	err := repo.Insert(context.Background(), sampleRow())
 	if err == nil || errors.Is(err, ErrDuplicate) {
 		t.Fatalf("expected non-duplicate error, got %v", err)
@@ -115,7 +115,7 @@ func TestPermissionWork_ClaimBatch_Success(t *testing.T) {
 			return pool.Begin(ctx)
 		})
 
-	repo := NewPostgresPermissionWorkRepository(mockDB)
+	repo := NewPostgresPermissionWorkRepository(mockDB, nil)
 	rows, err := repo.ClaimBatch(context.Background(), 20, 5*time.Minute)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -145,7 +145,7 @@ func TestPermissionWork_ClaimBatch_Empty(t *testing.T) {
 			return pool.Begin(ctx)
 		})
 
-	repo := NewPostgresPermissionWorkRepository(mockDB)
+	repo := NewPostgresPermissionWorkRepository(mockDB, nil)
 	rows, err := repo.ClaimBatch(context.Background(), 20, 5*time.Minute)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -187,7 +187,7 @@ func TestPermissionWork_RecordProcessed_Success(t *testing.T) {
 			return pool.Begin(ctx)
 		})
 
-	repo := NewPostgresPermissionWorkRepository(mockDB)
+	repo := NewPostgresPermissionWorkRepository(mockDB, nil)
 	err := repo.RecordProcessed(context.Background(), "row-1", "payments",
 		[]permissions.Tuple{
 			{Subject: "user:u1", Relation: "viewer", Object: "doc:d1"},
@@ -213,7 +213,7 @@ func TestPermissionWork_MarkFailed(t *testing.T) {
 			return pool.Exec(ctx, "test")
 		})
 
-	repo := NewPostgresPermissionWorkRepository(mockDB)
+	repo := NewPostgresPermissionWorkRepository(mockDB, nil)
 	if err := repo.MarkFailed(context.Background(), "row-1", "openfga_write_rejected", "bad input"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -238,7 +238,7 @@ func TestPermissionWork_MarkRetry(t *testing.T) {
 					return pool.Exec(ctx, "test")
 				})
 
-			repo := NewPostgresPermissionWorkRepository(mockDB)
+			repo := NewPostgresPermissionWorkRepository(mockDB, nil)
 			if err := repo.MarkRetry(context.Background(), "row-1", "code", "msg", tc.incAttempt); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -263,7 +263,7 @@ func TestPermissionWork_ReclaimStale(t *testing.T) {
 			return pool.Begin(ctx)
 		})
 
-	repo := NewPostgresPermissionWorkRepository(mockDB)
+	repo := NewPostgresPermissionWorkRepository(mockDB, nil)
 	n, err := repo.ReclaimStale(context.Background(), 15*time.Minute)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

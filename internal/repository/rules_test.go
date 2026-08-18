@@ -146,7 +146,7 @@ func TestBuildPrefixes(t *testing.T) {
 
 func TestBuildFindCandidatesQuery(t *testing.T) {
 	mockDB, _ := setupMocks(t)
-	repo := NewPostgresRuleRepository(mockDB)
+	repo := NewPostgresRuleRepository(mockDB, nil)
 
 	sql, args, err := repo.buildFindCandidatesQuery("GET", []string{"/api", "/api/v1", "/api/v1/groups", "/api/v1/groups/123"}, 4)
 	if err != nil {
@@ -196,7 +196,7 @@ func TestBuildFindCandidatesQuery(t *testing.T) {
 
 func TestNewPostgresRuleRepository(t *testing.T) {
 	mockDB, _ := setupMocks(t)
-	repo := NewPostgresRuleRepository(mockDB)
+	repo := NewPostgresRuleRepository(mockDB, nil)
 	if repo == nil {
 		t.Fatal("expected non-nil repository")
 	}
@@ -206,7 +206,7 @@ func TestNewPostgresRuleRepository(t *testing.T) {
 
 func TestFindCandidates_EmptyInputs(t *testing.T) {
 	mockDB, _ := setupMocks(t)
-	repo := NewPostgresRuleRepository(mockDB)
+	repo := NewPostgresRuleRepository(mockDB, nil)
 
 	tests := []struct {
 		name   string
@@ -243,7 +243,7 @@ var ruleColumns = []string{
 
 func TestFindCandidates_SingleRuleSingleTuple(t *testing.T) {
 	mockDB, pool := setupMocks(t)
-	repo := NewPostgresRuleRepository(mockDB)
+	repo := NewPostgresRuleRepository(mockDB, nil)
 
 	rows := pool.NewRows(ruleColumns).AddRow(
 		"1", "10", "GET", 4, "/api/v1/groups/", `^/api/v1/groups/(?<groupId>\d+)$`, 0,
@@ -314,7 +314,7 @@ func TestFindCandidates_SingleRuleSingleTuple(t *testing.T) {
 
 func TestFindCandidates_SingleRuleMultipleTuples(t *testing.T) {
 	mockDB, pool := setupMocks(t)
-	repo := NewPostgresRuleRepository(mockDB)
+	repo := NewPostgresRuleRepository(mockDB, nil)
 
 	rows := pool.NewRows(ruleColumns).
 		AddRow("1", "10", "POST", 3, "/api/v1/", `^/api/v1/items$`, 0, "payments", nil, "rev-1", "100", "1", "user", "read", "item", "static-val").
@@ -348,7 +348,7 @@ func TestFindCandidates_SingleRuleMultipleTuples(t *testing.T) {
 
 func TestFindCandidates_MultipleRules(t *testing.T) {
 	mockDB, pool := setupMocks(t)
-	repo := NewPostgresRuleRepository(mockDB)
+	repo := NewPostgresRuleRepository(mockDB, nil)
 
 	rows := pool.NewRows(ruleColumns).
 		AddRow("1", "10", "GET", 2, "/api/", `^/api/v1$`, 0, "payments", nil, "rev-1", "100", "1", "user", "read", "api", "v1").
@@ -379,7 +379,7 @@ func TestFindCandidates_MultipleRules(t *testing.T) {
 
 func TestFindCandidates_NoRows(t *testing.T) {
 	mockDB, pool := setupMocks(t)
-	repo := NewPostgresRuleRepository(mockDB)
+	repo := NewPostgresRuleRepository(mockDB, nil)
 
 	rows := pool.NewRows(ruleColumns)
 
@@ -401,7 +401,7 @@ func TestFindCandidates_NoRows(t *testing.T) {
 
 func TestFindCandidates_QueryError(t *testing.T) {
 	mockDB, _ := setupMocks(t)
-	repo := NewPostgresRuleRepository(mockDB)
+	repo := NewPostgresRuleRepository(mockDB, nil)
 
 	dbErr := errors.New("connection refused")
 	mockDB.EXPECT().
@@ -422,7 +422,7 @@ func TestFindCandidates_QueryError(t *testing.T) {
 
 func TestFindCandidates_ScanError(t *testing.T) {
 	mockDB, pool := setupMocks(t)
-	repo := NewPostgresRuleRepository(mockDB)
+	repo := NewPostgresRuleRepository(mockDB, nil)
 
 	// Return a row with wrong number of columns to trigger a scan error.
 	rows := pool.NewRows([]string{"id"}).AddRow("bad")
@@ -445,7 +445,7 @@ func TestFindCandidates_ScanError(t *testing.T) {
 
 func TestFindCandidates_RowsError(t *testing.T) {
 	mockDB, pool := setupMocks(t)
-	repo := NewPostgresRuleRepository(mockDB)
+	repo := NewPostgresRuleRepository(mockDB, nil)
 
 	rowErr := errors.New("unexpected EOF")
 	rows := pool.NewRows(ruleColumns).
@@ -485,7 +485,7 @@ func TestFindCandidates_BuildQueryError(t *testing.T) {
 		Return(sq.StatementBuilder.PlaceholderFormat(sq.Dollar).Where(brokenSqlizer{})).
 		AnyTimes()
 
-	repo := NewPostgresRuleRepository(mockDB)
+	repo := NewPostgresRuleRepository(mockDB, nil)
 
 	result, err := repo.FindCandidates(context.Background(), "GET", "/test")
 	if err == nil {
@@ -501,7 +501,7 @@ func TestFindCandidates_BuildQueryError(t *testing.T) {
 
 func TestFindCandidates_SegmentCountAndPrefixesComputedFromPath(t *testing.T) {
 	mockDB, pool := setupMocks(t)
-	repo := NewPostgresRuleRepository(mockDB)
+	repo := NewPostgresRuleRepository(mockDB, nil)
 
 	rows := pool.NewRows(ruleColumns)
 

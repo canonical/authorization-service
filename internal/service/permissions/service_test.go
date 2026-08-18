@@ -30,7 +30,7 @@ func TestServiceRegister(t *testing.T) {
 		Return(nil).
 		Times(1)
 
-	svc := NewService(mockCache, testLogger(t))
+	svc := NewService(mockCache, nil, testLogger(t))
 
 	perm, err := svc.Register(context.Background(), "test-service", "Test Service",
 		map[string]interface{}{"read": true, "write": false}, "v1")
@@ -62,7 +62,7 @@ func TestServiceGet(t *testing.T) {
 		Return(`{"id":"test-id","service_id":"test-service","service_name":"Test Service","permissions":{"read":true},"version":"v1","registered_at":"2024-01-01T00:00:00Z"}`, nil).
 		Times(1)
 
-	svc := NewService(mockCache, testLogger(t))
+	svc := NewService(mockCache, nil, testLogger(t))
 
 	perm, err := svc.Get(context.Background(), "test-service")
 
@@ -87,7 +87,7 @@ func TestServiceDelete(t *testing.T) {
 		Return(nil).
 		Times(1)
 
-	svc := NewService(mockCache, testLogger(t))
+	svc := NewService(mockCache, nil, testLogger(t))
 
 	err := svc.Delete(context.Background(), "test-service")
 

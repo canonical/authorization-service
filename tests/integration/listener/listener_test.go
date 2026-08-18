@@ -41,7 +41,7 @@ func newTestListener(t *testing.T, group string, db postgres.DBClientInterface) 
 	}
 	t.Cleanup(func() { kafkaClient.Close() })
 
-	repo := repository.NewPostgresPermissionWorkRepository(db)
+	repo := repository.NewPostgresPermissionWorkRepository(db, nil)
 	ingestor := listen.NewIngestionService(
 		registry, listen.NewDecoder(), listen.NewValidator(), repo, nil, suite.TestLogger,
 	)
