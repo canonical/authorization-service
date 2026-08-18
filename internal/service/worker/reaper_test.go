@@ -45,7 +45,8 @@ func TestReaper_ReclaimsStaleRows(t *testing.T) {
 		done:         make(chan struct{}),
 	}
 	doneCh := repo.done
-	r := NewReaper(repo, 15*time.Minute, 5*time.Millisecond, nil, testLogger())
+	metrics := &fakeMetrics{}
+	r := NewReaper(repo, 15*time.Minute, 5*time.Millisecond, metrics, testLogger())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -71,6 +72,14 @@ func TestReaper_ReclaimsStaleRows(t *testing.T) {
 	}
 	if repo.reclaims[0] != 15*time.Minute {
 		t.Fatalf("expected stale timeout 15m, got %s", repo.reclaims[0])
+	}
+
+	reclaimed := metrics.reclaimedCounts()
+	if len(reclaimed) == 0 || reclaimed[0] != 3 {
+		t.Fatalf("expected first ObserveReclaim call with count 3, got %v", reclaimed)
+	}
+	if got := metrics.lastRunCount(); got == 0 {
+		t.Fatalf("expected SetLastRunTimestamp to be called at least once, got 0")
 	}
 }
 
