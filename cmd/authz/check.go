@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/canonical/authorization-service/config"
+	"github.com/canonical/authorization-service/internal/metrics"
 )
 
 var (
@@ -64,7 +65,8 @@ func runCheck(cmd *cobra.Command, args []string) error {
 	}
 	defer integrations.CleanupIntegrations(logger)
 
-	services := integrations.InitializeServices(tracer, logger)
+	// This is a one-off debugging command, not continuously scraped, so the registry is discarded.
+	services := integrations.InitializeServices(tracer, logger, metrics.NewRegistry())
 
 	// Build a mock CheckRequest
 	checkReq := &authv3.CheckRequest{

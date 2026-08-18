@@ -43,7 +43,8 @@ func runReaperCmd(cmd *cobra.Command, _ []string) error {
 	}
 	defer integrations.CleanupIntegrations(logger)
 
-	workRepo := repository.NewPostgresPermissionWorkRepository(integrations.Postgres)
+	// This is a one-off batch job, not continuously scraped, so no metrics recorder is wired.
+	workRepo := repository.NewPostgresPermissionWorkRepository(integrations.Postgres, nil)
 
 	logger.Info("Reclaiming stale rows...", "stale_timeout", cfg.Worker.StaleTimeout.String())
 	count, err := workRepo.ReclaimStale(cmd.Context(), cfg.Worker.StaleTimeout)
