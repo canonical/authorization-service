@@ -10,8 +10,11 @@ import (
 	"net/http"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/canonical/authorization-service/internal/metrics"
 )
 
 // ServerConfig represents server configuration
@@ -26,8 +29,9 @@ type Gateway struct {
 	logger *slog.Logger
 }
 
-// NewGateway creates a new REST API gateway
-func NewGateway(cfg ServerConfig, logger *slog.Logger) (*Gateway, error) {
+// NewGateway creates a new REST API gateway. reg registers the request-count
+// and latency collectors; pass a fresh internal/metrics.NewRegistry() per process.
+func NewGateway(cfg ServerConfig, reg *prometheus.Registry, logger *slog.Logger) (*Gateway, error) {
 	mux := runtime.NewServeMux(
 		runtime.WithHealthEndpointAt(nil, "/healthz"),
 	)
@@ -37,9 +41,10 @@ func NewGateway(cfg ServerConfig, logger *slog.Logger) (*Gateway, error) {
 		logger: logger,
 	}
 
+	restMetrics := metrics.NewRESTMetrics(reg)
 	server := &http.Server{
 		Addr:    cfg.GetHTTPAddress(),
-		Handler: loggingMiddleware(mux, logger),
+		Handler: restMetrics.Middleware(loggingMiddleware(mux, logger)),
 	}
 
 	gateway.server = server
