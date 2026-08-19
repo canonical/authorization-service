@@ -23,6 +23,8 @@ import (
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/canonical/authorization-service/internal/logging"
 )
 
 // Config represents the application configuration
@@ -101,17 +103,24 @@ type PostgresConfig struct {
 	ConnectTimeout  time.Duration `validate:"" envconfig:"POSTGRES_CONNECT_TIMEOUT" mapstructure:"connect_timeout" default:"10s"`
 }
 
-func (c *LoggingConfig) SetupLogger() *slog.Logger {
+// SetupLogger builds the application logger: a JSON or text handler on
+// stdout, wrapped with trace/span correlation, tagged with static
+// service/version attributes so every line can be attributed in Grafana.
+func (c *LoggingConfig) SetupLogger(serviceName, serviceVersion string) *slog.Logger {
 	var handler slog.Handler
 	opts := &slog.HandlerOptions{
-		Level: ParseLogLevel(c.Level),
+		Level:     ParseLogLevel(c.Level),
+		AddSource: c.AddSource,
 	}
 	if c.Format == "json" {
 		handler = slog.NewJSONHandler(os.Stdout, opts)
 	} else {
 		handler = slog.NewTextHandler(os.Stdout, opts)
 	}
-	return slog.New(handler)
+	return slog.New(logging.NewTraceHandler(handler)).With(
+		"service", serviceName,
+		"version", serviceVersion,
+	)
 }
 
 // STSConfig contains Secure Token Service configuration
@@ -226,8 +235,9 @@ func (m *MetricsConfig) GetAddress(host string) string {
 
 // LoggingConfig contains logging configuration
 type LoggingConfig struct {
-	Level  string `validate:"required,oneof=debug info warn error" envconfig:"LOG_LEVEL" mapstructure:"level" default:"info"`
-	Format string `validate:"required,oneof=json text" envconfig:"LOG_FORMAT" mapstructure:"format" default:"json"`
+	Level     string `validate:"required,oneof=debug info warn error" envconfig:"LOG_LEVEL" mapstructure:"level" default:"info"`
+	Format    string `validate:"required,oneof=json text" envconfig:"LOG_FORMAT" mapstructure:"format" default:"json"`
+	AddSource bool   `validate:"" envconfig:"LOG_ADD_SOURCE" mapstructure:"add_source" default:"false"`
 }
 
 // TelemetryConfig contains telemetry configuration

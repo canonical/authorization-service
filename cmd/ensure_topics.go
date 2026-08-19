@@ -11,6 +11,7 @@ import (
 	"github.com/canonical/authorization-service/config"
 	kafkaintegration "github.com/canonical/authorization-service/internal/integration/kafka"
 	"github.com/canonical/authorization-service/internal/service/listen"
+	"github.com/canonical/authorization-service/internal/version"
 )
 
 var ensureTopicsCmd = &cobra.Command{
@@ -29,7 +30,7 @@ func runEnsureTopics(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	logger := cfg.Logging.SetupLogger()
+	logger := cfg.Logging.SetupLogger(cfg.Telemetry.ServiceName, version.Version)
 
 	registry, err := listen.NewServiceRegistry(cfg.Kafka.FederatedServices)
 	if err != nil {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/canonical/authorization-service/config"
 	"github.com/canonical/authorization-service/internal/repository"
+	"github.com/canonical/authorization-service/internal/version"
 )
 
 var reaperCmd = &cobra.Command{
@@ -29,7 +30,7 @@ func runReaperCmd(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	logger := cfg.Logging.SetupLogger()
+	logger := cfg.Logging.SetupLogger(cfg.Telemetry.ServiceName, version.Version)
 	logger.Info("Starting one-off stale-row reaper run")
 
 	tracer, tracerShutdown, err := cfg.Telemetry.SetupTelemetry(cmd.Context(), logger)

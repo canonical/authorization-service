@@ -39,7 +39,7 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	logger := cfg.Logging.SetupLogger()
+	logger := cfg.Logging.SetupLogger(cfg.Telemetry.ServiceName, version.Version)
 	logger.Info("Starting permission-update worker", "version", version.Version)
 
 	tracer, tracerShutdown, err := cfg.Telemetry.SetupTelemetry(cmd.Context(), logger)
@@ -125,6 +125,8 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 			err := metricsServer.ListenAndServe()
 			if errors.Is(err, http.ErrServerClosed) {
 				err = nil
+			} else if err != nil {
+				logger.Error("Metrics server failed", "error", err)
 			}
 			errChan <- componentResult{name: "metrics", err: err}
 		}()
@@ -135,8 +137,8 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 
 	select {
 	case res := <-errChan:
+		logger.Info("Component stopped", "component", res.name)
 		if res.err != nil {
-			logger.Error("Component error", "component", res.name, "error", res.err)
 			cancel()
 			return fmt.Errorf("%s component failed: %w", res.name, res.err)
 		}
@@ -157,11 +159,10 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 	// Wait for all started components to exit
 	var firstErr error
 	for i := 0; i < numComponents; i++ {
-		if res := <-errChan; res.err != nil {
-			logger.Error("Error during component shutdown", "component", res.name, "error", res.err)
-			if firstErr == nil {
-				firstErr = fmt.Errorf("%s component failed: %w", res.name, res.err)
-			}
+		res := <-errChan
+		logger.Info("Component stopped", "component", res.name)
+		if res.err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("%s component failed: %w", res.name, res.err)
 		}
 	}
 	if firstErr != nil {
