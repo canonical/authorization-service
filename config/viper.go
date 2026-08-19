@@ -4,6 +4,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -13,6 +14,12 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
+
+// ErrConfigLoad wraps every error LoadConfig returns, so callers (notably
+// cmd.Execute, which runs before any logger exists) can distinguish a
+// config-load failure from an error already logged by a command that got
+// further than LoadConfig.
+var ErrConfigLoad = errors.New("failed to load configuration")
 
 // LoadConfig loads the configuration from default values, config file, environment variables, and CLI flags.
 func LoadConfig(cmd *cobra.Command) (*Config, error) {
@@ -47,7 +54,7 @@ func LoadConfig(cmd *cobra.Command) (*Config, error) {
 
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok || cfgFile != "" {
-			return nil, fmt.Errorf("failed to read config file: %w", err)
+			return nil, fmt.Errorf("%w: failed to read config file: %w", ErrConfigLoad, err)
 		}
 	}
 
@@ -60,12 +67,12 @@ func LoadConfig(cmd *cobra.Command) (*Config, error) {
 			mapstructure.StringToTimeDurationHookFunc(),
 		)
 	}); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal configuration: %w", err)
+		return nil, fmt.Errorf("%w: failed to unmarshal configuration: %w", ErrConfigLoad, err)
 	}
 
 	// 6. Perform Struct Validation
 	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("configuration validation failed: %w", err)
+		return nil, fmt.Errorf("%w: configuration validation failed: %w", ErrConfigLoad, err)
 	}
 
 	return cfg, nil

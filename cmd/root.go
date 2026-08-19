@@ -4,12 +4,15 @@
 package cmd
 
 import (
-	"fmt"
+	"encoding/json"
+	"errors"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/canonical/authorization-service/cmd/authz"
+	"github.com/canonical/authorization-service/config"
 	"github.com/canonical/authorization-service/internal/version"
 )
 
@@ -33,10 +36,32 @@ It provides:
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	err := rootCmd.Execute()
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+	if err == nil {
+		return
 	}
+
+	// Every RunE logs its own error, with domain context, before returning it,
+	// except for a config.LoadConfig failure: it happens before
+	// cfg.Logging.SetupLogger() can build a logger. Emit a hand-built JSON line
+	// for that one case so stdout/stderr never mixes structured and
+	// unstructured output; otherwise just set a non-zero exit code.
+	if errors.Is(err, config.ErrConfigLoad) {
+		fallback := struct {
+			Time  string `json:"time"`
+			Level string `json:"level"`
+			Msg   string `json:"msg"`
+			Error string `json:"error"`
+		}{
+			Time:  time.Now().Format(time.RFC3339Nano),
+			Level: "ERROR",
+			Msg:   "fatal error before logger initialized",
+			Error: err.Error(),
+		}
+		encoded, _ := json.Marshal(fallback)
+		_, _ = os.Stderr.Write(append(encoded, '\n'))
+	}
+
+	os.Exit(1)
 }
 
 var configFile string
