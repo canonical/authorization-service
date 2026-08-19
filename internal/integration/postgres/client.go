@@ -186,12 +186,12 @@ func (c *Client) Query(ctx context.Context, query string, args ...interface{}) (
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		c.logger.Error("Failed to execute query", "query", query, "error", err, "duration_ms", duration.Milliseconds())
+		c.logger.Error("Failed to execute query", "error", err, "duration_ms", duration.Milliseconds())
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
-	c.logger.Debug("Query executed", "query", query, "duration_ms", duration.Milliseconds())
+	c.logger.Debug("Query executed", "duration_ms", duration.Milliseconds())
 	return rows, nil
 }
 
@@ -202,7 +202,7 @@ func (c *Client) QueryRow(ctx context.Context, query string, args ...interface{}
 	)
 	defer span.End()
 
-	c.logger.Debug("QueryRow executed", "query", query)
+	c.logger.Debug("QueryRow executed")
 	span.SetStatus(codes.Ok, "")
 	return c.pool.QueryRow(ctx, query, args...)
 }
@@ -222,13 +222,13 @@ func (c *Client) Exec(ctx context.Context, query string, args ...interface{}) (p
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		c.logger.Error("Failed to execute statement", "query", query, "error", err, "duration_ms", duration.Milliseconds())
+		c.logger.Error("Failed to execute statement", "error", err, "duration_ms", duration.Milliseconds())
 		return pgconn.CommandTag{}, fmt.Errorf("failed to execute statement: %w", err)
 	}
 
 	span.SetAttributes(attribute.Int64("db.rows_affected", tag.RowsAffected()))
 	span.SetStatus(codes.Ok, "")
-	c.logger.Debug("Exec executed", "query", query, "rows_affected", tag.RowsAffected(), "duration_ms", duration.Milliseconds())
+	c.logger.Debug("Exec executed", "rows_affected", tag.RowsAffected(), "duration_ms", duration.Milliseconds())
 	return tag, nil
 }
 
