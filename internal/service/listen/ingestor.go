@@ -112,17 +112,17 @@ func (s *IngestionService) Ingest(ctx context.Context, msg Message) error {
 	if !ok {
 		// The consumer only subscribes to registered topics, so an unknown topic
 		// is a permanent routing error rather than something to retry.
-		return s.permanentFailure("", "", "unknown_topic",
+		return s.permanentFailure("", "", "", "unknown_topic",
 			fmt.Errorf("no federated service resolves topic %q", msg.Topic))
 	}
 
 	env, err := s.decoder.Decode(msg.Value)
 	if err != nil {
-		return s.permanentFailure(slug, "", "decode_failed", err)
+		return s.permanentFailure(slug, "", "", "decode_failed", err)
 	}
 
 	if err := s.validator.Validate(env, slug); err != nil {
-		return s.permanentFailure(slug, env.GetMessageId(), "validation_failed", err)
+		return s.permanentFailure(slug, env.GetMessageId(), env.GetCorrelationId(), "validation_failed", err)
 	}
 
 	row := permissions.WorkRow{
@@ -141,13 +141,15 @@ func (s *IngestionService) Ingest(ctx context.Context, msg Message) error {
 	switch err := s.repo.Insert(ctx, row); {
 	case err == nil:
 		s.logger.Debug("Permission update ingested",
-			"service", slug, "message_id", env.GetMessageId(), "idempotency_key", env.GetIdempotencyKey())
+			"service", slug, "message_id", env.GetMessageId(), "idempotency_key", env.GetIdempotencyKey(),
+			"correlation_id", env.GetCorrelationId())
 		s.metrics.IncIngested(slug)
 		return nil
 	case errors.Is(err, repository.ErrDuplicate):
 		// At-least-once delivery: a duplicate is a successful, idempotent no-op.
 		s.logger.Debug("Duplicate permission update ignored",
-			"service", slug, "message_id", env.GetMessageId(), "idempotency_key", env.GetIdempotencyKey())
+			"service", slug, "message_id", env.GetMessageId(), "idempotency_key", env.GetIdempotencyKey(),
+			"correlation_id", env.GetCorrelationId())
 		s.metrics.IncDuplicate(slug)
 		return nil
 	default:
@@ -158,9 +160,11 @@ func (s *IngestionService) Ingest(ctx context.Context, msg Message) error {
 }
 
 // permanentFailure logs, records a metric, and returns a PermanentError.
-func (s *IngestionService) permanentFailure(service, messageID, code string, err error) error {
+// correlationID is the empty string when the envelope hasn't been decoded yet
+// (unknown topic, decode failure).
+func (s *IngestionService) permanentFailure(service, messageID, correlationID, code string, err error) error {
 	s.logger.Error("Permanent ingestion failure",
-		"service", service, "message_id", messageID, "code", code, "error", err)
+		"service", service, "message_id", messageID, "correlation_id", correlationID, "code", code, "error", err)
 	s.metrics.IncPermanentFailure(service, messageID, code)
 	return permanent(code, err)
 }
