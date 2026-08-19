@@ -65,9 +65,10 @@ func TestWorker_ProcessesClaimedBatch(t *testing.T) {
 		{ID: "row-2", Service: "payments"},
 	}}}
 	proc := &recordingProcessor{done: make(chan struct{}), limit: 2}
+	metrics := &fakeMetrics{}
 
 	doneCh := proc.done
-	w := NewWorker(repo, proc, 100, 5*time.Millisecond, time.Minute, testLogger())
+	w := NewWorker(repo, proc, 100, 5*time.Millisecond, time.Minute, metrics, testLogger())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -89,6 +90,14 @@ func TestWorker_ProcessesClaimedBatch(t *testing.T) {
 	if len(proc.seen) < 2 {
 		t.Fatalf("expected at least 2 processed rows, got %v", proc.seen)
 	}
+
+	batchSizes := metrics.batchClaimedSizes()
+	if len(batchSizes) == 0 || batchSizes[0] != 2 {
+		t.Fatalf("expected first ObserveBatchClaimed call with size 2, got %v", batchSizes)
+	}
+	if got := metrics.rowDurationCount(); got < 2 {
+		t.Fatalf("expected ObserveRowDuration called at least twice, got %d", got)
+	}
 }
 
 func TestWorker_ClaimError_StopsLoop(t *testing.T) {
@@ -96,7 +105,7 @@ func TestWorker_ClaimError_StopsLoop(t *testing.T) {
 	repo := &claimRepo{claimErr: expectedErr}
 	proc := &recordingProcessor{limit: 1}
 
-	w := NewWorker(repo, proc, 100, 5*time.Millisecond, time.Minute, testLogger())
+	w := NewWorker(repo, proc, 100, 5*time.Millisecond, time.Minute, nil, testLogger())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -133,7 +142,7 @@ func TestWorker_BatchSortingByEventTime(t *testing.T) {
 	proc := &recordingProcessor{done: make(chan struct{}), limit: 4}
 	doneCh := proc.done
 
-	w := NewWorker(repo, proc, 100, 5*time.Millisecond, time.Minute, testLogger())
+	w := NewWorker(repo, proc, 100, 5*time.Millisecond, time.Minute, nil, testLogger())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

@@ -38,6 +38,7 @@ type Config struct {
 	Telemetry           *TelemetryConfig       `validate:"required" mapstructure:"telemetry"`
 	Kafka               *KafkaConfig           `validate:"required" mapstructure:"kafka"`
 	Worker              *WorkerConfig          `validate:"required" mapstructure:"worker"`
+	Metrics             *MetricsConfig         `validate:"required" mapstructure:"metrics"`
 }
 
 // ServerConfig contains server configuration
@@ -207,6 +208,20 @@ type WorkerConfig struct {
 	RetryBackoff   time.Duration `validate:"" envconfig:"WORKER_RETRY_BACKOFF" mapstructure:"retry_backoff" default:"5m"`
 	StaleTimeout   time.Duration `validate:"" envconfig:"WORKER_STALE_TIMEOUT" mapstructure:"stale_timeout" default:"15m"`
 	ReaperInterval time.Duration `validate:"" envconfig:"WORKER_REAPER_INTERVAL" mapstructure:"reaper_interval" default:"1m"`
+}
+
+// MetricsConfig contains configuration for the Prometheus metrics HTTP
+// endpoint exposed by each long-running binary (serve, worker, listen) on its
+// own dedicated port, as expected by the Istio mesh's Prometheus scrape config.
+type MetricsConfig struct {
+	Enabled bool   `validate:"" envconfig:"METRICS_ENABLED" mapstructure:"enabled" default:"true"`
+	Port    int    `validate:"required,min=1,max=65535" envconfig:"METRICS_PORT" mapstructure:"port" default:"9100"`
+	Path    string `validate:"required" envconfig:"METRICS_PATH" mapstructure:"path" default:"/metrics"`
+}
+
+// GetAddress returns the full metrics server address for the given host.
+func (m *MetricsConfig) GetAddress(host string) string {
+	return fmt.Sprintf("%s:%d", host, m.Port)
 }
 
 // LoggingConfig contains logging configuration

@@ -29,24 +29,30 @@ type Worker struct {
 	batchSize    int
 	pollInterval time.Duration
 	retryBackoff time.Duration
+	metrics      WorkerMetrics
 	logger       *slog.Logger
 }
 
-// NewWorker constructs a Worker.
+// NewWorker constructs a Worker. If metrics is nil a no-op is used.
 func NewWorker(
 	repo repository.PermissionWorkRepository,
 	processor RowProcessor,
 	batchSize int,
 	pollInterval time.Duration,
 	retryBackoff time.Duration,
+	metrics WorkerMetrics,
 	logger *slog.Logger,
 ) *Worker {
+	if metrics == nil {
+		metrics = NoopMetrics{}
+	}
 	return &Worker{
 		repo:         repo,
 		processor:    processor,
 		batchSize:    batchSize,
 		pollInterval: pollInterval,
 		retryBackoff: retryBackoff,
+		metrics:      metrics,
 		logger:       logger,
 	}
 }
@@ -79,6 +85,7 @@ func (w *Worker) processBatch(ctx context.Context) error {
 		w.logger.Error("Failed to claim work batch", "error", err)
 		return err
 	}
+	w.metrics.ObserveBatchClaimed(len(rows))
 	if len(rows) == 0 {
 		return nil
 	}
@@ -105,7 +112,10 @@ func (w *Worker) processBatch(ctx context.Context) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if err := w.processor.ProcessRow(ctx, row); err != nil {
+		rowStart := time.Now()
+		err := w.processor.ProcessRow(ctx, row)
+		w.metrics.ObserveRowDuration(time.Since(rowStart))
+		if err != nil {
 			// ProcessRow only returns an error if it could not record the outcome
 			// (e.g. DB unavailable). The row stays claimed and will be reclaimed by
 			// the stale-row reaper once its processing timeout elapses.

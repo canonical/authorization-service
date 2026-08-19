@@ -44,14 +44,24 @@ type Ingestor interface {
 // Metrics is the observability seam for ingestion outcomes. A no-op default is
 // used unless a real implementation is injected.
 type Metrics interface {
+	// IncIngested records a message durably persisted to the work table.
+	IncIngested(service string)
+	// IncDuplicate records a message recognised as a duplicate (idempotent no-op).
+	IncDuplicate(service string)
 	// IncPermanentFailure records a permanently-failed message for a service.
 	IncPermanentFailure(service, messageID, code string)
+	// ObserveIngestDuration records the time taken to handle a single message,
+	// from decode through persistence.
+	ObserveIngestDuration(service string, duration time.Duration)
 }
 
 // NoopMetrics is a Metrics implementation that records nothing.
 type NoopMetrics struct{}
 
-func (NoopMetrics) IncPermanentFailure(string, string, string) {}
+func (NoopMetrics) IncIngested(string)                          {}
+func (NoopMetrics) IncDuplicate(string)                         {}
+func (NoopMetrics) IncPermanentFailure(string, string, string)  {}
+func (NoopMetrics) ObserveIngestDuration(string, time.Duration) {}
 
 // IngestionService implements Ingestor: it resolves the source service from the
 // topic, decodes and validates the protobuf envelope, and appends a 'received'
@@ -93,7 +103,12 @@ func NewIngestionService(
 
 // Ingest resolves, decodes, validates and persists a single message.
 func (s *IngestionService) Ingest(ctx context.Context, msg Message) error {
-	slug, ok := s.registry.ResolveService(msg.Topic)
+	start := time.Now()
+	var slug string
+	defer func() { s.metrics.ObserveIngestDuration(slug, time.Since(start)) }()
+
+	var ok bool
+	slug, ok = s.registry.ResolveService(msg.Topic)
 	if !ok {
 		// The consumer only subscribes to registered topics, so an unknown topic
 		// is a permanent routing error rather than something to retry.
@@ -127,11 +142,13 @@ func (s *IngestionService) Ingest(ctx context.Context, msg Message) error {
 	case err == nil:
 		s.logger.Debug("Permission update ingested",
 			"service", slug, "message_id", env.GetMessageId(), "idempotency_key", env.GetIdempotencyKey())
+		s.metrics.IncIngested(slug)
 		return nil
 	case errors.Is(err, repository.ErrDuplicate):
 		// At-least-once delivery: a duplicate is a successful, idempotent no-op.
 		s.logger.Debug("Duplicate permission update ignored",
 			"service", slug, "message_id", env.GetMessageId(), "idempotency_key", env.GetIdempotencyKey())
+		s.metrics.IncDuplicate(slug)
 		return nil
 	default:
 		// Treat any other DB error as transient so the message is redelivered.

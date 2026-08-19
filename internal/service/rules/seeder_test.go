@@ -355,7 +355,7 @@ func TestSeedService(t *testing.T) {
 		defer pool.Close()
 
 		db := &mockDBClient{pool}
-		repo := repository.NewPostgresRuleRepository(db)
+		repo := repository.NewPostgresRuleRepository(db, nil)
 		seeder := NewRuleSeeder(db, repo)
 
 		// Start tx expectation
@@ -410,7 +410,7 @@ func TestSeedService(t *testing.T) {
 		defer pool.Close()
 
 		db := &mockDBClient{pool}
-		repo := repository.NewPostgresRuleRepository(db)
+		repo := repository.NewPostgresRuleRepository(db, nil)
 		seeder := NewRuleSeeder(db, repo)
 
 		pool.ExpectBegin()
@@ -442,7 +442,7 @@ func TestSeedService(t *testing.T) {
 		defer pool.Close()
 
 		db := &mockDBClient{pool}
-		repo := repository.NewPostgresRuleRepository(db)
+		repo := repository.NewPostgresRuleRepository(db, nil)
 		seeder := NewRuleSeeder(db, repo)
 
 		pool.ExpectBegin()

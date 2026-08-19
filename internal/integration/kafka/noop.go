@@ -32,3 +32,8 @@ func (c *NoopClient) Close() error {
 	c.logger.Info("Noop Kafka client closed")
 	return nil
 }
+
+// Stats returns a zero-value ReaderStats.
+func (c *NoopClient) Stats() kafka.ReaderStats {
+	return kafka.ReaderStats{}
+}

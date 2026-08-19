@@ -130,14 +130,15 @@ func deleteOp(subject, relation, object string) *messagesv1.PermissionOperation 
 	}
 }
 
-func newTestProcessor(repo *fakeRepo, applier *fakeApplier, maxAttempts int) *Processor {
-	return NewProcessor(repo, applier, listenDecoder(), maxAttempts, false, nil, testLogger())
+func newTestProcessor(repo *fakeRepo, applier *fakeApplier, maxAttempts int, metrics Metrics) *Processor {
+	return NewProcessor(repo, applier, listenDecoder(), maxAttempts, false, metrics, testLogger())
 }
 
 func TestProcessRow_Success_Multitenancy(t *testing.T) {
 	repo := &fakeRepo{}
 	applier := &fakeApplier{}
-	p := NewProcessor(repo, applier, listenDecoder(), 5, true, nil, testLogger())
+	metrics := &fakeMetrics{}
+	p := NewProcessor(repo, applier, listenDecoder(), 5, true, metrics, testLogger())
 
 	row := permissions.ClaimedRow{
 		ID:      "row-1",
@@ -167,12 +168,14 @@ func TestProcessRow_Success_Multitenancy(t *testing.T) {
 	if ctxMap["tenant"] != "payments" {
 		t.Errorf("expected condition context tenant to be 'payments', got %v", ctxMap["tenant"])
 	}
+	assertIncProcessed(t, metrics, "payments")
 }
 
 func TestProcessRow_Success_WritesAndDeletes(t *testing.T) {
 	repo := &fakeRepo{}
 	applier := &fakeApplier{}
-	p := newTestProcessor(repo, applier, 5)
+	metrics := &fakeMetrics{}
+	p := newTestProcessor(repo, applier, 5, metrics)
 
 	row := permissions.ClaimedRow{
 		ID:      "row-1",
@@ -198,12 +201,14 @@ func TestProcessRow_Success_WritesAndDeletes(t *testing.T) {
 	if len(repo.processedWrites) != 1 || len(repo.processedDeletes) != 1 {
 		t.Fatalf("bookkeeping tuples mismatch: %+v", repo)
 	}
+	assertIncProcessed(t, metrics, "payments")
 }
 
 func TestProcessRow_DecodeFailure_IsPermanent(t *testing.T) {
 	repo := &fakeRepo{}
 	applier := &fakeApplier{}
-	p := newTestProcessor(repo, applier, 5)
+	metrics := &fakeMetrics{}
+	p := newTestProcessor(repo, applier, 5, metrics)
 
 	row := permissions.ClaimedRow{ID: "row-1", Service: "payments", Payload: []byte{0xff, 0xff, 0xff}}
 	if err := p.ProcessRow(context.Background(), row); err != nil {
@@ -216,12 +221,14 @@ func TestProcessRow_DecodeFailure_IsPermanent(t *testing.T) {
 	if repo.failedID != "row-1" || repo.failedCode != "decode_failed" {
 		t.Fatalf("expected permanent failure with decode_failed, got %+v", repo)
 	}
+	assertIncPermanentFailure(t, metrics, permanentFailureCall{service: "payments", messageID: "", code: "decode_failed"})
 }
 
 func TestProcessRow_TransientFGAError_Retries(t *testing.T) {
 	repo := &fakeRepo{}
 	applier := &fakeApplier{err: fgaSdk.FgaApiRateLimitExceededError{}}
-	p := newTestProcessor(repo, applier, 5)
+	metrics := &fakeMetrics{}
+	p := newTestProcessor(repo, applier, 5, metrics)
 
 	row := permissions.ClaimedRow{
 		ID:           "row-1",
@@ -239,12 +246,14 @@ func TestProcessRow_TransientFGAError_Retries(t *testing.T) {
 	if repo.failedID != "" {
 		t.Fatalf("row should not be failed on transient error: %+v", repo)
 	}
+	assertIncRetry(t, metrics, "payments")
 }
 
 func TestProcessRow_TransientButRetriesExhausted_Fails(t *testing.T) {
 	repo := &fakeRepo{}
 	applier := &fakeApplier{err: fgaSdk.FgaApiRateLimitExceededError{}}
-	p := newTestProcessor(repo, applier, 3)
+	metrics := &fakeMetrics{}
+	p := newTestProcessor(repo, applier, 3, metrics)
 
 	// AttemptCount 2, +1 = 3 == maxAttempts → fail.
 	row := permissions.ClaimedRow{
@@ -263,12 +272,14 @@ func TestProcessRow_TransientButRetriesExhausted_Fails(t *testing.T) {
 	if repo.retryID != "" {
 		t.Fatalf("row should not be retried when exhausted: %+v", repo)
 	}
+	assertIncPermanentFailure(t, metrics, permanentFailureCall{service: "payments", messageID: "", code: "openfga_write_failed"})
 }
 
 func TestProcessRow_ValidationError_IsPermanent(t *testing.T) {
 	repo := &fakeRepo{}
 	applier := &fakeApplier{err: fgaSdk.FgaApiValidationError{}}
-	p := newTestProcessor(repo, applier, 5)
+	metrics := &fakeMetrics{}
+	p := newTestProcessor(repo, applier, 5, metrics)
 
 	row := permissions.ClaimedRow{
 		ID:      "row-1",
@@ -285,12 +296,14 @@ func TestProcessRow_ValidationError_IsPermanent(t *testing.T) {
 	if repo.retryID != "" {
 		t.Fatalf("validation error must not be retried: %+v", repo)
 	}
+	assertIncPermanentFailure(t, metrics, permanentFailureCall{service: "payments", messageID: "", code: "openfga_write_rejected"})
 }
 
 func TestProcessRow_BookkeepingFailure_RetriesWithoutAttemptIncrement(t *testing.T) {
 	repo := &fakeRepo{recordProcessedErr: errors.New("db down")}
 	applier := &fakeApplier{}
-	p := newTestProcessor(repo, applier, 5)
+	metrics := &fakeMetrics{}
+	p := newTestProcessor(repo, applier, 5, metrics)
 
 	row := permissions.ClaimedRow{
 		ID:           "row-1",
@@ -311,12 +324,14 @@ func TestProcessRow_BookkeepingFailure_RetriesWithoutAttemptIncrement(t *testing
 	if repo.retryCode != "bookkeeping_failed" {
 		t.Fatalf("expected bookkeeping_failed code, got %q", repo.retryCode)
 	}
+	assertIncRetry(t, metrics, "payments")
 }
 
 func TestProcessRow_InvalidOperation_IsPermanent(t *testing.T) {
 	repo := &fakeRepo{}
 	applier := &fakeApplier{}
-	p := newTestProcessor(repo, applier, 5)
+	metrics := &fakeMetrics{}
+	p := newTestProcessor(repo, applier, 5, metrics)
 
 	// An operation with an unspecified op type cannot be mapped.
 	row := permissions.ClaimedRow{
@@ -339,4 +354,5 @@ func TestProcessRow_InvalidOperation_IsPermanent(t *testing.T) {
 	if repo.failedID != "row-1" || repo.failedCode != "invalid_operation" {
 		t.Fatalf("expected permanent failure invalid_operation, got %+v", repo)
 	}
+	assertIncPermanentFailure(t, metrics, permanentFailureCall{service: "payments", messageID: "", code: "invalid_operation"})
 }

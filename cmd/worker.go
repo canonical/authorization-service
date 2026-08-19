@@ -5,7 +5,9 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/canonical/authorization-service/config"
+	"github.com/canonical/authorization-service/internal/metrics"
 	"github.com/canonical/authorization-service/internal/repository"
 	"github.com/canonical/authorization-service/internal/service/listen"
 	"github.com/canonical/authorization-service/internal/service/worker"
@@ -50,7 +53,9 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 	}
 	defer integrations.CleanupIntegrations(logger)
 
-	workRepo := repository.NewPostgresPermissionWorkRepository(integrations.Postgres)
+	reg := metrics.NewRegistry()
+
+	workRepo := repository.NewPostgresPermissionWorkRepository(integrations.Postgres, metrics.NewRepositoryRecorder(reg))
 	applier := worker.NewOpenFGAApplier(integrations.OpenFGA, cfg.OpenFGA.AuthorizationModelID)
 	processor := worker.NewProcessor(
 		workRepo,
@@ -58,7 +63,7 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 		listen.NewDecoder(),
 		cfg.Worker.MaxAttempts,
 		cfg.MultitenancyEnabled,
-		nil, // metrics: no-op until an OTel-backed implementation is wired
+		metrics.NewProcessorRecorder(reg),
 		logger,
 	)
 	w := worker.NewWorker(
@@ -67,6 +72,7 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 		cfg.Worker.BatchSize,
 		cfg.Worker.PollInterval,
 		cfg.Worker.RetryBackoff,
+		metrics.NewWorkerLoopRecorder(reg),
 		logger,
 	)
 
@@ -77,8 +83,15 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 			workRepo,
 			cfg.Worker.StaleTimeout,
 			cfg.Worker.ReaperInterval,
+			metrics.NewReaperRecorder(reg),
 			logger,
 		)
+	}
+
+	runMetrics := cfg.Metrics.Enabled
+	var metricsServer *http.Server
+	if runMetrics {
+		metricsServer = metrics.NewServer(cfg.Metrics.GetAddress(cfg.Server.Host), cfg.Metrics.Path, reg)
 	}
 
 	ctx, cancel := context.WithCancel(cmd.Context())
@@ -86,7 +99,10 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 
 	numComponents := 1
 	if runReaper {
-		numComponents = 2
+		numComponents++
+	}
+	if runMetrics {
+		numComponents++
 	}
 
 	type componentResult struct {
@@ -101,6 +117,16 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 	if runReaper {
 		go func() {
 			errChan <- componentResult{name: "reaper", err: r.Run(ctx)}
+		}()
+	}
+	if runMetrics {
+		go func() {
+			logger.Info("Starting metrics server", "address", metricsServer.Addr)
+			err := metricsServer.ListenAndServe()
+			if errors.Is(err, http.ErrServerClosed) {
+				err = nil
+			}
+			errChan <- componentResult{name: "metrics", err: err}
 		}()
 	}
 
@@ -118,6 +144,14 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 	case sig := <-sigChan:
 		logger.Info("Received signal, shutting down", "signal", sig)
 		cancel()
+	}
+
+	if metricsServer != nil {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.Server.GracefulShutdownTimeout)
+		if err := metricsServer.Shutdown(shutdownCtx); err != nil {
+			logger.Error("Error during metrics server shutdown", "error", err)
+		}
+		shutdownCancel()
 	}
 
 	// Wait for all started components to exit

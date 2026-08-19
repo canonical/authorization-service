@@ -67,16 +67,24 @@ var _ PermissionWorkRepository = (*PostgresPermissionWorkRepository)(nil)
 
 // PostgresPermissionWorkRepository implements PermissionWorkRepository using PostgreSQL.
 type PostgresPermissionWorkRepository struct {
-	db postgres.DBClientInterface
+	db      postgres.DBClientInterface
+	metrics Metrics
 }
 
 // NewPostgresPermissionWorkRepository creates a new PostgresPermissionWorkRepository.
-func NewPostgresPermissionWorkRepository(db postgres.DBClientInterface) *PostgresPermissionWorkRepository {
-	return &PostgresPermissionWorkRepository{db: db}
+// If metrics is nil a no-op is used.
+func NewPostgresPermissionWorkRepository(db postgres.DBClientInterface, metrics Metrics) *PostgresPermissionWorkRepository {
+	if metrics == nil {
+		metrics = NoopMetrics{}
+	}
+	return &PostgresPermissionWorkRepository{db: db, metrics: metrics}
 }
 
 // Insert appends a row to permission_update_work in status 'received'.
-func (r *PostgresPermissionWorkRepository) Insert(ctx context.Context, row permissions.WorkRow) error {
+func (r *PostgresPermissionWorkRepository) Insert(ctx context.Context, row permissions.WorkRow) (err error) {
+	start := time.Now()
+	defer func() { r.metrics.ObserveQuery("insert", err, time.Since(start)) }()
+
 	id, err := uuid.NewV7()
 	if err != nil {
 		return fmt.Errorf("failed to generate UUIDv7: %w", err)
@@ -128,7 +136,10 @@ func (r *PostgresPermissionWorkRepository) Insert(ctx context.Context, row permi
 // ClaimBatch selects and locks eligible rows, transitions them to 'processing'
 // and returns them. Selection and update happen in one transaction so a claim is
 // atomic: another worker running the same query concurrently skips locked rows.
-func (r *PostgresPermissionWorkRepository) ClaimBatch(ctx context.Context, limit int, retryAfter time.Duration) ([]permissions.ClaimedRow, error) {
+func (r *PostgresPermissionWorkRepository) ClaimBatch(ctx context.Context, limit int, retryAfter time.Duration) (claimed []permissions.ClaimedRow, err error) {
+	start := time.Now()
+	defer func() { r.metrics.ObserveQuery("claim_batch", err, time.Since(start)) }()
+
 	selectQuery, selectArgs, err := r.db.Builder().
 		Select("id", "service", "message_id", "payload", "event_time", "attempt_count").
 		From("permission_update_work").
@@ -159,7 +170,7 @@ func (r *PostgresPermissionWorkRepository) ClaimBatch(ctx context.Context, limit
 		return nil, fmt.Errorf("failed to query claimable rows: %w", err)
 	}
 
-	claimed, err := scanClaimedRows(rows)
+	claimed, err = scanClaimedRows(rows)
 	if err != nil {
 		return nil, err
 	}
@@ -229,7 +240,10 @@ func scanClaimedRows(rows pgx.Rows) ([]permissions.ClaimedRow, error) {
 // the row 'processed', all in one transaction. Tuple upserts are idempotent
 // (ON CONFLICT DO NOTHING) and deletes are naturally no-ops when absent, so a
 // retry that re-runs bookkeeping after a prior partial success is safe.
-func (r *PostgresPermissionWorkRepository) RecordProcessed(ctx context.Context, id, service string, writes, deletes []permissions.Tuple) error {
+func (r *PostgresPermissionWorkRepository) RecordProcessed(ctx context.Context, id, service string, writes, deletes []permissions.Tuple) (err error) {
+	start := time.Now()
+	defer func() { r.metrics.ObserveQuery("record_processed", err, time.Since(start)) }()
+
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin bookkeeping transaction: %w", err)
@@ -312,7 +326,10 @@ func (r *PostgresPermissionWorkRepository) RecordProcessed(ctx context.Context, 
 
 // MarkFailed moves a row to 'failed', incrementing attempt_count and recording
 // the error code and message.
-func (r *PostgresPermissionWorkRepository) MarkFailed(ctx context.Context, id, errCode, errMsg string) error {
+func (r *PostgresPermissionWorkRepository) MarkFailed(ctx context.Context, id, errCode, errMsg string) (err error) {
+	start := time.Now()
+	defer func() { r.metrics.ObserveQuery("mark_failed", err, time.Since(start)) }()
+
 	var (
 		codeVal *string = &errCode
 		msgVal  *string = &errMsg
@@ -345,7 +362,10 @@ func (r *PostgresPermissionWorkRepository) MarkFailed(ctx context.Context, id, e
 // MarkRetry returns a row to 'received'. incAttempt controls whether the failure
 // counts towards the retry limit (true for pre/during-write failures, false for
 // post-write bookkeeping failures, per the spec's retry model).
-func (r *PostgresPermissionWorkRepository) MarkRetry(ctx context.Context, id, errCode, errMsg string, incAttempt bool) error {
+func (r *PostgresPermissionWorkRepository) MarkRetry(ctx context.Context, id, errCode, errMsg string, incAttempt bool) (err error) {
+	start := time.Now()
+	defer func() { r.metrics.ObserveQuery("mark_retry", err, time.Since(start)) }()
+
 	var (
 		codeVal *string = &errCode
 		msgVal  *string = &errMsg
@@ -381,7 +401,10 @@ func (r *PostgresPermissionWorkRepository) MarkRetry(ctx context.Context, id, er
 // ReclaimStale returns rows stuck in 'processing' beyond staleAfter to 'received'.
 // It uses a transaction-level advisory lock (pg_try_advisory_xact_lock) on a fixed key
 // so that only one worker/reaper can execute reclaiming at any given time.
-func (r *PostgresPermissionWorkRepository) ReclaimStale(ctx context.Context, staleAfter time.Duration) (int64, error) {
+func (r *PostgresPermissionWorkRepository) ReclaimStale(ctx context.Context, staleAfter time.Duration) (count int64, err error) {
+	start := time.Now()
+	defer func() { r.metrics.ObserveQuery("reclaim_stale", err, time.Since(start)) }()
+
 	// Start a transaction so the advisory lock is automatically released on commit/rollback.
 	tx, err := r.db.Begin(ctx)
 	if err != nil {

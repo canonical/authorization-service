@@ -2,18 +2,26 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/canonical/authorization-service/config"
+	"github.com/canonical/authorization-service/internal/metrics"
 	"github.com/canonical/authorization-service/internal/repository"
 	"github.com/canonical/authorization-service/internal/service/listen"
 	"github.com/canonical/authorization-service/internal/version"
 )
+
+// kafkaStatsPollInterval is how often kafka-go's per-connection reader stats
+// (offset, lag, queue length, deltas) are sampled and exported.
+const kafkaStatsPollInterval = 15 * time.Second
 
 var listenCmd = &cobra.Command{
 	Use:   "listen",
@@ -45,13 +53,15 @@ func runListen(cmd *cobra.Command, _ []string) error {
 	}
 	defer integrations.CleanupIntegrations(logger)
 
-	workRepo := repository.NewPostgresPermissionWorkRepository(integrations.Postgres)
+	reg := metrics.NewRegistry()
+
+	workRepo := repository.NewPostgresPermissionWorkRepository(integrations.Postgres, metrics.NewRepositoryRecorder(reg))
 	ingestor := listen.NewIngestionService(
 		integrations.ServiceRegistry,
 		listen.NewDecoder(),
 		listen.NewValidator(),
 		workRepo,
-		nil, // metrics: no-op until an OTel-backed implementation is wired
+		metrics.NewIngestRecorder(reg),
 		logger,
 	)
 
@@ -61,29 +71,80 @@ func runListen(cmd *cobra.Command, _ []string) error {
 		logger,
 	)
 
+	kafkaStatsRecorder := metrics.NewKafkaStatsRecorder(reg)
+
+	runMetrics := cfg.Metrics.Enabled
+	var metricsServer *http.Server
+	if runMetrics {
+		metricsServer = metrics.NewServer(cfg.Metrics.GetAddress(cfg.Server.Host), cfg.Metrics.Path, reg)
+	}
+
 	ctx, cancel := context.WithCancel(cmd.Context())
 	defer cancel()
 
-	errChan := make(chan error, 1)
+	numComponents := 2 // listener + kafka stats poller
+	if runMetrics {
+		numComponents++
+	}
+
+	type componentResult struct {
+		name string
+		err  error
+	}
+
+	errChan := make(chan componentResult, numComponents)
 	go func() {
-		errChan <- listener.Run(ctx)
+		errChan <- componentResult{name: "listener", err: listener.Run(ctx)}
 	}()
+	go func() {
+		errChan <- componentResult{name: "kafka_stats", err: metrics.PollKafkaStats(ctx, integrations.KafkaConsumer, kafkaStatsRecorder, kafkaStatsPollInterval)}
+	}()
+	if runMetrics {
+		go func() {
+			logger.Info("Starting metrics server", "address", metricsServer.Addr)
+			err := metricsServer.ListenAndServe()
+			if errors.Is(err, http.ErrServerClosed) {
+				err = nil
+			}
+			errChan <- componentResult{name: "metrics", err: err}
+		}()
+	}
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
 	select {
-	case err := <-errChan:
-		logger.Error("Listener error", "error", err)
-		return err
+	case res := <-errChan:
+		if res.err != nil {
+			logger.Error("Component error", "component", res.name, "error", res.err)
+			cancel()
+			return fmt.Errorf("%s component failed: %w", res.name, res.err)
+		}
+		cancel()
 	case sig := <-sigChan:
 		logger.Info("Received signal, shutting down", "signal", sig)
 		cancel()
 	}
 
-	if err := <-errChan; err != nil {
-		logger.Error("Error during listener shutdown", "error", err)
-		return err
+	if metricsServer != nil {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.Server.GracefulShutdownTimeout)
+		if err := metricsServer.Shutdown(shutdownCtx); err != nil {
+			logger.Error("Error during metrics server shutdown", "error", err)
+		}
+		shutdownCancel()
+	}
+
+	var firstErr error
+	for i := 0; i < numComponents; i++ {
+		if res := <-errChan; res.err != nil {
+			logger.Error("Error during component shutdown", "component", res.name, "error", res.err)
+			if firstErr == nil {
+				firstErr = fmt.Errorf("%s component failed: %w", res.name, res.err)
+			}
+		}
+	}
+	if firstErr != nil {
+		return firstErr
 	}
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.Server.GracefulShutdownTimeout)

@@ -102,7 +102,8 @@ func runSeedCmd(cmd *cobra.Command, args []string) error {
 	}
 	defer pgClient.Close()
 
-	repo := repository.NewPostgresRuleRepository(pgClient)
+	// This is a one-off batch job, not continuously scraped, so no metrics recorder is wired.
+	repo := repository.NewPostgresRuleRepository(pgClient, nil)
 	seeder := ruleservice.NewRuleSeeder(pgClient, repo)
 
 	var succeeded, skipped, failed int

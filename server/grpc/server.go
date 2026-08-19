@@ -8,12 +8,14 @@ import (
 	"log/slog"
 	"net"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 
 	"github.com/canonical/authorization-service/config"
+	"github.com/canonical/authorization-service/internal/metrics"
 	"github.com/canonical/authorization-service/internal/service/authz"
 	"github.com/canonical/authorization-service/internal/service/permissions"
 )
@@ -45,17 +47,20 @@ func WithExternalAuthz(svc *authz.ExternalAuthzService) ServerOption {
 	}
 }
 
-// NewServer creates a new gRPC server
-func NewServer(cfg *config.ServerConfig, logger *slog.Logger, opts ...ServerOption) (*Server, error) {
+// NewServer creates a new gRPC server. reg registers the request-count and
+// latency collectors; pass a fresh internal/metrics.NewRegistry() per process.
+func NewServer(cfg *config.ServerConfig, logger *slog.Logger, reg *prometheus.Registry, opts ...ServerOption) (*Server, error) {
 	listener, err := net.Listen("tcp", cfg.GetGRPCAddress())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create listener: %w", err)
 	}
 
+	grpcMetrics := metrics.NewGRPCMetrics(reg)
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
 			loggingInterceptor(logger),
 			recoveryInterceptor(logger),
+			grpcMetrics.UnaryServerInterceptor(),
 		),
 	)
 

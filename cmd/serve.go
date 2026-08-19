@@ -5,7 +5,9 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/canonical/authorization-service/config"
+	"github.com/canonical/authorization-service/internal/metrics"
 	"github.com/canonical/authorization-service/internal/version"
 	"github.com/canonical/authorization-service/server/grpc"
 	"github.com/canonical/authorization-service/server/rest"
@@ -54,13 +57,15 @@ func serve(cmd *cobra.Command, args []string) error {
 
 	defer integrations.CleanupIntegrations(logger)
 
-	// Initialize services
-	services := integrations.InitializeServices(tracer, logger)
+	// Metrics registry and services
+	reg := metrics.NewRegistry()
+	services := integrations.InitializeServices(tracer, logger, reg)
 
 	// Start gRPC server with functional options
 	grpcServer, err := grpc.NewServer(
 		cfg.Server,
 		logger,
+		reg,
 		grpc.WithPermissionsService(services.Permissions),
 		grpc.WithExternalAuthz(services.ExternalAuthz),
 	)
@@ -70,14 +75,19 @@ func serve(cmd *cobra.Command, args []string) error {
 	}
 
 	// Start REST gateway
-	restGateway, err := rest.NewGateway(cfg.Server, logger)
+	restGateway, err := rest.NewGateway(cfg.Server, reg, logger)
 	if err != nil {
 		logger.Error("Failed to create REST gateway", "error", err)
 		return fmt.Errorf("REST gateway creation failed: %w", err)
 	}
 
+	var metricsServer *http.Server
+	if cfg.Metrics.Enabled {
+		metricsServer = metrics.NewServer(cfg.Metrics.GetAddress(cfg.Server.Host), cfg.Metrics.Path, reg)
+	}
+
 	// Start servers in goroutines
-	errChan := make(chan error, 2)
+	errChan := make(chan error, 3)
 	go func() {
 		logger.Info("Starting gRPC server", "address", cfg.Server.GetGRPCAddress())
 		if err := grpcServer.Start(); err != nil {
@@ -91,6 +101,15 @@ func serve(cmd *cobra.Command, args []string) error {
 			errChan <- fmt.Errorf("REST gateway error: %w", err)
 		}
 	}()
+
+	if metricsServer != nil {
+		go func() {
+			logger.Info("Starting metrics server", "address", metricsServer.Addr)
+			if err := metricsServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				errChan <- fmt.Errorf("metrics server error: %w", err)
+			}
+		}()
+	}
 
 	// Wait for termination signal or error
 	sigChan := make(chan os.Signal, 1)
@@ -116,6 +135,11 @@ func serve(cmd *cobra.Command, args []string) error {
 	if err := restGateway.Shutdown(ctx); err != nil {
 		logger.Error("Error during REST gateway shutdown", "error", err)
 		return fmt.Errorf("shutdown error: %w", err)
+	}
+	if metricsServer != nil {
+		if err := metricsServer.Shutdown(ctx); err != nil {
+			logger.Error("Error during metrics server shutdown", "error", err)
+		}
 	}
 
 	logger.Info("Authorization Service stopped")

@@ -53,9 +53,15 @@ type countingMetrics struct {
 	calls []struct{ service, messageID, code string }
 }
 
+func (m *countingMetrics) IncIngested(string) {}
+
+func (m *countingMetrics) IncDuplicate(string) {}
+
 func (m *countingMetrics) IncPermanentFailure(service, messageID, code string) {
 	m.calls = append(m.calls, struct{ service, messageID, code string }{service, messageID, code})
 }
+
+func (m *countingMetrics) ObserveIngestDuration(string, time.Duration) {}
 
 func testLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))

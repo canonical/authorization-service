@@ -148,7 +148,7 @@ func startWorker(ctx context.Context, w *worker.Worker) <-chan error {
 // mirrors the tuple into authorization_tuples, and marks the row processed.
 func TestWorker_HappyPath(t *testing.T) {
 	client, pool := newTestPostgres(t)
-	repo := repository.NewPostgresPermissionWorkRepository(client)
+	repo := repository.NewPostgresPermissionWorkRepository(client, nil)
 
 	suffix := suite.UniqueSuffix()
 	idem := "worker-happy-" + suffix
@@ -157,7 +157,7 @@ func TestWorker_HappyPath(t *testing.T) {
 
 	applier := &fakeApplier{}
 	proc := worker.NewProcessor(repo, applier, listen.NewDecoder(), 5, false, nil, suite.TestLogger)
-	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, suite.TestLogger)
+	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, nil, suite.TestLogger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -179,7 +179,7 @@ func TestWorker_HappyPath(t *testing.T) {
 // and asserts the worker applies it, mirrors the tuple correctly, and marks the row processed.
 func TestWorker_UsersetSubject(t *testing.T) {
 	client, pool := newTestPostgres(t)
-	repo := repository.NewPostgresPermissionWorkRepository(client)
+	repo := repository.NewPostgresPermissionWorkRepository(client, nil)
 
 	suffix := suite.UniqueSuffix()
 	idem := "worker-userset-" + suffix
@@ -188,7 +188,7 @@ func TestWorker_UsersetSubject(t *testing.T) {
 
 	applier := &fakeApplier{}
 	proc := worker.NewProcessor(repo, applier, listen.NewDecoder(), 5, false, nil, suite.TestLogger)
-	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, suite.TestLogger)
+	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, nil, suite.TestLogger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -210,7 +210,7 @@ func TestWorker_UsersetSubject(t *testing.T) {
 // asserts the worker moves it straight to 'failed'.
 func TestWorker_PermanentFailure(t *testing.T) {
 	client, pool := newTestPostgres(t)
-	repo := repository.NewPostgresPermissionWorkRepository(client)
+	repo := repository.NewPostgresPermissionWorkRepository(client, nil)
 
 	suffix := suite.UniqueSuffix()
 	idem := "worker-bad-" + suffix
@@ -229,7 +229,7 @@ func TestWorker_PermanentFailure(t *testing.T) {
 
 	applier := &fakeApplier{}
 	proc := worker.NewProcessor(repo, applier, listen.NewDecoder(), 5, false, nil, suite.TestLogger)
-	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, suite.TestLogger)
+	w := worker.NewWorker(repo, proc, 50, 100*time.Millisecond, time.Minute, nil, suite.TestLogger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -245,7 +245,7 @@ func TestWorker_PermanentFailure(t *testing.T) {
 // and reclaims a row stuck in 'processing' status.
 func TestReaper_Integration(t *testing.T) {
 	client, pool := newTestPostgres(t)
-	repo := repository.NewPostgresPermissionWorkRepository(client)
+	repo := repository.NewPostgresPermissionWorkRepository(client, nil)
 
 	suffix := suite.UniqueSuffix()
 	idem := "reaper-stale-" + suffix
@@ -273,7 +273,7 @@ func TestReaper_Integration(t *testing.T) {
 	}
 
 	// 4. Run the Reaper background loop with a 15-minute timeout
-	r := worker.NewReaper(repo, 15*time.Minute, 50*time.Millisecond, suite.TestLogger)
+	r := worker.NewReaper(repo, 15*time.Minute, 50*time.Millisecond, nil, suite.TestLogger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -292,7 +292,7 @@ func TestReaper_Integration(t *testing.T) {
 // are coordinated using a PostgreSQL advisory lock, preventing overlapping runs.
 func TestReaper_LockCoordination(t *testing.T) {
 	client, _ := newTestPostgres(t)
-	repo := repository.NewPostgresPermissionWorkRepository(client)
+	repo := repository.NewPostgresPermissionWorkRepository(client, nil)
 
 	// Begin a transaction and lock the advisory key manually to simulate another node holding it
 	ctx := context.Background()

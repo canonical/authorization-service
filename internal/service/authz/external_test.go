@@ -18,6 +18,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -92,6 +93,57 @@ func buildCheckRequest(headers map[string]string, method, path string) *envoyAut
 	}
 }
 
+// checkMetricsCall captures a single RecordCheck invocation.
+type checkMetricsCall struct {
+	result string
+	reason string
+}
+
+// fakeCheckMetrics is a hand-rolled Metrics fake that records every call so
+// tests can assert both the final RecordCheck outcome and which stages were
+// actually observed.
+type fakeCheckMetrics struct {
+	recordCheckCalls  []checkMetricsCall
+	stsExchangeCalls  int
+	resourceMapCalls  int
+	openFGACheckCalls int
+}
+
+func (f *fakeCheckMetrics) RecordCheck(result, reason string, _ time.Duration) {
+	f.recordCheckCalls = append(f.recordCheckCalls, checkMetricsCall{result: result, reason: reason})
+}
+func (f *fakeCheckMetrics) ObserveSTSExchange(_ time.Duration)  { f.stsExchangeCalls++ }
+func (f *fakeCheckMetrics) ObserveResourceMap(_ time.Duration)  { f.resourceMapCalls++ }
+func (f *fakeCheckMetrics) ObserveOpenFGACheck(_ time.Duration) { f.openFGACheckCalls++ }
+
+// assertRecordCheck asserts that RecordCheck was called exactly once with the
+// given result/reason pair.
+func assertRecordCheck(t *testing.T, m *fakeCheckMetrics, wantResult, wantReason string) {
+	t.Helper()
+	if len(m.recordCheckCalls) != 1 {
+		t.Fatalf("expected exactly 1 RecordCheck call, got %d: %+v", len(m.recordCheckCalls), m.recordCheckCalls)
+	}
+	got := m.recordCheckCalls[0]
+	if got.result != wantResult || got.reason != wantReason {
+		t.Errorf("RecordCheck = (%q, %q), want (%q, %q)", got.result, got.reason, wantResult, wantReason)
+	}
+}
+
+// assertObserveCalls asserts the exact call counts of the three duration
+// observers, verifying instrumentation placement (not just the final label).
+func assertObserveCalls(t *testing.T, m *fakeCheckMetrics, wantSTS, wantResourceMap, wantOpenFGA int) {
+	t.Helper()
+	if m.stsExchangeCalls != wantSTS {
+		t.Errorf("ObserveSTSExchange calls = %d, want %d", m.stsExchangeCalls, wantSTS)
+	}
+	if m.resourceMapCalls != wantResourceMap {
+		t.Errorf("ObserveResourceMap calls = %d, want %d", m.resourceMapCalls, wantResourceMap)
+	}
+	if m.openFGACheckCalls != wantOpenFGA {
+		t.Errorf("ObserveOpenFGACheck calls = %d, want %d", m.openFGACheckCalls, wantOpenFGA)
+	}
+}
+
 // --- Check: early-exit paths --------------------------------------------------
 
 // TestExternalAuthzService_Check_NoSubjectEarlyReturn verifies that when the JWT
@@ -123,7 +175,8 @@ func TestExternalAuthzService_Check_NoSubjectEarlyReturn(t *testing.T) {
 	mockResourceMapper.EXPECT().Map(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 	mockOpenFGA.EXPECT().BatchCheck(gomock.Any()).Times(0)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "session_id=abc123xyz"}, "GET", "/api/resource",
@@ -142,6 +195,8 @@ func TestExternalAuthzService_Check_NoSubjectEarlyReturn(t *testing.T) {
 	if deniedResp.Status.Code != envoyType.StatusCode_Unauthorized {
 		t.Errorf("expected HTTP status %d, got %d", envoyType.StatusCode_Unauthorized, deniedResp.Status.Code)
 	}
+	assertRecordCheck(t, metrics, "deny", "jwt_invalid")
+	assertObserveCalls(t, metrics, 1, 0, 0)
 }
 
 func TestExternalAuthzService_Check_NoCookieHeader(t *testing.T) {
@@ -156,7 +211,8 @@ func TestExternalAuthzService_Check_NoCookieHeader(t *testing.T) {
 	mockSTS.EXPECT().ExchangeSession(gomock.Any(), gomock.Any()).Times(0)
 	mockVerifier.EXPECT().Verify(gomock.Any(), gomock.Any()).Times(0)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(map[string]string{}, "GET", "/api"))
 	if err != nil {
@@ -175,6 +231,8 @@ func TestExternalAuthzService_Check_NoCookieHeader(t *testing.T) {
 	if deniedResp.Body != "no session cookie provided" {
 		t.Errorf("expected body %q, got %q", "No session cookie provided", deniedResp.Body)
 	}
+	assertRecordCheck(t, metrics, "deny", "no_cookie")
+	assertObserveCalls(t, metrics, 0, 0, 0)
 }
 
 func TestExternalAuthzService_Check_NoSessionCookie(t *testing.T) {
@@ -189,7 +247,8 @@ func TestExternalAuthzService_Check_NoSessionCookie(t *testing.T) {
 	mockSTS.EXPECT().ExchangeSession(gomock.Any(), gomock.Any()).Times(0)
 	mockVerifier.EXPECT().Verify(gomock.Any(), gomock.Any()).Times(0)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "other-cookie=value123; another=value456"}, "GET", "/api",
@@ -207,6 +266,8 @@ func TestExternalAuthzService_Check_NoSessionCookie(t *testing.T) {
 	if deniedResp.Body != "session cookie not found" {
 		t.Errorf("expected body %q, got %q", "session cookie not found", deniedResp.Body)
 	}
+	assertRecordCheck(t, metrics, "deny", "no_session")
+	assertObserveCalls(t, metrics, 0, 0, 0)
 }
 
 func TestExternalAuthzService_Check_ExchangeSessionError(t *testing.T) {
@@ -226,7 +287,8 @@ func TestExternalAuthzService_Check_ExchangeSessionError(t *testing.T) {
 		Times(1)
 	mockVerifier.EXPECT().Verify(gomock.Any(), gomock.Any()).Times(0)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "session_id=invalid-session"}, "GET", "/api",
@@ -247,6 +309,8 @@ func TestExternalAuthzService_Check_ExchangeSessionError(t *testing.T) {
 	if deniedResp.Body != expectedError.Error() {
 		t.Errorf("expected body %q, got %q", expectedError.Error(), deniedResp.Body)
 	}
+	assertRecordCheck(t, metrics, "deny", "sts_exchange_failed")
+	assertObserveCalls(t, metrics, 1, 0, 0)
 }
 
 // --- Check: resource-mapper paths --------------------------------------------
@@ -279,7 +343,8 @@ func TestExternalAuthzService_Check_ResourceMapperError(t *testing.T) {
 		Times(1)
 	mockOpenFGA.EXPECT().BatchCheck(gomock.Any()).Times(0)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "session_id=mysession"}, "GET", "/api/resource",
@@ -297,6 +362,8 @@ func TestExternalAuthzService_Check_ResourceMapperError(t *testing.T) {
 	if deniedResp.Body != "internal error during authorization" {
 		t.Errorf("expected body %q, got %q", "internal error during authorization", deniedResp.Body)
 	}
+	assertRecordCheck(t, metrics, "error", "internal_error")
+	assertObserveCalls(t, metrics, 1, 1, 0)
 }
 
 func TestExternalAuthzService_Check_NoMatchingRules(t *testing.T) {
@@ -328,7 +395,8 @@ func TestExternalAuthzService_Check_NoMatchingRules(t *testing.T) {
 		Times(1)
 	mockOpenFGA.EXPECT().BatchCheck(gomock.Any()).Times(0)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "session_id=mysession"}, "DELETE", "/api/resource",
@@ -347,6 +415,8 @@ func TestExternalAuthzService_Check_NoMatchingRules(t *testing.T) {
 	if deniedResp.Body != expectedBody {
 		t.Errorf("expected body %q, got %q", expectedBody, deniedResp.Body)
 	}
+	assertRecordCheck(t, metrics, "deny", "no_rule_matched")
+	assertObserveCalls(t, metrics, 1, 1, 0)
 }
 
 // TestExternalAuthzService_Check_QueryStringStripped verifies that a query string
@@ -379,7 +449,8 @@ func TestExternalAuthzService_Check_QueryStringStripped(t *testing.T) {
 		Return([]client.ClientBatchCheckItem{}, nil, nil).
 		Times(1)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	// Path contains a query string that should be stripped.
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
@@ -393,6 +464,8 @@ func TestExternalAuthzService_Check_QueryStringStripped(t *testing.T) {
 	if resp.GetDeniedResponse() == nil {
 		t.Error("expected a denied response")
 	}
+	assertRecordCheck(t, metrics, "deny", "no_rule_matched")
+	assertObserveCalls(t, metrics, 1, 1, 0)
 }
 
 // --- Check: OpenFGA batch-check paths ----------------------------------------
@@ -437,7 +510,8 @@ func TestExternalAuthzService_Check_FGABatchCheckError(t *testing.T) {
 		Return(batchReqMock).
 		Times(1)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "session_id=s"}, "GET", "/api/resource",
@@ -455,6 +529,8 @@ func TestExternalAuthzService_Check_FGABatchCheckError(t *testing.T) {
 	if deniedResp.Body != "authorization check failed" {
 		t.Errorf("expected body %q, got %q", "authorization check failed", deniedResp.Body)
 	}
+	assertRecordCheck(t, metrics, "error", "openfga_error")
+	assertObserveCalls(t, metrics, 1, 1, 1)
 }
 
 func TestExternalAuthzService_Check_FGAResultNotOK(t *testing.T) {
@@ -498,7 +574,8 @@ func TestExternalAuthzService_Check_FGAResultNotOK(t *testing.T) {
 		Return(batchReqMock).
 		Times(1)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "session_id=s"}, "GET", "/api/resource",
@@ -516,6 +593,8 @@ func TestExternalAuthzService_Check_FGAResultNotOK(t *testing.T) {
 	if deniedResp.Body != "access denied" {
 		t.Errorf("expected body %q, got %q", "access denied", deniedResp.Body)
 	}
+	assertRecordCheck(t, metrics, "error", "openfga_error")
+	assertObserveCalls(t, metrics, 1, 1, 1)
 }
 
 func TestExternalAuthzService_Check_FGAResultHasError(t *testing.T) {
@@ -562,7 +641,8 @@ func TestExternalAuthzService_Check_FGAResultHasError(t *testing.T) {
 		Return(batchReqMock).
 		Times(1)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "session_id=s"}, "GET", "/api/resource",
@@ -581,6 +661,8 @@ func TestExternalAuthzService_Check_FGAResultHasError(t *testing.T) {
 	if deniedResp.Body != expectedBody {
 		t.Errorf("expected body %q, got %q", expectedBody, deniedResp.Body)
 	}
+	assertRecordCheck(t, metrics, "error", "openfga_error")
+	assertObserveCalls(t, metrics, 1, 1, 1)
 }
 
 func TestExternalAuthzService_Check_FGAAccessDenied(t *testing.T) {
@@ -626,7 +708,8 @@ func TestExternalAuthzService_Check_FGAAccessDenied(t *testing.T) {
 		Return(batchReqMock).
 		Times(1)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "session_id=s"}, "GET", "/api/resource",
@@ -645,6 +728,8 @@ func TestExternalAuthzService_Check_FGAAccessDenied(t *testing.T) {
 	if deniedResp.Body != expectedBody {
 		t.Errorf("expected body %q, got %q", expectedBody, deniedResp.Body)
 	}
+	assertRecordCheck(t, metrics, "deny", "openfga_denied")
+	assertObserveCalls(t, metrics, 1, 1, 1)
 }
 
 // --- Check: full success path ------------------------------------------------
@@ -695,7 +780,8 @@ func TestExternalAuthzService_Check_FullSuccess(t *testing.T) {
 		Return(batchReqMock).
 		Times(1)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "session_id=valid-session"}, "GET", "/api/resource",
@@ -720,6 +806,8 @@ func TestExternalAuthzService_Check_FullSuccess(t *testing.T) {
 	if authHeader.Value != "Bearer "+accessToken {
 		t.Errorf("expected header value %q, got %q", "Bearer "+accessToken, authHeader.Value)
 	}
+	assertRecordCheck(t, metrics, "allow", "ok")
+	assertObserveCalls(t, metrics, 1, 1, 1)
 }
 
 // --- Check: cookie-parsing edge cases ----------------------------------------
@@ -745,7 +833,8 @@ func TestExternalAuthzService_Check_MultipleCookies(t *testing.T) {
 		Return(nil, fmt.Errorf("token does not contain a 'sub' claim")).
 		Times(1)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "foo=bar; session_id=mysessionvalue; baz=qux"}, "GET", "/api",
@@ -763,6 +852,8 @@ func TestExternalAuthzService_Check_MultipleCookies(t *testing.T) {
 	if deniedResp.Status.Code != envoyType.StatusCode_Unauthorized {
 		t.Errorf("expected HTTP status %d, got %d", envoyType.StatusCode_Unauthorized, deniedResp.Status.Code)
 	}
+	assertRecordCheck(t, metrics, "deny", "jwt_invalid")
+	assertObserveCalls(t, metrics, 1, 0, 0)
 }
 
 func TestExternalAuthzService_Check_CookieWithSpaces(t *testing.T) {
@@ -785,7 +876,8 @@ func TestExternalAuthzService_Check_CookieWithSpaces(t *testing.T) {
 		Return(nil, fmt.Errorf("token does not contain a 'sub' claim")).
 		Times(1)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "  foo=bar  ;  session_id=spaced-value  ;  baz=qux  "}, "GET", "/api",
@@ -796,6 +888,8 @@ func TestExternalAuthzService_Check_CookieWithSpaces(t *testing.T) {
 	if resp.Status.Code != int32(codes.Unauthenticated) {
 		t.Errorf("expected status code %d, got %d", codes.Unauthenticated, resp.Status.Code)
 	}
+	assertRecordCheck(t, metrics, "deny", "jwt_invalid")
+	assertObserveCalls(t, metrics, 1, 0, 0)
 }
 
 // --- Register ----------------------------------------------------------------
@@ -811,7 +905,7 @@ func TestExternalAuthzService_Register(t *testing.T) {
 
 	mockVerifier.EXPECT().Verify(gomock.Any(), gomock.Any()).Times(0)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, nil, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	// Verify the service implements the interface — compile-time check suffices.
 	var _ ExternalAuthzServiceInterface = svc
@@ -1049,7 +1143,7 @@ func TestNewExternalAuthzService(t *testing.T) {
 
 	mockVerifier.EXPECT().Verify(gomock.Any(), gomock.Any()).Times(0)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, logger, tracer)
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, nil, logger, tracer)
 
 	if svc == nil {
 		t.Fatal("NewExternalAuthzService returned nil")
@@ -1147,7 +1241,8 @@ func TestExternalAuthzService_Check_Multitenancy(t *testing.T) {
 				Return(batchReqMock).
 				Times(1)
 
-			svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, tc.multitenancyEnabled, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+			metrics := &fakeCheckMetrics{}
+			svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, tc.multitenancyEnabled, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 			resp, err := svc.Check(context.Background(), buildCheckRequest(
 				map[string]string{"cookie": "session_id=valid-session"}, "GET", "/api/resource",
@@ -1158,6 +1253,8 @@ func TestExternalAuthzService_Check_Multitenancy(t *testing.T) {
 			if resp.Status.Code != int32(codes.OK) {
 				t.Errorf("expected status code %d, got %d", codes.OK, resp.Status.Code)
 			}
+			assertRecordCheck(t, metrics, "allow", "ok")
+			assertObserveCalls(t, metrics, 1, 1, 1)
 		})
 	}
 }
@@ -1194,7 +1291,8 @@ func TestExternalAuthzService_Check_Multitenancy_MissingTenant(t *testing.T) {
 		Return(tuples, &rules.RuleWithTuples{Id: "rule-1", Tenant: nil}, nil).
 		Times(1)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, true, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, true, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "session_id=valid-session"}, "GET", "/api/resource",
@@ -1206,6 +1304,8 @@ func TestExternalAuthzService_Check_Multitenancy_MissingTenant(t *testing.T) {
 	if resp != nil {
 		t.Errorf("expected nil response, got %v", resp)
 	}
+	assertRecordCheck(t, metrics, "error", "internal_error")
+	assertObserveCalls(t, metrics, 1, 1, 0)
 }
 
 func TestExternalAuthzService_Check_MissingMatchedRule(t *testing.T) {
@@ -1240,7 +1340,8 @@ func TestExternalAuthzService_Check_MissingMatchedRule(t *testing.T) {
 		Return(tuples, nil, nil).
 		Times(1)
 
-	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{"cookie": "session_id=valid-session"}, "GET", "/api/resource",
@@ -1255,4 +1356,6 @@ func TestExternalAuthzService_Check_MissingMatchedRule(t *testing.T) {
 	if resp != nil {
 		t.Errorf("expected nil response, got %v", resp)
 	}
+	assertRecordCheck(t, metrics, "error", "internal_error")
+	assertObserveCalls(t, metrics, 1, 1, 0)
 }

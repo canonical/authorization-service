@@ -144,6 +144,11 @@ func setViperDefaults(v *viper.Viper) {
 	v.SetDefault("telemetry.enabled", false)
 	v.SetDefault("telemetry.service_name", "authorization-service")
 	v.SetDefault("telemetry.service_version", "v1.0.0")
+
+	// Metrics
+	v.SetDefault("metrics.enabled", true)
+	v.SetDefault("metrics.port", 9100)
+	v.SetDefault("metrics.path", "/metrics")
 }
 
 // bindFlags binds standard Cobra flags to Viper keys if explicitly set

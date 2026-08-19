@@ -35,7 +35,7 @@ func TestSeeding_Integration_EmptyDatabase(t *testing.T) {
 	client, pool := newTestPostgres(t)
 	cleanRulesTables(t, pool)
 
-	repo := repository.NewPostgresRuleRepository(client)
+	repo := repository.NewPostgresRuleRepository(client, nil)
 	seeder := ruleservice.NewRuleSeeder(client, repo)
 
 	sf := rules.SeedFile{
@@ -105,7 +105,7 @@ func TestSeeding_Integration_SkipOnOlderOrEqualRevision(t *testing.T) {
 	client, pool := newTestPostgres(t)
 	cleanRulesTables(t, pool)
 
-	repo := repository.NewPostgresRuleRepository(client)
+	repo := repository.NewPostgresRuleRepository(client, nil)
 	seeder := ruleservice.NewRuleSeeder(client, repo)
 
 	sfOriginal := rules.SeedFile{
@@ -179,7 +179,7 @@ func TestSeeding_Integration_UpgradeOnNewerRevision(t *testing.T) {
 	client, pool := newTestPostgres(t)
 	cleanRulesTables(t, pool)
 
-	repo := repository.NewPostgresRuleRepository(client)
+	repo := repository.NewPostgresRuleRepository(client, nil)
 	seeder := ruleservice.NewRuleSeeder(client, repo)
 
 	sfV1 := rules.SeedFile{
@@ -264,7 +264,7 @@ func TestSeeding_Integration_ValidationErrorRollback(t *testing.T) {
 	client, pool := newTestPostgres(t)
 	cleanRulesTables(t, pool)
 
-	repo := repository.NewPostgresRuleRepository(client)
+	repo := repository.NewPostgresRuleRepository(client, nil)
 	seeder := ruleservice.NewRuleSeeder(client, repo)
 
 	sfValid := rules.SeedFile{

@@ -17,20 +17,26 @@ type Reaper struct {
 	repo         repository.PermissionWorkRepository
 	staleTimeout time.Duration
 	interval     time.Duration
+	metrics      ReaperMetrics
 	logger       *slog.Logger
 }
 
-// NewReaper constructs a Reaper.
+// NewReaper constructs a Reaper. If metrics is nil a no-op is used.
 func NewReaper(
 	repo repository.PermissionWorkRepository,
 	staleTimeout time.Duration,
 	interval time.Duration,
+	metrics ReaperMetrics,
 	logger *slog.Logger,
 ) *Reaper {
+	if metrics == nil {
+		metrics = NoopMetrics{}
+	}
 	return &Reaper{
 		repo:         repo,
 		staleTimeout: staleTimeout,
 		interval:     interval,
+		metrics:      metrics,
 		logger:       logger,
 	}
 }
@@ -60,11 +66,15 @@ func (r *Reaper) Run(ctx context.Context) error {
 
 func (r *Reaper) reclaim(ctx context.Context) error {
 	r.logger.Debug("Reaper checking for stale rows")
+	r.metrics.SetLastRunTimestamp()
+
+	start := time.Now()
 	count, err := r.repo.ReclaimStale(ctx, r.staleTimeout)
 	if err != nil {
 		r.logger.Error("Failed to reclaim stale rows", "error", err)
 		return err
 	}
+	r.metrics.ObserveReclaim(count, time.Since(start))
 	if count > 0 {
 		r.logger.Info("Reclaimed stale permission-update rows",
 			"count", count,
