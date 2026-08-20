@@ -144,6 +144,7 @@ func setViperDefaults(v *viper.Viper) {
 	// Logging
 	v.SetDefault("logging.level", "info")
 	v.SetDefault("logging.format", "json")
+	v.SetDefault("logging.add_source", false)
 
 	// Telemetry
 	v.SetDefault("telemetry.enabled", false)
