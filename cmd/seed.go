@@ -204,12 +204,9 @@ func runValidateCmd(cmd *cobra.Command, _ []string) error {
 }
 
 // getLogger builds a logger for runValidateCmd from CLI flags alone.
-// validate must work "without requiring database or environment
-// configurations", so it cannot go through config.LoadConfig (which requires
-// a full, valid Config including OpenFGA/Postgres/etc. settings); build just
-// the LoggingConfig from the log-level/log-format flags instead, reusing the
-// same SetupLogger construction (JSON/text handler + TraceHandler bridge) as
-// every other command.
+// validate must work "without requiring database or environment configurations"
+// build just the LoggingConfig from the log-level/log-format flags instead, reusing the
+// same SetupLogger as every other command.
 func getLogger(cmd *cobra.Command) *slog.Logger {
 	logLevel, _ := cmd.Flags().GetString("log-level")
 	if logLevel == "" {

@@ -19,15 +19,12 @@ import (
 )
 
 // requestIDMetadataKey is the gRPC metadata key carrying the request ID,
-// read from an incoming call (typically set by the mesh/Envoy at the edge)
-// or generated when absent, and echoed back as a response header.
 const requestIDMetadataKey = "x-request-id"
 
-// requestIDInterceptor establishes the request ID for the call: it reads
-// requestIDMetadataKey from incoming metadata, generating one if absent,
-// stores it in the context for downstream logging, and echoes it back as a
-// response header so callers can correlate their own logs. It must run
-// first in the chain so every later interceptor can log the request ID.
+// requestIDInterceptor sets the request ID if not present in requestIDMetadataKey
+// from incoming metadata, stores it in the context for downstream logging,
+// and echoes it back as a response header so callers can correlate their own logs.
+// It must run first in the chain so every later interceptor can log the request ID.
 func requestIDInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		requestID := requestIDFromIncomingContext(ctx)

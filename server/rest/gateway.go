@@ -95,12 +95,11 @@ func (g *Gateway) Shutdown(ctx context.Context) error {
 	return g.server.Shutdown(ctx)
 }
 
-// requestIDMiddleware establishes the request ID for the request: it reads
-// requestIDHeader from the incoming request (typically set by the mesh at
-// the edge), generating one if absent, stores it in the context for
+// requestIDMiddleware sets the request ID for the request if not present in
+// requestIDHeader from the incoming request, stores it in the context for
 // downstream logging, and echoes it back as a response header. It also
-// normalizes the request's own header so requestIDAnnotator can forward the
-// same ID into the proxied gRPC call. It must wrap everything else, including
+// normalizes the request's own header so requestIDAnnotator can forward id
+// into the proxied gRPC call. It must wrap everything else, including
 // metrics middleware, so every later handler can log the request ID.
 func requestIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -127,7 +126,7 @@ func requestIDAnnotator(_ context.Context, r *http.Request) metadata.MD {
 }
 
 // statusRecorder wraps an http.ResponseWriter to capture the status code
-// written by the handler, for logging.
+// written by the handler for logging.
 type statusRecorder struct {
 	http.ResponseWriter
 	status int

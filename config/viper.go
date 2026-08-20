@@ -15,10 +15,8 @@ import (
 	"github.com/spf13/viper"
 )
 
-// ErrConfigLoad wraps every error LoadConfig returns, so callers (notably
-// cmd.Execute, which runs before any logger exists) can distinguish a
-// config-load failure from an error already logged by a command that got
-// further than LoadConfig.
+// ErrConfigLoad wraps every error LoadConfig returns, so callers can distinguish a
+// config-load failure from errors already logged by a command that got further than LoadConfig.
 var ErrConfigLoad = errors.New("failed to load configuration")
 
 // LoadConfig loads the configuration from default values, config file, environment variables, and CLI flags.

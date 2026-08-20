@@ -40,11 +40,9 @@ func Execute() {
 		return
 	}
 
-	// Every RunE logs its own error, with domain context, before returning it,
-	// except for a config.LoadConfig failure: it happens before
-	// cfg.Logging.SetupLogger() can build a logger. Emit a hand-built JSON line
-	// for that one case so stdout/stderr never mixes structured and
-	// unstructured output; otherwise just set a non-zero exit code.
+	// Every RunE logs its own error with domain context before returning it,
+	// except for a config.LoadConfig failure: it happens before cfg.Logging.SetupLogger()
+	// So we print a hand-built JSON in order to never mix structured and unstructured output
 	if errors.Is(err, config.ErrConfigLoad) {
 		fallback := struct {
 			Time  string `json:"time"`
