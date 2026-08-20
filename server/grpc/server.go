@@ -58,6 +58,7 @@ func NewServer(cfg *config.ServerConfig, logger *slog.Logger, reg *prometheus.Re
 	grpcMetrics := metrics.NewGRPCMetrics(reg)
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
+			requestIDInterceptor(),
 			loggingInterceptor(logger),
 			recoveryInterceptor(logger),
 			grpcMetrics.UnaryServerInterceptor(),

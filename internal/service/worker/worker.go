@@ -120,7 +120,8 @@ func (w *Worker) processBatch(ctx context.Context) error {
 			// (e.g. DB unavailable). The row stays claimed and will be reclaimed by
 			// the stale-row reaper once its processing timeout elapses.
 			w.logger.Error("Failed to record processing outcome",
-				"service", row.Service, "message_id", row.MessageID, "row_id", row.ID, "error", err)
+				"service", row.Service, "message_id", row.MessageID, "row_id", row.ID,
+				"correlation_id", strOrEmpty(row.CorrelationID), "error", err)
 			return err
 		}
 	}

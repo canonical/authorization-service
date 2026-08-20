@@ -22,6 +22,7 @@ import (
 
 	stsv1 "github.com/canonical/authorization-service/client/v1/sts"
 	"github.com/canonical/authorization-service/internal/integration/openfga"
+	"github.com/canonical/authorization-service/internal/logging"
 	"github.com/canonical/authorization-service/internal/service/rules"
 )
 
@@ -93,16 +94,49 @@ func (s *ExternalAuthzService) Check(ctx context.Context, req *envoyAuth.CheckRe
 	ctx, span := s.tracer.Start(ctx, "authz.ExternalAuthzService.Check")
 	defer span.End()
 
+	httpReq := req.GetAttributes().GetRequest().GetHttp()
+	method := httpReq.GetMethod()
+	path := httpReq.GetPath()
+	if idx := strings.Index(path, "?"); idx != -1 {
+		path = path[:idx]
+	}
+
 	start := time.Now()
-	resp, result, reason, err := s.check(ctx, req)
-	s.metrics.RecordCheck(result, reason, time.Since(start))
+	resp, outcome, err := s.check(ctx, req)
+	duration := time.Since(start)
+	s.metrics.RecordCheck(outcome.result, outcome.reason, duration)
+
+	args := []any{
+		"request_id", logging.RequestIDFromContext(ctx),
+		"result", outcome.result,
+		"reason", outcome.reason,
+		"method", method,
+		"path", path,
+		"subject", outcome.subject,
+		"tenant", outcome.tenant,
+		"duration_ms", duration.Milliseconds(),
+	}
+	if err != nil {
+		args = append(args, "error", err)
+	}
+	s.logger.InfoContext(ctx, "Authorization decision", args...)
+
 	return resp, err
 }
 
-// check performs the actual authorization decision. It returns, alongside
-// the envoy response/error pair, a result/reason pair used purely for
-// metrics ("allow"/"deny"/"error", and a fixed-cardinality reason enum).
-func (s *ExternalAuthzService) check(ctx context.Context, req *envoyAuth.CheckRequest) (*envoyAuth.CheckResponse, string, string, error) {
+// checkOutcome carries the result of check() beyond the envoy
+// response/error pair: result/reason (used for metrics, at fixed
+// cardinality) and subject/tenant (used for the "Authorization decision"
+// log line emitted once by Check).
+type checkOutcome struct {
+	result  string
+	reason  string
+	subject string
+	tenant  string
+}
+
+// check performs the actual authorization decision.
+func (s *ExternalAuthzService) check(ctx context.Context, req *envoyAuth.CheckRequest) (*envoyAuth.CheckResponse, checkOutcome, error) {
 	httpReq := req.GetAttributes().GetRequest().GetHttp()
 	method := httpReq.GetMethod()
 	path := httpReq.GetPath()
@@ -118,13 +152,13 @@ func (s *ExternalAuthzService) check(ctx context.Context, req *envoyAuth.CheckRe
 	cookies, ok := headers["cookie"]
 	if !ok {
 		s.logger.Debug("No cookie header found in request")
-		return unauthorized("no session cookie provided"), "deny", "no_cookie", nil
+		return unauthorized("no session cookie provided"), checkOutcome{result: "deny", reason: "no_cookie"}, nil
 	}
 
 	sessionValue := extractSessionCookie(cookies)
 	if sessionValue == "" {
 		s.logger.Debug("Session cookie not found in cookie header")
-		return unauthorized("session cookie not found"), "deny", "no_session", nil
+		return unauthorized("session cookie not found"), checkOutcome{result: "deny", reason: "no_session"}, nil
 	}
 
 	stsStart := time.Now()
@@ -134,43 +168,47 @@ func (s *ExternalAuthzService) check(ctx context.Context, req *envoyAuth.CheckRe
 	s.metrics.ObserveSTSExchange(time.Since(stsStart))
 
 	if err != nil {
-		s.logger.Debug("Failed to exchange session cookie", "error", err)
-		return forbidden(err.Error()), "deny", "sts_exchange_failed", nil
+		return forbidden(err.Error()), checkOutcome{result: "deny", reason: "sts_exchange_failed"}, nil
 	}
 
 	claims, err := s.extractJWTClaims(ctx, exchangeResp.GetAccessToken())
 	if err != nil || claims.Sub == "" {
 		s.logger.Debug("Failed to extract claims from JWT", "error", err)
 		// If there is no explicit subject, we can't perform an authz check.
-		return unauthorized("issue with STS JWT"), "deny", "jwt_invalid", nil
+		return unauthorized("issue with STS JWT"), checkOutcome{result: "deny", reason: "jwt_invalid"}, nil
 	}
 	userIdentity := claims.Sub
+
+	tenant := ""
+	if s.multitenancyEnabled {
+		tenant = claims.Org
+	}
 
 	mapStart := time.Now()
 	tuples, matchedRule, err := s.resourceMapper.Map(ctx, userIdentity, method, path)
 	s.metrics.ObserveResourceMap(time.Since(mapStart))
 	if err != nil {
 		s.logger.Error("Failed to map resource", "method", method, "path", path, "error", err)
-		return forbidden("internal error during authorization"), "error", "internal_error", nil
+		return forbidden("internal error during authorization"), checkOutcome{result: "error", reason: "internal_error", subject: userIdentity, tenant: tenant}, nil
 	}
 
 	// No matching rule found — forbidden (if istio invoked the extAuthz then rules must be present, or something is wrong)
 	if tuples == nil || len(tuples) == 0 {
 		s.logger.Debug("No authorization rule matched", "method", method, "path", path)
-		return forbidden(fmt.Sprintf("No authorization rule matched method %s path %s", method, path)), "deny", "no_rule_matched", nil
+		return forbidden(fmt.Sprintf("No authorization rule matched method %s path %s", method, path)), checkOutcome{result: "deny", reason: "no_rule_matched", subject: userIdentity, tenant: tenant}, nil
 	}
 
 	// if no matched rule then return an error, if it's going through Cerberus then it needs a rule.
 	// Public endpoints must be ALLOWed via AuthorizationPolicy
 	if matchedRule == nil {
 		s.logger.Error("No matching rule was returned found")
-		return nil, "error", "internal_error", fmt.Errorf("no matching rule found")
+		return nil, checkOutcome{result: "error", reason: "internal_error", subject: userIdentity, tenant: tenant}, fmt.Errorf("no matching rule found")
 	}
 
 	if s.multitenancyEnabled {
 		if matchedRule.Tenant == nil || *matchedRule.Tenant == "" {
 			s.logger.Error("Rule does not have an associated tenant, but multitenancy is enabled", "rule_id", matchedRule.Id)
-			return nil, "error", "internal_error", fmt.Errorf("rule %s has no tenant but multitenancy is enabled", matchedRule.Id)
+			return nil, checkOutcome{result: "error", reason: "internal_error", subject: userIdentity, tenant: tenant}, fmt.Errorf("rule %s has no tenant but multitenancy is enabled", matchedRule.Id)
 		}
 	}
 
@@ -194,34 +232,34 @@ func (s *ExternalAuthzService) check(ctx context.Context, req *envoyAuth.CheckRe
 	s.metrics.ObserveOpenFGACheck(time.Since(fgaStart))
 	if err != nil {
 		s.logger.Error("OpenFGA check failed", "error", err)
-		return forbidden("authorization check failed"), "error", "openfga_error", nil
+		return forbidden("authorization check failed"), checkOutcome{result: "error", reason: "openfga_error", subject: userIdentity, tenant: tenant}, nil
 	}
 
 	results, ok := batchCheckResp.GetResultOk()
 	if !ok {
 		s.logger.Error("OpenFGA check failed, batch check result is not OK")
-		return forbidden("access denied"), "error", "openfga_error", nil
+		return forbidden("access denied"), checkOutcome{result: "error", reason: "openfga_error", subject: userIdentity, tenant: tenant}, nil
 	}
 
 	for _, result := range *results {
 		if result.HasError() {
 			s.logger.Error("OpenFGA check failed", "error", result.GetError())
-			return forbidden(fmt.Sprintf("access denied for user %s", userIdentity)), "error", "openfga_error", nil
+			return forbidden(fmt.Sprintf("access denied for user %s", userIdentity)), checkOutcome{result: "error", reason: "openfga_error", subject: userIdentity, tenant: tenant}, nil
 		}
 
 		allowed, ok := result.GetAllowedOk()
 		if !ok {
 			s.logger.Debug("Access denied for user", "user", userIdentity, "error", result.GetError())
-			return forbidden(fmt.Sprintf("access denied for user %s", userIdentity)), "error", "openfga_error", nil
+			return forbidden(fmt.Sprintf("access denied for user %s", userIdentity)), checkOutcome{result: "error", reason: "openfga_error", subject: userIdentity, tenant: tenant}, nil
 		}
 
 		if !*allowed {
 			s.logger.Debug("Access denied for user", "user", userIdentity)
-			return forbidden(fmt.Sprintf("access denied for user %s", userIdentity)), "deny", "openfga_denied", nil
+			return forbidden(fmt.Sprintf("access denied for user %s", userIdentity)), checkOutcome{result: "deny", reason: "openfga_denied", subject: userIdentity, tenant: tenant}, nil
 		}
 	}
 
-	return okResponse(exchangeResp.AccessToken), "allow", "ok", nil
+	return okResponse(exchangeResp.AccessToken), checkOutcome{result: "allow", reason: "ok", subject: userIdentity, tenant: tenant}, nil
 }
 
 type tokenClaims struct {

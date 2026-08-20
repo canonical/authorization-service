@@ -20,6 +20,7 @@ import (
 
 	"github.com/canonical/authorization-service/authz/model"
 	"github.com/canonical/authorization-service/config"
+	"github.com/canonical/authorization-service/internal/version"
 )
 
 // writeModelCmd represents the write-model command
@@ -43,7 +44,7 @@ func writeModel(cmd *cobra.Command, args []string) error {
 	}
 
 	// Setup logger
-	logger := cfg.Logging.SetupLogger()
+	logger := cfg.Logging.SetupLogger(cfg.Telemetry.ServiceName, version.Version)
 
 	if err := WriteAuthorizationModel(cmd.Context(), storeID, cfg, logger); err != nil {
 		logger.Error("Failed to write authorization model", "error", err)

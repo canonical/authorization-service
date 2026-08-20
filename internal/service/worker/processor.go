@@ -23,6 +23,14 @@ func permanent(code string, err error) *permissions.PermanentError {
 	return permissions.NewPermanentError(code, err)
 }
 
+// strOrEmpty dereferences s, returning "" if s is nil.
+func strOrEmpty(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
 // TupleApplier applies a batch of tuple writes and deletes to OpenFGA. The
 // application must be idempotent (duplicate writes and missing deletes are not
 // errors). It is an interface so the Processor's mapping, classification and
@@ -91,14 +99,15 @@ func (p *Processor) ProcessRow(ctx context.Context, row permissions.ClaimedRow) 
 	// a subsequent idempotent re-apply will re-run bookkeeping safely.
 	if err := p.repo.RecordProcessed(ctx, row.ID, row.Service, toModelTuples(writes), toModelDeletes(deletes)); err != nil {
 		p.logger.Error("Bookkeeping failed after successful OpenFGA write; row remains retryable",
-			"service", row.Service, "message_id", row.MessageID, "row_id", row.ID, "error", err)
+			"service", row.Service, "message_id", row.MessageID, "row_id", row.ID,
+			"correlation_id", strOrEmpty(row.CorrelationID), "error", err)
 		p.metrics.IncRetry(row.Service)
 		return p.repo.MarkRetry(ctx, row.ID, "bookkeeping_failed", err.Error(), false)
 	}
 
 	p.logger.Debug("Permission update processed",
 		"service", row.Service, "message_id", row.MessageID, "row_id", row.ID,
-		"writes", len(writes), "deletes", len(deletes))
+		"correlation_id", strOrEmpty(row.CorrelationID), "writes", len(writes), "deletes", len(deletes))
 	p.metrics.IncProcessed(row.Service)
 	return nil
 }
@@ -173,13 +182,13 @@ func (p *Processor) retryOrFail(ctx context.Context, row permissions.ClaimedRow,
 	if row.AttemptCount+1 >= p.maxAttempts {
 		p.logger.Warn("Retry limit exhausted; marking row failed",
 			"service", row.Service, "message_id", row.MessageID, "row_id", row.ID,
-			"attempts", row.AttemptCount+1, "error", err)
+			"correlation_id", strOrEmpty(row.CorrelationID), "attempts", row.AttemptCount+1, "error", err)
 		p.metrics.IncPermanentFailure(row.Service, row.MessageID, code)
 		return p.repo.MarkFailed(ctx, row.ID, code, err.Error())
 	}
 	p.logger.Info("Transient processing failure; scheduling retry",
 		"service", row.Service, "message_id", row.MessageID, "row_id", row.ID,
-		"attempt", row.AttemptCount+1, "error", err)
+		"correlation_id", strOrEmpty(row.CorrelationID), "attempt", row.AttemptCount+1, "error", err)
 	p.metrics.IncRetry(row.Service)
 	return p.repo.MarkRetry(ctx, row.ID, code, err.Error(), true)
 }
@@ -192,7 +201,7 @@ func (p *Processor) fail(ctx context.Context, row permissions.ClaimedRow, err er
 	}
 	p.logger.Error("Permanent processing failure",
 		"service", row.Service, "message_id", row.MessageID, "row_id", row.ID,
-		"code", code, "error", err)
+		"correlation_id", strOrEmpty(row.CorrelationID), "code", code, "error", err)
 	p.metrics.IncPermanentFailure(row.Service, row.MessageID, code)
 	return p.repo.MarkFailed(ctx, row.ID, code, err.Error())
 }

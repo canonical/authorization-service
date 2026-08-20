@@ -141,7 +141,7 @@ func (r *PostgresPermissionWorkRepository) ClaimBatch(ctx context.Context, limit
 	defer func() { r.metrics.ObserveQuery("claim_batch", err, time.Since(start)) }()
 
 	selectQuery, selectArgs, err := r.db.Builder().
-		Select("id", "service", "message_id", "payload", "event_time", "attempt_count").
+		Select("id", "service", "message_id", "payload", "event_time", "attempt_count", "correlation_id").
 		From("permission_update_work").
 		Where(sq.Eq{"status": string(permissions.StatusReceived)}).
 		Where(sq.Expr(
@@ -211,23 +211,25 @@ func scanClaimedRows(rows pgx.Rows) ([]permissions.ClaimedRow, error) {
 	var claimed []permissions.ClaimedRow
 	for rows.Next() {
 		var (
-			id           string
-			service      string
-			messageID    string
-			payload      []byte
-			eventTime    *time.Time
-			attemptCount int
+			id            string
+			service       string
+			messageID     string
+			payload       []byte
+			eventTime     *time.Time
+			attemptCount  int
+			correlationID *string
 		)
-		if err := rows.Scan(&id, &service, &messageID, &payload, &eventTime, &attemptCount); err != nil {
+		if err := rows.Scan(&id, &service, &messageID, &payload, &eventTime, &attemptCount, &correlationID); err != nil {
 			return nil, fmt.Errorf("failed to scan claimed row: %w", err)
 		}
 		claimed = append(claimed, permissions.ClaimedRow{
-			ID:           id,
-			Service:      service,
-			MessageID:    messageID,
-			Payload:      payload,
-			EventTime:    eventTime,
-			AttemptCount: attemptCount,
+			ID:            id,
+			Service:       service,
+			MessageID:     messageID,
+			Payload:       payload,
+			EventTime:     eventTime,
+			AttemptCount:  attemptCount,
+			CorrelationID: correlationID,
 		})
 	}
 	if err := rows.Err(); err != nil {

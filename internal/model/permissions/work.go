@@ -59,6 +59,9 @@ type ClaimedRow struct {
 	// AttemptCount is the number of processing attempts already made, used to
 	// decide when the configured retry limit has been exhausted.
 	AttemptCount int
+	// CorrelationID is the originating service's correlation identifier, used to
+	// tie this row's logs back to the same identifier logged at ingestion time.
+	CorrelationID *string
 }
 
 // Tuple is a relationship tuple as mirrored into the authorization_tuples table

@@ -19,6 +19,7 @@ services:
       - STS_ADDRESS=sts:9091
       - LOG_LEVEL=debug
       - LOG_FORMAT=json
+      - LOG_ADD_SOURCE=true
     networks:
       - authz-network
     depends_on:

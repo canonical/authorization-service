@@ -14,6 +14,7 @@ import (
 
 	"github.com/canonical/authorization-service/config"
 	"github.com/canonical/authorization-service/internal/metrics"
+	"github.com/canonical/authorization-service/internal/version"
 )
 
 var (
@@ -51,7 +52,7 @@ func runCheck(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	logger := cfg.Logging.SetupLogger()
+	logger := cfg.Logging.SetupLogger(cfg.Telemetry.ServiceName, version.Version)
 
 	tracer, _, err := cfg.Telemetry.SetupTelemetry(cmd.Context(), logger)
 	if err != nil {

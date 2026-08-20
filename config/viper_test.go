@@ -79,6 +79,7 @@ func TestLoadConfig_EnvOverride(t *testing.T) {
 	// GIVEN environment variables set
 	t.Setenv("SERVER_GRPC_PORT", "8888")
 	t.Setenv("POSTGRES_DB_NAME", "env_db")
+	t.Setenv("LOGGING_ADD_SOURCE", "true")
 
 	cmd := &cobra.Command{}
 	cmd.Flags().String("config", "", "")
@@ -90,6 +91,7 @@ func TestLoadConfig_EnvOverride(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 8888, cfg.Server.GRPCPort)
 	assert.Equal(t, "env_db", cfg.Postgres.DBName)
+	assert.True(t, cfg.Logging.AddSource)
 }
 
 func TestLoadConfig_FlagsOverride(t *testing.T) {

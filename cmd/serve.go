@@ -39,7 +39,7 @@ func serve(cmd *cobra.Command, args []string) error {
 	}
 
 	// Setup logger
-	logger := cfg.Logging.SetupLogger()
+	logger := cfg.Logging.SetupLogger(cfg.Telemetry.ServiceName, version.Version)
 	logger.Info("Starting Authorization Service", "version", version.Version)
 
 	tracer, tracerShutdown, err := cfg.Telemetry.SetupTelemetry(cmd.Context(), logger)
@@ -91,6 +91,7 @@ func serve(cmd *cobra.Command, args []string) error {
 	go func() {
 		logger.Info("Starting gRPC server", "address", cfg.Server.GetGRPCAddress())
 		if err := grpcServer.Start(); err != nil {
+			logger.Error("gRPC server failed", "error", err)
 			errChan <- fmt.Errorf("gRPC server error: %w", err)
 		}
 	}()
@@ -98,6 +99,7 @@ func serve(cmd *cobra.Command, args []string) error {
 	go func() {
 		logger.Info("Starting REST gateway", "address", cfg.Server.GetHTTPAddress())
 		if err := restGateway.Start(cfg.Server.GetGRPCAddress()); err != nil {
+			logger.Error("REST gateway failed", "error", err)
 			errChan <- fmt.Errorf("REST gateway error: %w", err)
 		}
 	}()
@@ -106,6 +108,7 @@ func serve(cmd *cobra.Command, args []string) error {
 		go func() {
 			logger.Info("Starting metrics server", "address", metricsServer.Addr)
 			if err := metricsServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				logger.Error("Metrics server failed", "error", err)
 				errChan <- fmt.Errorf("metrics server error: %w", err)
 			}
 		}()
@@ -116,7 +119,6 @@ func serve(cmd *cobra.Command, args []string) error {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	select {
 	case err := <-errChan:
-		logger.Error("Server error", "error", err)
 		return err
 	case sig := <-sigChan:
 		logger.Info("Received signal, shutting down", "signal", sig)

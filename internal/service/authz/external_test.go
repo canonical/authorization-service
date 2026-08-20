@@ -9,6 +9,7 @@
 package authz
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -31,13 +32,57 @@ import (
 	"google.golang.org/grpc/codes"
 
 	stsv1 "github.com/canonical/authorization-service/client/v1/sts"
+	"github.com/canonical/authorization-service/internal/logging"
 	"github.com/canonical/authorization-service/internal/model/rules"
 	authz "github.com/canonical/authorization-service/internal/service/authz/mocks"
+	"github.com/canonical/authorization-service/internal/testutil"
 )
 
 func testLoggerExternal(t *testing.T) *slog.Logger {
 	t.Helper()
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
+// debugCapturingLogger is like testutil.CapturingLogger but captures Debug
+// level too, so tests can assert a removed Debug line no longer appears.
+func debugCapturingLogger(t *testing.T) (*slog.Logger, *bytes.Buffer) {
+	t.Helper()
+	var buf bytes.Buffer
+	handler := logging.NewTraceHandler(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	return slog.New(handler), &buf
+}
+
+// decodeLogLines decodes every JSON log line captured in buf.
+func decodeLogLines(t *testing.T, buf *bytes.Buffer) []map[string]any {
+	t.Helper()
+	var entries []map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+		if line == "" {
+			continue
+		}
+		var entry map[string]any
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			t.Fatalf("failed to decode log line %q: %v", line, err)
+		}
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
+// decodeAuthzDecisionLine asserts that exactly one "Authorization decision"
+// log line was captured in buf and returns its decoded fields.
+func decodeAuthzDecisionLine(t *testing.T, buf *bytes.Buffer) map[string]any {
+	t.Helper()
+	var found []map[string]any
+	for _, entry := range decodeLogLines(t, buf) {
+		if entry["msg"] == "Authorization decision" {
+			found = append(found, entry)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("expected exactly 1 \"Authorization decision\" log line, got %d", len(found))
+	}
+	return found[0]
 }
 
 // newTestIDToken creates an *oidc.IDToken with the given claims JSON set via reflection,
@@ -808,6 +853,274 @@ func TestExternalAuthzService_Check_FullSuccess(t *testing.T) {
 	}
 	assertRecordCheck(t, metrics, "allow", "ok")
 	assertObserveCalls(t, metrics, 1, 1, 1)
+}
+
+// --- Check: "Authorization decision" log line --------------------------------
+
+// TestExternalAuthzService_Check_LogsAuthorizationDecision_Allow mirrors
+// TestExternalAuthzService_Check_FullSuccess but asserts on the captured log
+// output rather than the response.
+func TestExternalAuthzService_Check_LogsAuthorizationDecision_Allow(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSTS := authz.NewMockSecurityTokenServiceClient(ctrl)
+	mockResourceMapper := authz.NewMockResourceMapperInterface(ctrl)
+	mockOpenFGA := authz.NewMockOpenFGAClientInterface(ctrl)
+	mockVerifier := authz.NewMockoidcVerifier(ctrl)
+
+	accessToken := "test.access.token"
+	userSub := "alice@example.com"
+	claimsJSON, _ := json.Marshal(map[string]string{"sub": userSub})
+	idToken := newTestIDToken(t, claimsJSON)
+
+	tuples := []client.ClientBatchCheckItem{
+		{User: "user:alice", Relation: "reader", Object: "document:1"},
+	}
+
+	mockSTS.EXPECT().
+		ExchangeSession(gomock.Any(), &stsv1.ExchangeRequest{SessionCookie: "valid-session"}).
+		Return(&stsv1.ExchangeResponse{AccessToken: accessToken}, nil).
+		Times(1)
+	mockVerifier.EXPECT().
+		Verify(gomock.Any(), accessToken).
+		Return(idToken, nil).
+		Times(1)
+	mockResourceMapper.EXPECT().
+		Map(gomock.Any(), userSub, "GET", "/api/resource").
+		Return(tuples, &rules.RuleWithTuples{Id: "rule-1"}, nil).
+		Times(1)
+
+	resultMap := map[string]openfga.BatchCheckSingleResult{
+		"correlation-1": {Allowed: boolPtr(true)},
+	}
+	batchReqMock := &mockBatchCheckRequest{
+		response: &openfga.BatchCheckResponse{Result: &resultMap},
+		err:      nil,
+	}
+	mockOpenFGA.EXPECT().
+		BatchCheck(gomock.Any()).
+		Return(batchReqMock).
+		Times(1)
+
+	logger, buf := testutil.CapturingLogger(t)
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, logger, noop.NewTracerProvider().Tracer("test"))
+
+	ctx := logging.ContextWithRequestID(context.Background(), "req-allow-1")
+	_, err := svc.Check(ctx, buildCheckRequest(
+		map[string]string{"cookie": "session_id=valid-session"}, "GET", "/api/resource?foo=bar",
+	))
+	if err != nil {
+		t.Fatalf("Check failed: %v", err)
+	}
+
+	entry := decodeAuthzDecisionLine(t, buf)
+	wantFields := map[string]any{
+		"request_id": "req-allow-1",
+		"result":     "allow",
+		"reason":     "ok",
+		"method":     "GET",
+		"path":       "/api/resource",
+		"subject":    userSub,
+		"tenant":     "",
+	}
+	for field, want := range wantFields {
+		if got := entry[field]; got != want {
+			t.Errorf("field %q: expected %v, got %v", field, want, got)
+		}
+	}
+	if _, ok := entry["duration_ms"]; !ok {
+		t.Error("expected \"duration_ms\" field in log entry")
+	}
+	if _, ok := entry["error"]; ok {
+		t.Errorf("expected no \"error\" field on the success path, got %v", entry["error"])
+	}
+}
+
+// TestExternalAuthzService_Check_LogsAuthorizationDecision_Deny mirrors
+// TestExternalAuthzService_Check_FGAAccessDenied but asserts on the captured
+// log output rather than the response.
+func TestExternalAuthzService_Check_LogsAuthorizationDecision_Deny(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSTS := authz.NewMockSecurityTokenServiceClient(ctrl)
+	mockResourceMapper := authz.NewMockResourceMapperInterface(ctrl)
+	mockOpenFGA := authz.NewMockOpenFGAClientInterface(ctrl)
+	mockVerifier := authz.NewMockoidcVerifier(ctrl)
+
+	accessToken := "test.access.token"
+	userSub := "alice@example.com"
+	claimsJSON, _ := json.Marshal(map[string]string{"sub": userSub})
+	idToken := newTestIDToken(t, claimsJSON)
+
+	tuples := []client.ClientBatchCheckItem{
+		{User: "user:alice", Relation: "reader", Object: "document:1"},
+	}
+
+	mockSTS.EXPECT().
+		ExchangeSession(gomock.Any(), gomock.Any()).
+		Return(&stsv1.ExchangeResponse{AccessToken: accessToken}, nil).
+		Times(1)
+	mockVerifier.EXPECT().
+		Verify(gomock.Any(), accessToken).
+		Return(idToken, nil).
+		Times(1)
+	mockResourceMapper.EXPECT().
+		Map(gomock.Any(), userSub, "GET", "/api/resource").
+		Return(tuples, &rules.RuleWithTuples{Id: "rule-1"}, nil).
+		Times(1)
+
+	resultMap := map[string]openfga.BatchCheckSingleResult{
+		"correlation-1": {Allowed: boolPtr(false)},
+	}
+	batchReqMock := &mockBatchCheckRequest{
+		response: &openfga.BatchCheckResponse{Result: &resultMap},
+		err:      nil,
+	}
+	mockOpenFGA.EXPECT().
+		BatchCheck(gomock.Any()).
+		Return(batchReqMock).
+		Times(1)
+
+	logger, buf := testutil.CapturingLogger(t)
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, logger, noop.NewTracerProvider().Tracer("test"))
+
+	ctx := logging.ContextWithRequestID(context.Background(), "req-deny-1")
+	_, err := svc.Check(ctx, buildCheckRequest(
+		map[string]string{"cookie": "session_id=s"}, "GET", "/api/resource",
+	))
+	if err != nil {
+		t.Fatalf("Check failed: %v", err)
+	}
+
+	entry := decodeAuthzDecisionLine(t, buf)
+	wantFields := map[string]any{
+		"request_id": "req-deny-1",
+		"result":     "deny",
+		"reason":     "openfga_denied",
+		"method":     "GET",
+		"path":       "/api/resource",
+		"subject":    userSub,
+	}
+	for field, want := range wantFields {
+		if got := entry[field]; got != want {
+			t.Errorf("field %q: expected %v, got %v", field, want, got)
+		}
+	}
+	if _, ok := entry["error"]; ok {
+		t.Errorf("expected no \"error\" field on the deny path, got %v", entry["error"])
+	}
+}
+
+// TestExternalAuthzService_Check_LogsAuthorizationDecision_Error mirrors
+// TestExternalAuthzService_Check_MissingMatchedRule but asserts on the
+// captured log output rather than the response. This is the one internal_error
+// branch where check() returns a non-nil error (a nil matchedRule despite
+// non-empty tuples is a resourceMapper/rule-data bug, not just a denial),
+// which is what makes the "error" field on the log line non-empty.
+func TestExternalAuthzService_Check_LogsAuthorizationDecision_Error(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSTS := authz.NewMockSecurityTokenServiceClient(ctrl)
+	mockResourceMapper := authz.NewMockResourceMapperInterface(ctrl)
+	mockOpenFGA := authz.NewMockOpenFGAClientInterface(ctrl)
+	mockVerifier := authz.NewMockoidcVerifier(ctrl)
+
+	accessToken := "test.access.token"
+	userSub := "alice@example.com"
+	claimsJSON, _ := json.Marshal(map[string]string{"sub": userSub})
+	idToken := newTestIDToken(t, claimsJSON)
+
+	tuples := []client.ClientBatchCheckItem{
+		{User: "user:alice", Relation: "reader", Object: "document:1"},
+	}
+
+	mockSTS.EXPECT().
+		ExchangeSession(gomock.Any(), gomock.Any()).
+		Return(&stsv1.ExchangeResponse{AccessToken: accessToken}, nil).
+		Times(1)
+	mockVerifier.EXPECT().
+		Verify(gomock.Any(), accessToken).
+		Return(idToken, nil).
+		Times(1)
+	// Return non-empty tuples but nil matchedRule.
+	mockResourceMapper.EXPECT().
+		Map(gomock.Any(), userSub, "GET", "/api/resource").
+		Return(tuples, nil, nil).
+		Times(1)
+
+	logger, buf := testutil.CapturingLogger(t)
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, logger, noop.NewTracerProvider().Tracer("test"))
+
+	ctx := logging.ContextWithRequestID(context.Background(), "req-error-1")
+	_, err := svc.Check(ctx, buildCheckRequest(
+		map[string]string{"cookie": "session_id=valid-session"}, "GET", "/api/resource",
+	))
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	entry := decodeAuthzDecisionLine(t, buf)
+	wantFields := map[string]any{
+		"request_id": "req-error-1",
+		"result":     "error",
+		"reason":     "internal_error",
+		"method":     "GET",
+		"path":       "/api/resource",
+		"subject":    userSub,
+	}
+	for field, want := range wantFields {
+		if got := entry[field]; got != want {
+			t.Errorf("field %q: expected %v, got %v", field, want, got)
+		}
+	}
+	if entry["error"] == nil || entry["error"] == "" {
+		t.Errorf("expected non-empty \"error\" field on the error path, got %v", entry["error"])
+	}
+}
+
+// TestExternalAuthzService_Check_NoDuplicateDebugLogOnExchangeSessionError
+// guards against the previously-removed
+// "Failed to exchange session cookie" Debug duplicate reappearing on the
+// sts_exchange_failed path — internal/integration/sts/client.go already logs
+// the same error at Error level with more detail.
+func TestExternalAuthzService_Check_NoDuplicateDebugLogOnExchangeSessionError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSTS := authz.NewMockSecurityTokenServiceClient(ctrl)
+	mockResourceMapper := authz.NewMockResourceMapperInterface(ctrl)
+	mockOpenFGA := authz.NewMockOpenFGAClientInterface(ctrl)
+	mockVerifier := authz.NewMockoidcVerifier(ctrl)
+
+	mockSTS.EXPECT().
+		ExchangeSession(gomock.Any(), &stsv1.ExchangeRequest{SessionCookie: "invalid-session"}).
+		Return(nil, errors.New("invalid session")).
+		Times(1)
+	mockVerifier.EXPECT().Verify(gomock.Any(), gomock.Any()).Times(0)
+
+	logger, buf := debugCapturingLogger(t)
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, logger, noop.NewTracerProvider().Tracer("test"))
+
+	_, err := svc.Check(context.Background(), buildCheckRequest(
+		map[string]string{"cookie": "session_id=invalid-session"}, "GET", "/api",
+	))
+	if err != nil {
+		t.Fatalf("Check failed: %v", err)
+	}
+
+	for _, entry := range decodeLogLines(t, buf) {
+		if entry["msg"] == "Failed to exchange session cookie" {
+			t.Fatalf("unexpected duplicate log line %q found: %v", entry["msg"], entry)
+		}
+	}
+	decodeAuthzDecisionLine(t, buf)
 }
 
 // --- Check: cookie-parsing edge cases ----------------------------------------

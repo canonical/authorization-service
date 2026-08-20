@@ -32,6 +32,10 @@ func setupWorkMocks(t *testing.T) (*repomocks.MockDBClientInterface, pgxmock.Pgx
 	return mockDB, pool
 }
 
+func strPtr(s string) *string {
+	return &s
+}
+
 func sampleRow() permissions.WorkRow {
 	return permissions.WorkRow{
 		Service:        "payments",
@@ -111,9 +115,9 @@ func TestPermissionWork_ClaimBatch_Success(t *testing.T) {
 			pool.ExpectQuery(".*").
 				WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).
 				WillReturnRows(
-					pgxmock.NewRows([]string{"id", "service", "message_id", "payload", "event_time", "attempt_count"}).
-						AddRow("row-1", "payments", "msg-1", []byte{0x01}, (*time.Time)(nil), 0).
-						AddRow("row-2", "payments", "msg-2", []byte{0x02}, (*time.Time)(nil), 2),
+					pgxmock.NewRows([]string{"id", "service", "message_id", "payload", "event_time", "attempt_count", "correlation_id"}).
+						AddRow("row-1", "payments", "msg-1", []byte{0x01}, (*time.Time)(nil), 0, (*string)(nil)).
+						AddRow("row-2", "payments", "msg-2", []byte{0x02}, (*time.Time)(nil), 2, strPtr("corr-2")),
 				)
 			pool.ExpectExec(".*").
 				WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).
@@ -148,7 +152,7 @@ func TestPermissionWork_ClaimBatch_Empty(t *testing.T) {
 			pool.ExpectQuery(".*").
 				WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).
 				WillReturnRows(
-					pgxmock.NewRows([]string{"id", "service", "message_id", "payload", "event_time", "attempt_count"}),
+					pgxmock.NewRows([]string{"id", "service", "message_id", "payload", "event_time", "attempt_count", "correlation_id"}),
 				)
 			pool.ExpectRollback()
 			return pool.Begin(ctx)

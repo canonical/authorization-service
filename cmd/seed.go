@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 
 	"github.com/spf13/cobra"
 
@@ -17,6 +16,7 @@ import (
 	"github.com/canonical/authorization-service/internal/model/rules"
 	"github.com/canonical/authorization-service/internal/repository"
 	ruleservice "github.com/canonical/authorization-service/internal/service/rules"
+	"github.com/canonical/authorization-service/internal/version"
 )
 
 var seedCmd = &cobra.Command{
@@ -58,7 +58,7 @@ func runSeedCmd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	logger := cfg.Logging.SetupLogger()
+	logger := cfg.Logging.SetupLogger(cfg.Telemetry.ServiceName, version.Version)
 	logger.Info("Starting database seed command")
 
 	tracer, tracerShutdown, err := cfg.Telemetry.SetupTelemetry(cmd.Context(), logger)
@@ -203,6 +203,10 @@ func runValidateCmd(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
+// getLogger builds a logger for runValidateCmd from CLI flags alone.
+// validate must work "without requiring database or environment configurations"
+// build just the LoggingConfig from the log-level/log-format flags instead, reusing the
+// same SetupLogger as every other command.
 func getLogger(cmd *cobra.Command) *slog.Logger {
 	logLevel, _ := cmd.Flags().GetString("log-level")
 	if logLevel == "" {
@@ -213,14 +217,6 @@ func getLogger(cmd *cobra.Command) *slog.Logger {
 		logFormat, _ = cmd.Root().PersistentFlags().GetString("log-format")
 	}
 
-	opts := &slog.HandlerOptions{
-		Level: config.ParseLogLevel(logLevel),
-	}
-	var handler slog.Handler
-	if logFormat == "json" {
-		handler = slog.NewJSONHandler(os.Stdout, opts)
-	} else {
-		handler = slog.NewTextHandler(os.Stdout, opts)
-	}
-	return slog.New(handler)
+	loggingCfg := &config.LoggingConfig{Level: logLevel, Format: logFormat}
+	return loggingCfg.SetupLogger("authorization-service", version.Version)
 }

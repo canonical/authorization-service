@@ -4,10 +4,13 @@
 package worker
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,8 +19,10 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	messagesv1 "github.com/canonical/authorization-service/api/v1"
+	"github.com/canonical/authorization-service/internal/logging"
 	"github.com/canonical/authorization-service/internal/model/permissions"
 	"github.com/canonical/authorization-service/internal/service/listen"
+	"github.com/canonical/authorization-service/internal/testutil"
 )
 
 // listenDecoder returns a real Decoder; decoding is pure so no mock is needed.
@@ -95,6 +100,48 @@ func (a *fakeApplier) ApplyTuples(_ context.Context, writes []client.ClientTuple
 
 func testLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
+// debugCapturingLogger is like testutil.CapturingLogger but captures Debug
+// level too, since the success-path log line is logged at Debug.
+func debugCapturingLogger(t *testing.T) (*slog.Logger, *bytes.Buffer) {
+	t.Helper()
+	var buf bytes.Buffer
+	handler := logging.NewTraceHandler(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	return slog.New(handler), &buf
+}
+
+// decodeLogLines decodes every JSON log line captured in buf.
+func decodeLogLines(t *testing.T, buf *bytes.Buffer) []map[string]any {
+	t.Helper()
+	var entries []map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+		if line == "" {
+			continue
+		}
+		var entry map[string]any
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			t.Fatalf("failed to decode log line %q: %v", line, err)
+		}
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
+// findLogLine returns the single log line with the given msg, failing the
+// test if there isn't exactly one.
+func findLogLine(t *testing.T, buf *bytes.Buffer, msg string) map[string]any {
+	t.Helper()
+	var found []map[string]any
+	for _, entry := range decodeLogLines(t, buf) {
+		if entry["msg"] == msg {
+			found = append(found, entry)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("expected exactly 1 %q log line, got %d", msg, len(found))
+	}
+	return found[0]
 }
 
 // encodeEnvelope builds a valid protobuf payload with the given operations.
@@ -355,4 +402,77 @@ func TestProcessRow_InvalidOperation_IsPermanent(t *testing.T) {
 		t.Fatalf("expected permanent failure invalid_operation, got %+v", repo)
 	}
 	assertIncPermanentFailure(t, metrics, permanentFailureCall{service: "payments", messageID: "", code: "invalid_operation"})
+}
+
+func TestProcessRow_LogsCorrelationID_OnSuccess(t *testing.T) {
+	repo := &fakeRepo{}
+	applier := &fakeApplier{}
+	metrics := &fakeMetrics{}
+	logger, buf := debugCapturingLogger(t)
+	p := NewProcessor(repo, applier, listenDecoder(), 5, false, metrics, logger)
+
+	corrID := "corr-1"
+	row := permissions.ClaimedRow{
+		ID:            "row-1",
+		Service:       "payments",
+		CorrelationID: &corrID,
+		Payload:       encodeEnvelope(t, writeOp("user:u1", "viewer", "doc:d1")),
+	}
+	if err := p.ProcessRow(context.Background(), row); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	entry := findLogLine(t, buf, "Permission update processed")
+	if got := entry["correlation_id"]; got != corrID {
+		t.Errorf("expected correlation_id %q, got %v", corrID, got)
+	}
+}
+
+func TestProcessRow_LogsCorrelationID_OnPermanentFailure(t *testing.T) {
+	repo := &fakeRepo{}
+	applier := &fakeApplier{}
+	metrics := &fakeMetrics{}
+	logger, buf := testutil.CapturingLogger(t)
+	p := NewProcessor(repo, applier, listenDecoder(), 5, false, metrics, logger)
+
+	corrID := "corr-2"
+	row := permissions.ClaimedRow{
+		ID:            "row-1",
+		Service:       "payments",
+		CorrelationID: &corrID,
+		Payload:       []byte{0xff, 0xff, 0xff},
+	}
+	if err := p.ProcessRow(context.Background(), row); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	entry := findLogLine(t, buf, "Permanent processing failure")
+	if got := entry["correlation_id"]; got != corrID {
+		t.Errorf("expected correlation_id %q, got %v", corrID, got)
+	}
+}
+
+func TestProcessRow_LogsCorrelationID_OnRetry(t *testing.T) {
+	repo := &fakeRepo{}
+	applier := &fakeApplier{err: fgaSdk.FgaApiRateLimitExceededError{}}
+	metrics := &fakeMetrics{}
+	logger, buf := testutil.CapturingLogger(t)
+	p := NewProcessor(repo, applier, listenDecoder(), 5, false, metrics, logger)
+
+	corrID := "corr-3"
+	row := permissions.ClaimedRow{
+		ID:            "row-1",
+		Service:       "payments",
+		AttemptCount:  1,
+		CorrelationID: &corrID,
+		Payload:       encodeEnvelope(t, writeOp("user:u1", "viewer", "doc:d1")),
+	}
+	if err := p.ProcessRow(context.Background(), row); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	entry := findLogLine(t, buf, "Transient processing failure; scheduling retry")
+	if got := entry["correlation_id"]; got != corrID {
+		t.Errorf("expected correlation_id %q, got %v", corrID, got)
+	}
 }

@@ -4,16 +4,20 @@
 package listen
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
 	"google.golang.org/protobuf/proto"
 
 	messagesv1 "github.com/canonical/authorization-service/api/v1"
+	"github.com/canonical/authorization-service/internal/logging"
 	"github.com/canonical/authorization-service/internal/model/permissions"
 	"github.com/canonical/authorization-service/internal/repository"
 )
@@ -65,6 +69,48 @@ func (m *countingMetrics) ObserveIngestDuration(string, time.Duration) {}
 
 func testLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
+// debugCapturingLogger is like testutil.CapturingLogger but captures Debug
+// level too, since ingestion's per-message lines are logged at Debug.
+func debugCapturingLogger(t *testing.T) (*slog.Logger, *bytes.Buffer) {
+	t.Helper()
+	var buf bytes.Buffer
+	handler := logging.NewTraceHandler(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	return slog.New(handler), &buf
+}
+
+// decodeLogLines decodes every JSON log line captured in buf.
+func decodeLogLines(t *testing.T, buf *bytes.Buffer) []map[string]any {
+	t.Helper()
+	var entries []map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+		if line == "" {
+			continue
+		}
+		var entry map[string]any
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			t.Fatalf("failed to decode log line %q: %v", line, err)
+		}
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
+// findLogLine returns the single log line with the given msg, failing the
+// test if there isn't exactly one.
+func findLogLine(t *testing.T, buf *bytes.Buffer, msg string) map[string]any {
+	t.Helper()
+	var found []map[string]any
+	for _, entry := range decodeLogLines(t, buf) {
+		if entry["msg"] == msg {
+			found = append(found, entry)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("expected exactly 1 %q log line, got %d", msg, len(found))
+	}
+	return found[0]
 }
 
 func newIngestor(t *testing.T, repo repository.PermissionWorkRepository, m Metrics) *IngestionService {
@@ -180,5 +226,75 @@ func TestIngest_UnknownTopicIsPermanent(t *testing.T) {
 	err := ing.Ingest(context.Background(), msg("other.permissions", value))
 	if err == nil || !permissions.IsPermanent(err) {
 		t.Fatalf("expected permanent error for unknown topic, got %v", err)
+	}
+}
+
+func TestIngest_LogsCorrelationID_OnSuccess(t *testing.T) {
+	repo := &fakeRepo{}
+	registry, err := NewServiceRegistry([]string{"payments"})
+	if err != nil {
+		t.Fatalf("registry: %v", err)
+	}
+	logger, buf := debugCapturingLogger(t)
+	ing := NewIngestionService(registry, NewDecoder(), NewValidator(), repo, nil, logger)
+
+	env := validEnvelope()
+	env.CorrelationId = proto.String("corr-123")
+	value := marshalEnvelope(t, env)
+
+	if err := ing.Ingest(context.Background(), msg("payments.permissions", value)); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	entry := findLogLine(t, buf, "Permission update ingested")
+	if got := entry["correlation_id"]; got != "corr-123" {
+		t.Errorf("expected correlation_id %q, got %v", "corr-123", got)
+	}
+}
+
+func TestIngest_LogsCorrelationID_OnDuplicate(t *testing.T) {
+	repo := &fakeRepo{err: repository.ErrDuplicate}
+	registry, err := NewServiceRegistry([]string{"payments"})
+	if err != nil {
+		t.Fatalf("registry: %v", err)
+	}
+	logger, buf := debugCapturingLogger(t)
+	ing := NewIngestionService(registry, NewDecoder(), NewValidator(), repo, nil, logger)
+
+	env := validEnvelope()
+	env.CorrelationId = proto.String("corr-dup")
+	value := marshalEnvelope(t, env)
+
+	if err := ing.Ingest(context.Background(), msg("payments.permissions", value)); err != nil {
+		t.Fatalf("duplicate should be nil, got %v", err)
+	}
+
+	entry := findLogLine(t, buf, "Duplicate permission update ignored")
+	if got := entry["correlation_id"]; got != "corr-dup" {
+		t.Errorf("expected correlation_id %q, got %v", "corr-dup", got)
+	}
+}
+
+func TestIngest_LogsCorrelationID_OnValidationFailure(t *testing.T) {
+	repo := &fakeRepo{}
+	registry, err := NewServiceRegistry([]string{"payments"})
+	if err != nil {
+		t.Fatalf("registry: %v", err)
+	}
+	logger, buf := debugCapturingLogger(t)
+	ing := NewIngestionService(registry, NewDecoder(), NewValidator(), repo, nil, logger)
+
+	env := validEnvelope()
+	env.CorrelationId = proto.String("corr-invalid")
+	env.Service = "invoicing" // mismatches the payments.permissions topic
+	value := marshalEnvelope(t, env)
+
+	if err := ing.Ingest(context.Background(), msg("payments.permissions", value)); err == nil {
+		t.Fatal("expected permanent error, got nil")
+	}
+
+	entry := findLogLine(t, buf, "Permanent ingestion failure")
+	if got := entry["correlation_id"]; got != "corr-invalid" {
+		t.Errorf("expected correlation_id %q, got %v", "corr-invalid", got)
 	}
 }
