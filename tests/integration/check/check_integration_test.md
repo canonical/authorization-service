@@ -8,7 +8,7 @@ The integration test suite is located in [check_integration_test.go](file:///hom
 
 ## Architecture Overview
 
-The purpose of this test is to validate the full, end-to-end network contract and protocol translation between **Envoy Proxy**, **Cerberus (ExternalAuthzService)**, and **OpenFGA**.
+The purpose of this test is to validate the full, end-to-end network contract and protocol translation between **Envoy Proxy**, **Authorization-service (ExternalAuthzService)**, and **OpenFGA**.
 
 Rather than spinning up a heavy Kubernetes cluster or a service mesh like Istio, the test sets up a lightweight, containerised environment locally using `testcontainers-go`.
 
@@ -17,19 +17,19 @@ sequenceDiagram
     autonumber
     actor Client as HTTP Client
     participant Envoy as Envoy Proxy (Docker Container)
-    participant Cerberus as Cerberus gRPC Server (Host Loopback)
+    participant Authorization-service as Authorization-service gRPC Server (Host Loopback)
     participant STS as STS (Mock)
     participant FGA as OpenFGA (Docker Container)
 
     Client->>Envoy: HTTP GET /api/resource (with session Cookie)
     Note over Envoy: ext_authz HTTP filter intercepts request
-    Envoy->>Cerberus: gRPC CheckRequest (Headers and Cookies)
-    Cerberus->>STS: ExchangeSession(Cookie)
-    STS-->>Cerberus: Access Token (JWT)
-    Note over Cerberus: Extract 'sub' and 'org' claims from JWT
-    Cerberus->>FGA: BatchCheck (with contextual tenant params)
-    FGA-->>Cerberus: BatchCheckResponse (Allowed)
-    Cerberus-->>Envoy: gRPC CheckResponse (OK, adds Authorization Bearer)
+    Envoy->>Authorization-service: gRPC CheckRequest (Headers and Cookies)
+    Authorization-service->>STS: ExchangeSession(Cookie)
+    STS-->>Authorization-service: Access Token (JWT)
+    Note over Authorization-service: Extract 'sub' and 'org' claims from JWT
+    Authorization-service->>FGA: BatchCheck (with contextual tenant params)
+    FGA-->>Authorization-service: BatchCheckResponse (Allowed)
+    Authorization-service-->>Envoy: gRPC CheckResponse (OK, adds Authorization Bearer)
     Envoy->>Client: HTTP 200 OK (forwarded upstream)
 ```
 
@@ -43,7 +43,7 @@ sequenceDiagram
 - A relationship tuple (`document:1 reader context` conditioned on `tenant_match`) is persisted in OpenFGA.
 
 ### 2. Local gRPC Server
-- Cerberus's `ExternalAuthzService` is instantiated on the host machine.
+- Authorization-service's `ExternalAuthzService` is instantiated on the host machine.
 - It is registered onto a standard Go `grpc.Server` listening on a dynamic, free TCP port on `0.0.0.0` (to accept bridge gateway interface connections from Docker).
 - Dependencies like STS, OIDC ID Token Verifier, and Resource Mapper are mocked using `gomock` to isolate session exchanges and JWT validation, whilst keeping the OpenFGA integration 100% real.
 
@@ -72,4 +72,4 @@ The suite verifies three distinct behaviours:
 ### Scenario C: Multitenancy Disabled - Bypassed Tenant Check
 - **Setup:** Global tenancy is disabled. The mocked user token contains `"org": "Ubuntu"`.
 - **Action:** An HTTP request is sent to Envoy.
-- **Assertion:** Since the multitenancy config flag is inactive, Cerberus bypasses the tenancy constraint evaluation, letting the request succeed even though there is a tenant mismatch. Envoy returns `200 OK`.
+- **Assertion:** Since the multitenancy config flag is inactive, Authorization-service bypasses the tenancy constraint evaluation, letting the request succeed even though there is a tenant mismatch. Envoy returns `200 OK`.

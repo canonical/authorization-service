@@ -7,7 +7,7 @@ services:
       - "5433:5432"
     environment:
       - POSTGRES_DB=openfga
-      - POSTGRES_USER=cerberus
+      - POSTGRES_USER=authorization-service
       - POSTGRES_PASSWORD=password
     volumes:
       - postgres-data:/var/lib/postgresql/data
@@ -15,7 +15,7 @@ services:
     networks:
       - authz-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cerberus -d openfga"]
+      test: ["CMD-SHELL", "pg_isready -U authorization-service -d openfga"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -30,7 +30,7 @@ services:
     command: "run"
     environment:
       OPENFGA_DATASTORE_ENGINE: "postgres"
-      OPENFGA_DATASTORE_URI: "postgresql://cerberus:password@postgres/openfga?sslmode=disable"
+      OPENFGA_DATASTORE_URI: "postgresql://authorization-service:password@postgres/openfga?sslmode=disable"
       OPENFGA_AUTHN_PRESHARED_KEYS: "42"
       OPENFGA_LOG_FORMAT: text
       OPENFGA_HTTP_ADDR: "0.0.0.0:8080"
@@ -48,7 +48,7 @@ services:
   migrateopenfga:
     image: openfga/openfga:v1.14.1
     container_name: migrateopenfga
-    command: migrate --datastore-engine postgres --datastore-uri 'postgresql://cerberus:password@postgres/openfga?sslmode=disable'
+    command: migrate --datastore-engine postgres --datastore-uri 'postgresql://authorization-service:password@postgres/openfga?sslmode=disable'
     depends_on:
       postgres:
         condition: service_healthy
@@ -58,7 +58,7 @@ services:
   insert-hardcoded-store:
     image: governmentpaas/psql
     container_name: insert-hardcoded-store
-    command: psql -Atx postgresql://cerberus:password@postgres/openfga?sslmode=disable -c "INSERT INTO store (id,name,created_at,updated_at) VALUES ('01GP1254CHWJC1MNGVB0WDG1T0','cerberos',NOW(),NOW()) ON CONFLICT DO NOTHING;"
+    command: psql -Atx postgresql://authorization-service:password@postgres/openfga?sslmode=disable -c "INSERT INTO store (id,name,created_at,updated_at) VALUES ('01GP1254CHWJC1MNGVB0WDG1T0','cerberos',NOW(),NOW()) ON CONFLICT DO NOTHING;"
     depends_on:
       openfga:
         condition: service_healthy

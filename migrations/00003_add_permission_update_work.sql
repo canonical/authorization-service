@@ -51,7 +51,7 @@ CREATE INDEX idx_permission_update_work_last_attempt_at
 CREATE INDEX idx_permission_update_work_processing_started_at
     ON permission_update_work (processing_started_at);
 
--- Applied tuples mirror, for future queryability of the tuples Cerberus has
+-- Applied tuples mirror, for future queryability of the tuples Authorization-service has
 -- written to OpenFGA. Populated by the worker during local bookkeeping.
 CREATE TABLE authorization_tuples (
     id                         UUID PRIMARY KEY,

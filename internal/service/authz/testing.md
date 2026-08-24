@@ -34,7 +34,7 @@ Wait for all services to become healthy before proceeding to the next step.
 Once the Docker services are running and healthy, initialize the application database schema:
 
 ```bash
-./bin/authz-service migrate --dsn postgresql://cerberus:password@localhost:5432/cerberus up
+./bin/authz-service migrate --dsn postgresql://authorization-service:password@localhost:5432/authorization-service up
 ```
 
 This command will:
@@ -63,7 +63,7 @@ Verify the model was written successfully by checking the output logs for the mo
 Populate the application database with test authorization rules:
 
 ```bash
-psql postgresql://cerberus:password@localhost:5432/cerberus < testdata/manual/rules_seed.sql
+psql postgresql://authorization-service:password@localhost:5432/authorization-service < testdata/manual/rules_seed.sql
 ```
 
 This will:

@@ -83,9 +83,9 @@ func StartKafka(ctx context.Context) (testcontainers.Container, string, error) {
 
 func StartPostgres(ctx context.Context) (testcontainers.Container, string, postgres.Config, error) {
 	const (
-		user = "cerberus"
-		pass = "cerberus"
-		db   = "cerberus"
+		user = "authorization-service"
+		pass = "authorization-service"
+		db   = "authorization-service"
 	)
 
 	req := testcontainers.ContainerRequest{

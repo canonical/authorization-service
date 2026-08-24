@@ -7,10 +7,10 @@ spec:
   targetRef:
     group: gateway.networking.k8s.io
     kind: Gateway
-    name: cerberus-gateway
+    name: authorization-service-gateway
   action: CUSTOM
   provider:
-    name: "cerberus"
+    name: "authorization-service"
   rules:
     - to:
       - operation:

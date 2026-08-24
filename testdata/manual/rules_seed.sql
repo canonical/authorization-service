@@ -1,4 +1,4 @@
--- Seed data for manual testing of Cerberus with Istio + echoserver
+-- Seed data for manual testing of Authorization-service with Istio + echoserver
 -- Service: echoserver (fixed UUID for reproducibility)
 
 -- Clean up existing seed data (safe to re-run)

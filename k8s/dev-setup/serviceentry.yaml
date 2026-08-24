@@ -1,11 +1,11 @@
 apiVersion: networking.istio.io/v1
 kind: ServiceEntry
 metadata:
-  name: cerberus
+  name: authorization-service
   namespace: istio-system
 spec:
   hosts:
-  - cerberus.dev.external
+  - authorization-service.dev.external
   location: MESH_EXTERNAL
   ports:
   - number: 9091

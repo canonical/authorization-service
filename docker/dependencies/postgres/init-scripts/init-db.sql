@@ -1,7 +1,7 @@
-CREATE DATABASE cerberus;
+CREATE DATABASE authorization-service;
 CREATE DATABASE sts;
-GRANT ALL PRIVILEGES ON DATABASE cerberus TO cerberus;
-GRANT ALL PRIVILEGES ON DATABASE sts TO cerberus;
+GRANT ALL PRIVILEGES ON DATABASE authorization-service TO authorization-service;
+GRANT ALL PRIVILEGES ON DATABASE sts TO authorization-service;
 
-ALTER DATABASE cerberus OWNER TO cerberus;
-ALTER DATABASE sts OWNER TO cerberus;
+ALTER DATABASE authorization-service OWNER TO authorization-service;
+ALTER DATABASE sts OWNER TO authorization-service;

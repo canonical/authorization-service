@@ -1,12 +1,12 @@
 # Copyright 2026 Canonical Ltd.
 # SPDX-License-Identifier: Apache-2.0
 
-resource "kubernetes_namespace" "cerberus" {
+resource "kubernetes_namespace" "authorization-service" {
   metadata {
     name = var.namespace
     labels = {
       "app.kubernetes.io/managed-by" = "terraform"
-      "app.kubernetes.io/name"       = "cerberus"
+      "app.kubernetes.io/name"       = "authorization-service"
     }
   }
 }
@@ -21,12 +21,12 @@ locals {
   # Resolve Database connection parameters
   db_host     = var.deploy_postgres ? "postgres" : var.external_postgres_host
   db_port     = var.deploy_postgres ? 5432 : var.external_postgres_port
-  db_name     = var.deploy_postgres ? "cerberus" : var.external_postgres_db
-  db_user     = var.deploy_postgres ? "cerberus" : var.external_postgres_user
+  db_name     = var.deploy_postgres ? "authorization-service" : var.external_postgres_db
+  db_user     = var.deploy_postgres ? "authorization-service" : var.external_postgres_user
   db_password = var.deploy_postgres ? (var.postgres_password != "" ? var.postgres_password : random_password.postgres_password[0].result) : var.external_postgres_password
   db_url      = "postgresql://${local.db_user}:${local.db_password}@${local.db_host}:${local.db_port}/${local.db_name}?sslmode=disable"
 
-  openfga_db_url = var.deploy_postgres ? "postgresql://cerberus:${local.db_password}@postgres:5432/openfga?sslmode=disable" : ""
+  openfga_db_url = var.deploy_postgres ? "postgresql://authorization-service:${local.db_password}@postgres:5432/openfga?sslmode=disable" : ""
 
   # Resolve OpenFGA parameters
   fga_address  = var.deploy_openfga ? "http://openfga:8081" : var.external_openfga_address

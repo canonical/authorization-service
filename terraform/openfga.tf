@@ -6,7 +6,7 @@ resource "kubernetes_job" "openfga_migration" {
 
   metadata {
     name      = "openfga-migration"
-    namespace = kubernetes_namespace.cerberus.metadata[0].name
+    namespace = kubernetes_namespace.authorization-service.metadata[0].name
     labels = {
       app = "openfga-migration"
     }
@@ -56,7 +56,7 @@ resource "kubernetes_service" "openfga" {
 
   metadata {
     name      = "openfga"
-    namespace = kubernetes_namespace.cerberus.metadata[0].name
+    namespace = kubernetes_namespace.authorization-service.metadata[0].name
     labels = {
       app = "openfga"
     }
@@ -84,7 +84,7 @@ resource "kubernetes_deployment" "openfga" {
 
   metadata {
     name      = "openfga"
-    namespace = kubernetes_namespace.cerberus.metadata[0].name
+    namespace = kubernetes_namespace.authorization-service.metadata[0].name
     labels = {
       app = "openfga"
     }

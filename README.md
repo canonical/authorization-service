@@ -1,6 +1,6 @@
 <p align="center">
   <img
-    src="cerberus-logo.png"
+    src="authorization-service-logo.png"
     alt="Permissions Updater Logo"
     width="1200"
   />
@@ -10,7 +10,7 @@
 A production-grade gRPC and REST API service for managing authorization and permissions in a microservices architecture. Built with Go 1.25, leveraging OpenFGA for fine-grained authorization, Valkey for caching, and PostgreSQL for persistent queue-based permission-update operations.
 
 ## Overview
-The Authorization Service (codename Cerberus) is designed to provide:
+The Authorization Service (codename Authorization-service) is designed to provide:
 1. **Permission Management**: Register and manage service permissions via a versioned gRPC API
 2. **Authorization Decisions**: Perform authorization decisions using OpenFGA
 3. **Envoy Integration**: Implements Envoy's standard External Authorization API (v3) for use with Istio or other service meshes
@@ -132,7 +132,7 @@ Starts both the gRPC server (default port `9091`) and the REST gateway (default 
 
 ### `migrate` - Run Database Migrations
 ```bash
-./bin/app migrate --dsn "postgres://authz:authz-password@localhost:5432/cerberus?sslmode=disable" up
+./bin/app migrate --dsn "postgres://authz:authz-password@localhost:5432/authorization-service?sslmode=disable" up
 ```
 Runs schema migrations against the PostgreSQL database. Supports `up`, `down [version]`, and `status` actions.
 
@@ -209,10 +209,10 @@ Provides utilities for checking permissions and writing models to OpenFGA direct
 Configuration is managed through **Viper**, providing a robust, multi-layered system. Configuration can be passed via:
 1. **Cobra CLI Flags** (highest priority)
 2. **Environment Variables** (nested paths mapped to structured uppercase words)
-3. **YAML Config File** (loaded from `./cerberus.yaml`, `/etc/authz/cerberus.yaml`, or specified with `-c` / `--config`)
+3. **YAML Config File** (loaded from `./authorization-service.yaml`, `/etc/authz/authorization-service.yaml`, or specified with `-c` / `--config`)
 4. **Go-defined Defaults** (lowest priority)
 
-To view or start with a baseline YAML configuration, refer to the provided [cerberus.yaml.example](cerberus.yaml.example) file.
+To view or start with a baseline YAML configuration, refer to the provided [authorization-service.yaml.example](authorization-service.yaml.example) file.
 
 ### CLI Configuration Flags
 The following flags are available globally across all CLI commands to quickly override settings:
@@ -275,7 +275,7 @@ The following flags are available globally across all CLI commands to quickly ov
 | `postgres.port` | `POSTGRES_PORT` | int | `5432` | Database port |
 | `postgres.user` | `POSTGRES_USER` | string | `authz` | Database user |
 | `postgres.password` | `POSTGRES_PASSWORD` | string | `authz-password` | Database password |
-| `postgres.db_name` | `POSTGRES_DB_NAME` | string | `cerberus` | Database name |
+| `postgres.db_name` | `POSTGRES_DB_NAME` | string | `authorization-service` | Database name |
 | `postgres.ssl_mode` | `POSTGRES_SSL_MODE` | string | `disable` | SSL mode: `disable`, `require`, `verify-ca`, `verify-full` |
 | `postgres.max_open_conns` | `POSTGRES_MAX_OPEN_CONNS` | int | `25` | Maximum open database connections |
 | `postgres.max_idle_conns` | `POSTGRES_MAX_IDLE_CONNS` | int | `5` | Maximum idle database connections |
@@ -368,7 +368,7 @@ View the results by opening `coverage.html` in your browser.
 ---
 
 ## Service Federation
-Service onboarding and federation into Cerberus are managed through a dedicated pull request workflow, treating the PR as the primary source of truth for configuration and metadata.
+Service onboarding and federation into Authorization-service are managed through a dedicated pull request workflow, treating the PR as the primary source of truth for configuration and metadata.
 
 If you are a team onboarding your service, you can open your pull request with the dedicated federation template pre-loaded by clicking the button below:
 

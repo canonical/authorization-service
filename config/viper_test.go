@@ -36,7 +36,7 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	assert.Equal(t, "0.0.0.0", cfg.Server.Host)
 	assert.Equal(t, "info", cfg.Logging.Level)
 	assert.Equal(t, false, cfg.Valkey.Enabled)
-	assert.Equal(t, "cerberus", cfg.Postgres.DBName)
+	assert.Equal(t, "authorization-service", cfg.Postgres.DBName)
 }
 
 func TestLoadConfig_File(t *testing.T) {

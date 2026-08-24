@@ -65,13 +65,13 @@ func Execute() {
 var configFile string
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "", "config file (default is ./cerberus.yaml)")
+	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "", "config file (default is ./authorization-service.yaml)")
 	rootCmd.PersistentFlags().Int("grpc-port", 9091, "gRPC port")
 	rootCmd.PersistentFlags().Int("http-port", 8070, "HTTP REST port")
 	rootCmd.PersistentFlags().String("server-host", "0.0.0.0", "Server bind host")
 	rootCmd.PersistentFlags().String("db-host", "localhost", "PostgreSQL database host")
 	rootCmd.PersistentFlags().Int("db-port", 5432, "PostgreSQL database port")
-	rootCmd.PersistentFlags().String("db-name", "cerberus", "PostgreSQL database name")
+	rootCmd.PersistentFlags().String("db-name", "authorization-service", "PostgreSQL database name")
 	rootCmd.PersistentFlags().String("db-user", "authz", "PostgreSQL database user")
 	rootCmd.PersistentFlags().Bool("dev", false, "Enable development mode")
 	rootCmd.PersistentFlags().String("log-level", "info", "Logging level (debug, info, warn, error)")

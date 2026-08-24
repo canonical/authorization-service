@@ -6,7 +6,7 @@ resource "kubernetes_service" "kafka" {
 
   metadata {
     name      = "kafka"
-    namespace = kubernetes_namespace.cerberus.metadata[0].name
+    namespace = kubernetes_namespace.authorization-service.metadata[0].name
     labels = {
       app = "kafka"
     }
@@ -29,7 +29,7 @@ resource "kubernetes_deployment" "kafka" {
 
   metadata {
     name      = "kafka"
-    namespace = kubernetes_namespace.cerberus.metadata[0].name
+    namespace = kubernetes_namespace.authorization-service.metadata[0].name
     labels = {
       app = "kafka"
     }
