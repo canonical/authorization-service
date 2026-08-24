@@ -46,7 +46,7 @@ func LoadConfig(cmd *cobra.Command) (*Config, error) {
 	} else {
 		v.AddConfigPath(".")
 		v.AddConfigPath("/etc/authz")
-		v.SetConfigName("cerberus")
+		v.SetConfigName("authorization-service")
 		v.SetConfigType("yaml")
 	}
 
@@ -111,7 +111,7 @@ func setViperDefaults(v *viper.Viper) {
 	v.SetDefault("postgres.port", 5432)
 	v.SetDefault("postgres.user", "authz")
 	v.SetDefault("postgres.password", "authz-password")
-	v.SetDefault("postgres.db_name", "cerberus")
+	v.SetDefault("postgres.db_name", "authorization-service")
 	v.SetDefault("postgres.ssl_mode", "disable")
 	v.SetDefault("postgres.max_open_conns", 25)
 	v.SetDefault("postgres.max_idle_conns", 5)

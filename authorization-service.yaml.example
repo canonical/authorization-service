@@ -57,7 +57,7 @@ postgres:
   # Database password.
   password: "authz-password"
   # Database name.
-  db_name: "cerberus"
+  db_name: "authorization-service"
   # SSL connection mode (disable, require, verify-ca, verify-full).
   ssl_mode: "disable"
   # Maximum number of open connections to the database.

@@ -94,7 +94,7 @@ type PostgresConfig struct {
 	Port            int           `validate:"required,min=1,max=65535" envconfig:"POSTGRES_PORT" mapstructure:"port" default:"5432"`
 	User            string        `validate:"required" envconfig:"POSTGRES_USER" mapstructure:"user" default:"authz"`
 	Password        string        `validate:"" envconfig:"POSTGRES_PASSWORD" mapstructure:"password" default:"authz-password"`
-	DBName          string        `validate:"required" envconfig:"POSTGRES_DB" mapstructure:"db_name" default:"cerberus"`
+	DBName          string        `validate:"required" envconfig:"POSTGRES_DB" mapstructure:"db_name" default:"authorization-service"`
 	SSLMode         string        `validate:"required,oneof=disable require verify-ca verify-full" envconfig:"POSTGRES_SSL_MODE" mapstructure:"ssl_mode" default:"disable"`
 	MaxOpenConns    int32         `validate:"min=1" envconfig:"POSTGRES_MAX_OPEN_CONNS" mapstructure:"max_open_conns" default:"25"`
 	MaxIdleConns    int32         `validate:"min=1" envconfig:"POSTGRES_MAX_IDLE_CONNS" mapstructure:"max_idle_conns" default:"5"`

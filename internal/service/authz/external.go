@@ -198,7 +198,7 @@ func (s *ExternalAuthzService) check(ctx context.Context, req *envoyAuth.CheckRe
 		return forbidden(fmt.Sprintf("No authorization rule matched method %s path %s", method, path)), checkOutcome{result: "deny", reason: "no_rule_matched", subject: userIdentity, tenant: tenant}, nil
 	}
 
-	// if no matched rule then return an error, if it's going through Cerberus then it needs a rule.
+	// if no matched rule then return an error, if it's going through Authorization-service then it needs a rule.
 	// Public endpoints must be ALLOWed via AuthorizationPolicy
 	if matchedRule == nil {
 		s.logger.Error("No matching rule was returned found")
