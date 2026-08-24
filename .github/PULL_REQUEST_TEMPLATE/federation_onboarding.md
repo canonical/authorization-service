@@ -1,7 +1,7 @@
 ## Summary
-This pull request is the source of truth for onboarding this service into Cerberus.
+This pull request is the source of truth for onboarding this service into Authorization-service.
 The pull request description provides the required service metadata,
-while the files changed in this PR define the authoritative Cerberus configuration and OpenFGA model contribution.
+while the files changed in this PR define the authoritative Authorization-service configuration and OpenFGA model contribution.
 Please provide the requested information and ensure the required files are included in this pull request.
 
 ## Service information
@@ -21,5 +21,5 @@ Please confirm that this pull request contains the required changes:
 - [ ] `authz/model/services/<service-slug>/<service-slug>.fga` added or updated
 
 ## Notes for reviewers
-Add any information that may help Cerberus reviewers understand the change set,
+Add any information that may help Authorization-service reviewers understand the change set,
 such as naming choices, route grouping, or anything unusual about the service model.

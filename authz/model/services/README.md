@@ -1,6 +1,6 @@
-# Cerberus Federation Guide & Rules Validation
+# Authorization-service Federation Guide & Rules Validation
 
-This guide provides the complete set of instructions, restrictions, and validation requirements for teams wishing to federate their service with **Cerberus**. 
+This guide provides the complete set of instructions, restrictions, and validation requirements for teams wishing to federate their service with **Authorization-service**. 
 
 When submitting a Pull Request for federation onboarding, your configuration must comply with the rules outlined below to ensure it can be parsed, compiled, and resolved deterministically.
 
@@ -15,13 +15,13 @@ According to the [.github/PULL_REQUEST_TEMPLATE/federation_onboarding.md](file:/
 2. **`authz/model/services/<service-slug>/<service-slug>.fga`**
    The OpenFGA module contribution containing your domain-specific types, relations, and authorization model logic.
 3. **`authz/model/services/<service-slug>/rules.yaml`**
-   The authoritative routing and permission mapping rules for your endpoints (reconciled dynamically by Cerberus on database startup or via seed command).
+   The authoritative routing and permission mapping rules for your endpoints (reconciled dynamically by Authorization-service on database startup or via seed command).
 
 ---
 
 ## 2. Character Restrictions & Naming Conventions
 
-To prevent parsing anomalies and security issues, Cerberus enforces strict syntactic rules on route matches, placeholders, and tuples.
+To prevent parsing anomalies and security issues, Authorization-service enforces strict syntactic rules on route matches, placeholders, and tuples.
 
 ### Route Match Paths (`match`)
 - **Prefix**: Every path pattern must start with a leading slash `/` (e.g., `/api/v1/invoices`).
@@ -67,7 +67,7 @@ Every authorization rule contains a list of `tuples`. For each tuple, the `objec
 
 ## 4. Automatic Validation & Seeding Pipeline
 
-When your PR is merged, or when running the seeding pipeline locally, the **Cerberus Seeder** processes files using the following strict pipeline:
+When your PR is merged, or when running the seeding pipeline locally, the **Authorization-service Seeder** processes files using the following strict pipeline:
 
 ```mermaid
 graph TD
@@ -90,19 +90,19 @@ graph TD
 
 ### Natural Revision Comparison & Atomic Seeding
 If the file validation succeeds:
-1. Cerberus queries the database for the current revision registered for your `service` slug.
+1. Authorization-service queries the database for the current revision registered for your `service` slug.
 2. It compares the YAML's `revision` with the database's revision using **Natural Version Comparison** (supporting numerical components, alpha/beta tags, and release candidates safely, e.g., `2026.07.24.1 > 2026.07.24.0`, or `rc-2 > rc-1`).
 3. **Seeding Action**:
-   - If the new revision is **lexicographically/numerically greater** than the current one, Cerberus opens a transaction, removes all previous rules for your service, compiles the new routes, and inserts them atomically.
-   - If the revision is equal or lesser, Cerberus gracefully skips your service without raising an error.
+   - If the new revision is **lexicographically/numerically greater** than the current one, Authorization-service opens a transaction, removes all previous rules for your service, compiles the new routes, and inserts them atomically.
+   - If the revision is equal or lesser, Authorization-service gracefully skips your service without raising an error.
 
 ---
 
 ## 5. Recommended Local Verification
 
-Before submitting your PR, it is highly recommended to validate your configuration files locally using the Cerberus CLI tool:
+Before submitting your PR, it is highly recommended to validate your configuration files locally using the Authorization-service CLI tool:
 
-### Build Cerberus
+### Build Authorization-service
 ```bash
 make build
 ```

@@ -29,7 +29,7 @@ help:
 	@echo "  make docker       - Build Docker image"
 	@echo "  make run          - Run service (requires dependencies)"
 	@echo "  make dev          - Full dev setup (build + start deps + run)"
-	@echo "  make apply        - Deploy Cerberus and dependencies using Terraform on K8s"
+	@echo "  make apply        - Deploy Authorization-service and dependencies using Terraform on K8s"
 	@echo ""
 
 release-manifest:
@@ -121,7 +121,7 @@ openapi-v3:
 lint:
 	golangci-lint run
 
-# Deploy Cerberus and dependencies using Terraform
+# Deploy Authorization-service and dependencies using Terraform
 apply:
 	@if [ ! -d "terraform/.terraform" ]; then \
 		echo "The Terraform workspace has not been initialised yet."; \

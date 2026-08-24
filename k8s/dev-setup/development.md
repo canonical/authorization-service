@@ -37,10 +37,10 @@ skaffold dev --driver=podman -p <profile of choice>
 Add these aliases to your shell profile (.bashrc or .zshrc) to easily manage dynamic cluster IP addresses.
 
 ### Gateway IP
-Retrieve the Cerberus Gateway IP address for sending HTTP requests.
+Retrieve the Authorization-service Gateway IP address for sending HTTP requests.
 
 ```bash
-alias cerberus-gateway='kubectl get gateway cerberus-gateway -n default -o jsonpath="{.status.addresses[0].value}"'
+alias authorization-service-gateway='kubectl get gateway authorization-service-gateway -n default -o jsonpath="{.status.addresses[0].value}"'
 ```
 
 ### K8s Bridge IP (for ServiceEntry)
@@ -62,7 +62,7 @@ After retrieving the gateway IP, run the following test:
 
 ```bash
 # Retrieve the current Gateway IP
-GATEWAY_IP=$(cerberus-gateway)
+GATEWAY_IP=$(authorization-service-gateway)
 
 # Run the test (ensure your local auth app is running)
 curl -I -H "Host: localhost" \
