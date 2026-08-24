@@ -3,20 +3,20 @@
 
 resource "kubernetes_service_account" "bootstrapper" {
   metadata {
-    name      = "cerberus-bootstrapper"
-    namespace = kubernetes_namespace.cerberus.metadata[0].name
+    name      = "authorization-service-bootstrapper"
+    namespace = kubernetes_namespace.authorization-service.metadata[0].name
     labels = {
-      app = "cerberus-bootstrap"
+      app = "authorization-service-bootstrap"
     }
   }
 }
 
 resource "kubernetes_role" "bootstrapper" {
   metadata {
-    name      = "cerberus-bootstrapper"
-    namespace = kubernetes_namespace.cerberus.metadata[0].name
+    name      = "authorization-service-bootstrapper"
+    namespace = kubernetes_namespace.authorization-service.metadata[0].name
     labels = {
-      app = "cerberus-bootstrap"
+      app = "authorization-service-bootstrap"
     }
   }
   rule {
@@ -33,10 +33,10 @@ resource "kubernetes_role" "bootstrapper" {
 
 resource "kubernetes_role_binding" "bootstrapper" {
   metadata {
-    name      = "cerberus-bootstrapper"
-    namespace = kubernetes_namespace.cerberus.metadata[0].name
+    name      = "authorization-service-bootstrapper"
+    namespace = kubernetes_namespace.authorization-service.metadata[0].name
     labels = {
-      app = "cerberus-bootstrap"
+      app = "authorization-service-bootstrap"
     }
   }
   role_ref {
@@ -47,23 +47,23 @@ resource "kubernetes_role_binding" "bootstrapper" {
   subject {
     kind      = "ServiceAccount"
     name      = kubernetes_service_account.bootstrapper.metadata[0].name
-    namespace = kubernetes_namespace.cerberus.metadata[0].name
+    namespace = kubernetes_namespace.authorization-service.metadata[0].name
   }
 }
 
-resource "kubernetes_job" "cerberus_bootstrap" {
+resource "kubernetes_job" "authorization-service_bootstrap" {
   metadata {
-    name      = "cerberus-bootstrap"
-    namespace = kubernetes_namespace.cerberus.metadata[0].name
+    name      = "authorization-service-bootstrap"
+    namespace = kubernetes_namespace.authorization-service.metadata[0].name
     labels = {
-      app = "cerberus-bootstrap"
+      app = "authorization-service-bootstrap"
     }
   }
   spec {
     template {
       metadata {
         labels = {
-          app = "cerberus-bootstrap"
+          app = "authorization-service-bootstrap"
         }
       }
       spec {
@@ -98,7 +98,7 @@ resource "kubernetes_job" "cerberus_bootstrap" {
               sleep 2
             done
             if [ "${var.deploy_openfga}" = "true" ]; then
-              psql -h ${local.db_host} -p ${local.db_port} -U ${local.db_user} -d openfga -c "INSERT INTO store (id,name,created_at,updated_at) VALUES ('01GP1254CHWJC1MNGVB0WDG1T0','cerberus',NOW(),NOW()) ON CONFLICT DO NOTHING;"
+              psql -h ${local.db_host} -p ${local.db_port} -U ${local.db_user} -d openfga -c "INSERT INTO store (id,name,created_at,updated_at) VALUES ('01GP1254CHWJC1MNGVB0WDG1T0','authorization-service',NOW(),NOW()) ON CONFLICT DO NOTHING;"
             else
               echo "Skip OpenFGA store seeding (using external OpenFGA)."
             fi
@@ -106,21 +106,21 @@ resource "kubernetes_job" "cerberus_bootstrap" {
           ]
         }
 
-        # 3. Apply Cerberus DB schema migrations
+        # 3. Apply Authorization-service DB schema migrations
         init_container {
           name              = "run-migrations"
-          image             = var.cerberus_image
-          image_pull_policy = var.cerberus_image_pull_policy
+          image             = var.authorization-service_image
+          image_pull_policy = var.authorization-service_image_pull_policy
           command           = ["/usr/bin/app"]
           args              = ["migrate", "--dsn", "$(DATABASE_URL)", "up"]
           env_from {
             config_map_ref {
-              name = kubernetes_config_map.cerberus_config.metadata[0].name
+              name = kubernetes_config_map.authorization-service_config.metadata[0].name
             }
           }
           env_from {
             secret_ref {
-              name = kubernetes_secret.cerberus_secret.metadata[0].name
+              name = kubernetes_secret.authorization-service_secret.metadata[0].name
             }
           }
         }
@@ -128,17 +128,17 @@ resource "kubernetes_job" "cerberus_bootstrap" {
         # 4. Write Authorization Model to OpenFGA (only if deploying internal OpenFGA)
         init_container {
           name              = "write-fga-model"
-          image             = var.cerberus_image
-          image_pull_policy = var.cerberus_image_pull_policy
+          image             = var.authorization-service_image
+          image_pull_policy = var.authorization-service_image_pull_policy
           command           = ["/usr/bin/app", "authz", "write-model", "01GP1254CHWJC1MNGVB0WDG1T0"]
           env_from {
             config_map_ref {
-              name = kubernetes_config_map.cerberus_config.metadata[0].name
+              name = kubernetes_config_map.authorization-service_config.metadata[0].name
             }
           }
           env_from {
             secret_ref {
-              name = kubernetes_secret.cerberus_secret.metadata[0].name
+              name = kubernetes_secret.authorization-service_secret.metadata[0].name
             }
           }
           env {
@@ -162,8 +162,8 @@ resource "kubernetes_job" "cerberus_bootstrap" {
         # 5. Ensure Kafka Topics (only if Kafka is enabled)
         init_container {
           name              = "ensure-topics"
-          image             = var.cerberus_image
-          image_pull_policy = var.cerberus_image_pull_policy
+          image             = var.authorization-service_image
+          image_pull_policy = var.authorization-service_image_pull_policy
           command           = ["sh", "-c", <<-EOT
             if [ "${var.kafka_enabled}" = "true" ]; then
               echo "Ensuring Kafka topics..."
@@ -175,12 +175,12 @@ resource "kubernetes_job" "cerberus_bootstrap" {
           ]
           env_from {
             config_map_ref {
-              name = kubernetes_config_map.cerberus_config.metadata[0].name
+              name = kubernetes_config_map.authorization-service_config.metadata[0].name
             }
           }
           env_from {
             secret_ref {
-              name = kubernetes_secret.cerberus_secret.metadata[0].name
+              name = kubernetes_secret.authorization-service_secret.metadata[0].name
             }
           }
         }
@@ -188,17 +188,17 @@ resource "kubernetes_job" "cerberus_bootstrap" {
         # 6. Seed rules into PostgreSQL DB
         init_container {
           name              = "run-seed"
-          image             = var.cerberus_image
-          image_pull_policy = var.cerberus_image_pull_policy
+          image             = var.authorization-service_image
+          image_pull_policy = var.authorization-service_image_pull_policy
           command           = ["/usr/bin/app", "seed"]
           env_from {
             config_map_ref {
-              name = kubernetes_config_map.cerberus_config.metadata[0].name
+              name = kubernetes_config_map.authorization-service_config.metadata[0].name
             }
           }
           env_from {
             secret_ref {
-              name = kubernetes_secret.cerberus_secret.metadata[0].name
+              name = kubernetes_secret.authorization-service_secret.metadata[0].name
             }
           }
         }
@@ -251,7 +251,7 @@ resource "kubernetes_job" "cerberus_bootstrap" {
                      -X PATCH \
                      -H "Authorization: Bearer $TOKEN" \
                      -H "Content-Type: application/merge-patch+json" \
-                     -d "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"cerberus.bootstrap/restartedAt\":\"$TIMESTAMP\"}}}}}" \
+                     -d "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"authorization-service.bootstrap/restartedAt\":\"$TIMESTAMP\"}}}}}" \
                      "https://kubernetes.default.svc/apis/apps/v1/namespaces/$NAMESPACE/deployments/$DEP"
               else
                 echo "Deployment $DEP does not exist or is not deployed (HTTP $HTTP_CODE)."

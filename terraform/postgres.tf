@@ -6,14 +6,14 @@ resource "kubernetes_secret" "postgres_secret" {
 
   metadata {
     name      = "postgres-secret"
-    namespace = kubernetes_namespace.cerberus.metadata[0].name
+    namespace = kubernetes_namespace.authorization-service.metadata[0].name
     labels = {
       app = "postgres"
     }
   }
   data = {
     postgres-password = local.db_password
-    postgres-user     = "cerberus"
+    postgres-user     = "authorization-service"
   }
 }
 
@@ -22,7 +22,7 @@ resource "kubernetes_config_map" "postgres_init" {
 
   metadata {
     name      = "postgres-init-scripts"
-    namespace = kubernetes_namespace.cerberus.metadata[0].name
+    namespace = kubernetes_namespace.authorization-service.metadata[0].name
     labels = {
       app = "postgres"
     }
@@ -30,9 +30,9 @@ resource "kubernetes_config_map" "postgres_init" {
   data = {
     "init.sql" = <<-EOT
       CREATE DATABASE openfga;
-      CREATE DATABASE cerberus;
-      GRANT ALL PRIVILEGES ON DATABASE openfga TO cerberus;
-      GRANT ALL PRIVILEGES ON DATABASE cerberus TO cerberus;
+      CREATE DATABASE authorization-service;
+      GRANT ALL PRIVILEGES ON DATABASE openfga TO authorization-service;
+      GRANT ALL PRIVILEGES ON DATABASE authorization-service TO authorization-service;
     EOT
   }
 }
@@ -42,7 +42,7 @@ resource "kubernetes_service" "postgres" {
 
   metadata {
     name      = "postgres"
-    namespace = kubernetes_namespace.cerberus.metadata[0].name
+    namespace = kubernetes_namespace.authorization-service.metadata[0].name
     labels = {
       app = "postgres"
     }
@@ -64,7 +64,7 @@ resource "kubernetes_stateful_set" "postgres" {
 
   metadata {
     name      = "postgres"
-    namespace = kubernetes_namespace.cerberus.metadata[0].name
+    namespace = kubernetes_namespace.authorization-service.metadata[0].name
     labels = {
       app = "postgres"
     }
@@ -122,7 +122,7 @@ resource "kubernetes_stateful_set" "postgres" {
           }
           liveness_probe {
             exec {
-              command = ["pg_isready", "-U", "cerberus"]
+              command = ["pg_isready", "-U", "authorization-service"]
             }
             initial_delay_seconds = 10
             period_seconds        = 5

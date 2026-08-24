@@ -1,10 +1,10 @@
 # Copyright 2026 Canonical Ltd.
 # SPDX-License-Identifier: Apache-2.0
 
-resource "kubernetes_config_map" "cerberus_config" {
+resource "kubernetes_config_map" "authorization-service_config" {
   metadata {
     name      = "authorization-service-config"
-    namespace = kubernetes_namespace.cerberus.metadata[0].name
+    namespace = kubernetes_namespace.authorization-service.metadata[0].name
     labels = {
       app = "authorization-service"
     }
@@ -44,10 +44,10 @@ resource "kubernetes_config_map" "cerberus_config" {
   }
 }
 
-resource "kubernetes_secret" "cerberus_secret" {
+resource "kubernetes_secret" "authorization-service_secret" {
   metadata {
     name      = "authorization-service-secret"
-    namespace = kubernetes_namespace.cerberus.metadata[0].name
+    namespace = kubernetes_namespace.authorization-service.metadata[0].name
     labels = {
       app = "authorization-service"
     }
@@ -58,20 +58,20 @@ resource "kubernetes_secret" "cerberus_secret" {
   }
 }
 
-resource "kubernetes_service_account" "cerberus" {
+resource "kubernetes_service_account" "authorization-service" {
   metadata {
     name      = "authorization-service"
-    namespace = kubernetes_namespace.cerberus.metadata[0].name
+    namespace = kubernetes_namespace.authorization-service.metadata[0].name
     labels = {
       app = "authorization-service"
     }
   }
 }
 
-resource "kubernetes_service" "cerberus" {
+resource "kubernetes_service" "authorization-service" {
   metadata {
     name      = "authorization-service"
-    namespace = kubernetes_namespace.cerberus.metadata[0].name
+    namespace = kubernetes_namespace.authorization-service.metadata[0].name
     labels = {
       app = "authorization-service"
     }
@@ -95,16 +95,16 @@ resource "kubernetes_service" "cerberus" {
 }
 
 # 1. Main API Server Deployment (app serve)
-resource "kubernetes_deployment" "cerberus_server" {
+resource "kubernetes_deployment" "authorization-service_server" {
   metadata {
     name      = "authorization-service"
-    namespace = kubernetes_namespace.cerberus.metadata[0].name
+    namespace = kubernetes_namespace.authorization-service.metadata[0].name
     labels = {
       app = "authorization-service"
     }
   }
   spec {
-    replicas = var.cerberus_replicas
+    replicas = var.authorization-service_replicas
     selector {
       match_labels = {
         app = "authorization-service"
@@ -117,7 +117,7 @@ resource "kubernetes_deployment" "cerberus_server" {
         }
       }
       spec {
-        service_account_name = kubernetes_service_account.cerberus.metadata[0].name
+        service_account_name = kubernetes_service_account.authorization-service.metadata[0].name
 
         # Wait until database is ready
         init_container {
@@ -129,8 +129,8 @@ resource "kubernetes_deployment" "cerberus_server" {
         # Main API server process
         container {
           name              = "authorization-service"
-          image             = var.cerberus_image
-          image_pull_policy = var.cerberus_image_pull_policy
+          image             = var.authorization-service_image
+          image_pull_policy = var.authorization-service_image_pull_policy
           command           = ["/usr/bin/app", "serve"]
           port {
             name           = "http"
@@ -142,12 +142,12 @@ resource "kubernetes_deployment" "cerberus_server" {
           }
           env_from {
             config_map_ref {
-              name = kubernetes_config_map.cerberus_config.metadata[0].name
+              name = kubernetes_config_map.authorization-service_config.metadata[0].name
             }
           }
           env_from {
             secret_ref {
-              name = kubernetes_secret.cerberus_secret.metadata[0].name
+              name = kubernetes_secret.authorization-service_secret.metadata[0].name
             }
           }
           liveness_probe {
@@ -173,18 +173,18 @@ resource "kubernetes_deployment" "cerberus_server" {
 }
 
 # 2. Kafka Ingestion Listener Deployment (app listen)
-resource "kubernetes_deployment" "cerberus_listener" {
+resource "kubernetes_deployment" "authorization-service_listener" {
   count = var.kafka_enabled ? 1 : 0
 
   metadata {
     name      = "authorization-service-listener"
-    namespace = kubernetes_namespace.cerberus.metadata[0].name
+    namespace = kubernetes_namespace.authorization-service.metadata[0].name
     labels = {
       app = "authorization-service-listener"
     }
   }
   spec {
-    replicas = var.cerberus_listener_replicas
+    replicas = var.authorization-service_listener_replicas
     selector {
       match_labels = {
         app = "authorization-service-listener"
@@ -197,7 +197,7 @@ resource "kubernetes_deployment" "cerberus_listener" {
         }
       }
       spec {
-        service_account_name = kubernetes_service_account.cerberus.metadata[0].name
+        service_account_name = kubernetes_service_account.authorization-service.metadata[0].name
 
         # Wait until database is ready
         init_container {
@@ -209,17 +209,17 @@ resource "kubernetes_deployment" "cerberus_listener" {
         # Background listener process
         container {
           name              = "authorization-service-listener"
-          image             = var.cerberus_image
-          image_pull_policy = var.cerberus_image_pull_policy
+          image             = var.authorization-service_image
+          image_pull_policy = var.authorization-service_image_pull_policy
           command           = ["/usr/bin/app", "listen"]
           env_from {
             config_map_ref {
-              name = kubernetes_config_map.cerberus_config.metadata[0].name
+              name = kubernetes_config_map.authorization-service_config.metadata[0].name
             }
           }
           env_from {
             secret_ref {
-              name = kubernetes_secret.cerberus_secret.metadata[0].name
+              name = kubernetes_secret.authorization-service_secret.metadata[0].name
             }
           }
         }
@@ -229,18 +229,18 @@ resource "kubernetes_deployment" "cerberus_listener" {
 }
 
 # 3. Permission Application Worker Deployment (app worker + in-process reaper)
-resource "kubernetes_deployment" "cerberus_worker" {
+resource "kubernetes_deployment" "authorization-service_worker" {
   count = local.worker_enabled ? 1 : 0
 
   metadata {
     name      = "authorization-service-worker"
-    namespace = kubernetes_namespace.cerberus.metadata[0].name
+    namespace = kubernetes_namespace.authorization-service.metadata[0].name
     labels = {
       app = "authorization-service-worker"
     }
   }
   spec {
-    replicas = var.cerberus_worker_replicas
+    replicas = var.authorization-service_worker_replicas
     selector {
       match_labels = {
         app = "authorization-service-worker"
@@ -253,7 +253,7 @@ resource "kubernetes_deployment" "cerberus_worker" {
         }
       }
       spec {
-        service_account_name = kubernetes_service_account.cerberus.metadata[0].name
+        service_account_name = kubernetes_service_account.authorization-service.metadata[0].name
 
         # Wait until database is ready
         init_container {
@@ -265,17 +265,17 @@ resource "kubernetes_deployment" "cerberus_worker" {
         # Background worker & in-process reaper process
         container {
           name              = "authorization-service-worker"
-          image             = var.cerberus_image
-          image_pull_policy = var.cerberus_image_pull_policy
+          image             = var.authorization-service_image
+          image_pull_policy = var.authorization-service_image_pull_policy
           command           = ["/usr/bin/app", "worker"]
           env_from {
             config_map_ref {
-              name = kubernetes_config_map.cerberus_config.metadata[0].name
+              name = kubernetes_config_map.authorization-service_config.metadata[0].name
             }
           }
           env_from {
             secret_ref {
-              name = kubernetes_secret.cerberus_secret.metadata[0].name
+              name = kubernetes_secret.authorization-service_secret.metadata[0].name
             }
           }
         }

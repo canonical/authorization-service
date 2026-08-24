@@ -9,8 +9,8 @@ variable "kubeconfig_path" {
 
 variable "namespace" {
   type        = string
-  default     = "cerberus"
-  description = "Kubernetes namespace where Cerberus and its dependencies will be deployed."
+  default     = "authorization-service"
+  description = "Kubernetes namespace where Authorization-service and its dependencies will be deployed."
 }
 
 variable "storage_class_name" {
@@ -36,25 +36,25 @@ variable "deploy_openfga" {
 }
 
 # -----------------------------------------------------------------------------
-# Cerberus App Configuration
+# Authorization-service App Configuration
 # -----------------------------------------------------------------------------
 
-variable "cerberus_image" {
+variable "authorization-service_image" {
   type        = string
   default     = "authorization-service:latest"
-  description = "Cerberus container image (can be a Docker image or Rock image)."
+  description = "Authorization-service container image (can be a Docker image or Rock image)."
 }
 
-variable "cerberus_image_pull_policy" {
+variable "authorization-service_image_pull_policy" {
   type        = string
   default     = "IfNotPresent"
-  description = "Pull policy for the Cerberus container image."
+  description = "Pull policy for the Authorization-service container image."
 }
 
-variable "cerberus_replicas" {
+variable "authorization-service_replicas" {
   type        = number
   default     = 1
-  description = "Number of replicas for the main Cerberus server deployment."
+  description = "Number of replicas for the main Authorization-service server deployment."
 }
 
 # -----------------------------------------------------------------------------
@@ -76,7 +76,7 @@ variable "sts_use_tls" {
 variable "sts_eager_connection_check" {
   type        = bool
   default     = false
-  description = "Whether Cerberus should eagerly check connection to STS upon startup."
+  description = "Whether Authorization-service should eagerly check connection to STS upon startup."
 }
 
 # -----------------------------------------------------------------------------
@@ -104,13 +104,13 @@ variable "external_postgres_port" {
 
 variable "external_postgres_db" {
   type        = string
-  default     = "cerberus"
-  description = "Database name of the external PostgreSQL instance for Cerberus."
+  default     = "authorization-service"
+  description = "Database name of the external PostgreSQL instance for Authorization-service."
 }
 
 variable "external_postgres_user" {
   type        = string
-  default     = "cerberus"
+  default     = "authorization-service"
   description = "Username of the external PostgreSQL instance."
 }
 
@@ -187,7 +187,7 @@ variable "kafka_federated_services" {
 variable "kafka_consumer_group" {
   type        = string
   default     = "authz-listener"
-  description = "The Kafka consumer group ID for the Cerberus listener."
+  description = "The Kafka consumer group ID for the Authorization-service listener."
 }
 
 variable "kafka_topic_partitions" {
@@ -216,13 +216,13 @@ variable "worker_enabled" {
 # Replicas & Scale
 # -----------------------------------------------------------------------------
 
-variable "cerberus_listener_replicas" {
+variable "authorization-service_listener_replicas" {
   type        = number
   default     = 1
   description = "Number of instances of the Kafka listener to run."
 }
 
-variable "cerberus_worker_replicas" {
+variable "authorization-service_worker_replicas" {
   type        = number
   default     = 1
   description = "Number of instances of the background worker to run."
