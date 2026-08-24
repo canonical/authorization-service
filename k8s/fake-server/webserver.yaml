@@ -60,7 +60,7 @@ spec:
   parentRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway
-      name: cerberus-gateway
+      name: authorization-service-gateway
       namespace: default
   hostnames:
     - "localhost"

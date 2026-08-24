@@ -62,7 +62,7 @@ Configured in `helm/ext_authz.yaml`:
 
 ```yaml
 extensionProviders:
-  - name: "cerberus"
+  - name: "authorization-service"
     envoyExtAuthzGrpc:
       service: "authorization-service.default.svc.cluster.local"
       port: "9090"
@@ -72,7 +72,7 @@ extensionProviders:
 
 **Policy 1: `echoserver-ext-authz`**
 - **TargetRef:** `Gateway/echoserver-waypoint` (L7 enforcement at waypoint)
-- **Action:** `CUSTOM` with provider `cerberus`
+- **Action:** `CUSTOM` with provider `authorization-service`
 - **Rules:** All paths require external authorization except /health
 
 **Policy 2: `echoserver-allow-health`**

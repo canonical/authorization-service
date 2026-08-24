@@ -26,11 +26,11 @@ profiles:
     local:
       push: true
 
-- name: cerberus
+- name: authorization-service
   manifests:
     kustomize:
       paths:
-      - k8s/cerberus
+      - k8s/authorization-service
   deploy:
     kubectl: {}
 

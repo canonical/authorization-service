@@ -21,7 +21,7 @@ replacements:
   targets:
   - select:
       kind: ServiceEntry
-      name: cerberus
+      name: authorization-service
     fieldPaths:
       - spec.endpoints.0.address
 
@@ -35,9 +35,9 @@ patches:
       path: /data/mesh
       value: |-
        extensionProviders:
-         - name: "cerberus"
+         - name: "authorization-service"
            envoyExtAuthzGrpc:
-             service: "cerberus.dev.external"
+             service: "authorization-service.dev.external"
              port: "9091"
        defaultConfig:
          discoveryAddress: istiod.istio-system.svc:15012

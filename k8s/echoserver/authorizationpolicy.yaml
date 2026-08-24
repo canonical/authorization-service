@@ -12,7 +12,7 @@ spec:
   - from:
     - source:
         principals:
-        - cluster.local/ns/default/sa/cerberus-gateway-istio
+        - cluster.local/ns/default/sa/authorization-service-gateway-istio
         - cluster.local/ns/default/sa/waypoint
 ---
 apiVersion: security.istio.io/v1
@@ -25,11 +25,11 @@ spec:
   targetRef:
     group: gateway.networking.k8s.io
     kind: Gateway
-    name: cerberus-gateway
+    name: authorization-service-gateway
   # Default action is to require external authorization
   action: CUSTOM
   provider:
-    name: "cerberus"
+    name: "authorization-service"
   
   rules:
   - to:
