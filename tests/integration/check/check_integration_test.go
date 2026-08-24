@@ -235,20 +235,20 @@ static_resources:
               "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
               grpc_service:
                 envoy_grpc:
-                  cluster_name: cerberus_authz
+                  cluster_name: authorization-service_authz
                 timeout: 5s
               transport_api_version: V3
           - name: envoy.filters.http.router
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
   clusters:
-  - name: cerberus_authz
+  - name: authorization-service_authz
     type: LOGICAL_DNS
     dns_lookup_family: V4_ONLY
     lb_policy: ROUND_ROBIN
     http2_protocol_options: {}
     load_assignment:
-      cluster_name: cerberus_authz
+      cluster_name: authorization-service_authz
       endpoints:
       - lb_endpoints:
         - endpoint:
