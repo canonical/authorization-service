@@ -54,6 +54,23 @@ for i in {1..30}; do
     fi
 done
 
+# Initialize application data if binary exists
+if [ -x "$PROJECT_ROOT/bin/app" ]; then
+    echo ""
+    echo -e "${BLUE}📦 Initializing application database and OpenFGA model...${NC}"
+
+    cd "$PROJECT_ROOT"
+
+    echo -e "${BLUE}Applying database migrations...${NC}"
+    "$PROJECT_ROOT/bin/app" migrate --dsn "postgresql://authorization-service:password@localhost:5433/authorization-service?sslmode=disable" up
+
+    echo -e "${BLUE}Writing authorization model to OpenFGA...${NC}"
+    "$PROJECT_ROOT/bin/app" authz write-model 01GP1254CHWJC1MNGVB0WDG1T0 --fga-address http://localhost:8082
+
+    echo -e "${BLUE}Seeding route rules...${NC}"
+    POSTGRES_PASSWORD=password "$PROJECT_ROOT/bin/app" seed --db-port 5433 --db-user authorization-service
+fi
+
 echo ""
 echo -e "${GREEN}✓ All dependencies are running!${NC}"
 echo ""
