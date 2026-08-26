@@ -1,5 +1,5 @@
 # Authorization Service Configuration Example
-# Copy this file to config.yaml and customize as needed.
+# Copy this file to authorization-service.yaml and customize as needed.
 
 server:
   # The port on which the gRPC server will run.
@@ -19,7 +19,7 @@ ext_authz_service:
 
 open_fga:
   # The address of the OpenFGA instance.
-  address: "http://localhost:8081"
+  address: "http://localhost:8082"
   # The Store ID of the OpenFGA workspace. (Required)
   store_id: "your-openfga-store-id"
   # The ID of the compiled authorization model. (Required)
@@ -51,11 +51,11 @@ postgres:
   # Database host.
   host: "localhost"
   # Database port.
-  port: 5432
+  port: 5433
   # Database user.
-  user: "authz"
+  user: "authorization-service"
   # Database password.
-  password: "authz-password"
+  password: "password"
   # Database name.
   db_name: "authorization-service"
   # SSL connection mode (disable, require, verify-ca, verify-full).
@@ -88,9 +88,7 @@ kafka:
   brokers:
     - "localhost:9092"
   # Federated service slugs to subscribe to.
-  federated_services:
-    - "identity"
-    - "billing"
+  federated_services: []
   # Consumer group ID for the consumer.
   consumer_group: "authz-listener"
   # Partition count for automatically-created topics.
