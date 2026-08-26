@@ -9,6 +9,7 @@ PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}🐳 Starting dependencies...${NC}"
@@ -42,7 +43,7 @@ done
 # Wait for Valkey
 echo -n "Waiting for Valkey..."
 for i in {1..30}; do
-    if docker run --network authz-network -it valkey/valkey:latest valkey-cli -h valkey ping > /dev/null 2>&1; then
+    if docker exec authz-valkey valkey-cli ping > /dev/null 2>&1; then
         echo -e " ${GREEN}✓${NC}"
         break
     fi
