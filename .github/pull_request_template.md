@@ -15,3 +15,6 @@ Optional list of changes.
 - [ ] My code follows the code style and guidelines of this project
 - [ ] I have performed a self-review of my own code
 - [ ] New and existing tests pass locally with my changes
+  
+
+Did you mean to open a [federation request](?template=federation_onboarding.md) instead?
