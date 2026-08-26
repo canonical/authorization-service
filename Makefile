@@ -112,7 +112,7 @@ run: build
 
 dev: build start-deps
 	@echo "Starting service in development mode..."
-	@LOG_LEVEL=debug ./$(BINARY_PATH) serve
+	@LOG_LEVEL=debug ./$(BINARY_PATH) serve --dev
 
 openapi-v3:
 	cd openapi && go mod tidy && go run convert.go
