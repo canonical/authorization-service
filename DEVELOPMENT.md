@@ -316,7 +316,7 @@ resp, err := client.Check(ctx, req)
 ### Changing Default Port
 1. Edit `cmd/serve.go` - change `default` tag
 2. Edit README.md - update default value
-3. Edit docker-compose files - update port mappings
+3. Edit Docker Compose files - update port mappings
 ### Adding a New Integration
 1. Create `internal/integrations/myservice/`
 2. Implement client interface
