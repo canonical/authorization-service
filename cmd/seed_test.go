@@ -13,13 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTestRequiredEnv(t *testing.T) {
-	t.Setenv("SERVER_DEVELOPMENT", "true")
-	t.Setenv("OPEN_FGA_STORE_ID", "test-store")
-	t.Setenv("OPEN_FGA_AUTHORIZATION_MODEL_ID", "test-model")
-	t.Setenv("OPEN_FGA_API_KEY", "test-key")
-}
-
 func newTestSeedCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:  "seed",
@@ -41,8 +34,6 @@ func newTestSeedCmd() *cobra.Command {
 }
 
 func TestSeedCmd_DirWithoutDryRunErrors(t *testing.T) {
-	setupTestRequiredEnv(t)
-
 	cmd := newTestSeedCmd()
 
 	// GIVEN --dir is specified but --dry-run is false (default)

@@ -10,22 +10,22 @@ resource "kubernetes_config_map" "authorization-service_config" {
     }
   }
   data = {
-    GRPC_PORT              = "9091"
-    HTTP_PORT              = "8070"
-    SERVER_HOST            = "0.0.0.0"
-    LOG_LEVEL              = "info"
-    LOG_FORMAT             = "json"
-    POSTGRES_HOST          = local.db_host
-    POSTGRES_PORT          = tostring(local.db_port)
-    POSTGRES_DB            = local.db_name
-    POSTGRES_USER          = local.db_user
-    OPENFGA_ADDRESS        = local.fga_address
-    OPENFGA_STORE_ID       = local.fga_store_id
-    OPENFGA_API_KEY        = local.fga_api_key
-    OPENFGA_AUTHZ_MODEL_ID = local.fga_model_id # Injected dynamically by bootstrap Job if internal, otherwise passed directly
-    VALKEY_ENABLED         = "false"
-    DEV                    = "false"
-    
+    GRPC_PORT                      = "9091"
+    HTTP_PORT                      = "8070"
+    SERVER_HOST                    = "0.0.0.0"
+    LOG_LEVEL                      = "info"
+    LOG_FORMAT                     = "json"
+    POSTGRES_HOST                  = local.db_host
+    POSTGRES_PORT                  = tostring(local.db_port)
+    POSTGRES_DB                    = local.db_name
+    POSTGRES_USER                  = local.db_user
+    OPENFGA_ADDRESS                = local.fga_address
+    OPENFGA_STORE_ID               = local.fga_store_id
+    OPENFGA_API_KEY                = local.fga_api_key
+    OPENFGA_AUTHORIZATION_MODEL_ID = local.fga_model_id # Injected dynamically by bootstrap Job if internal, otherwise passed directly
+    VALKEY_ENABLED                 = "false"
+    DEV                            = "false"
+
     # Secure Token Service (STS)
     STS_ADDRESS                = local.sts_address
     STS_USE_TLS                = local.sts_use_tls
@@ -121,8 +121,8 @@ resource "kubernetes_deployment" "authorization-service_server" {
 
         # Wait until database is ready
         init_container {
-          name  = "wait-for-postgres"
-          image = "postgres:14-alpine"
+          name    = "wait-for-postgres"
+          image   = "postgres:14-alpine"
           command = ["sh", "-c", "until pg_isready -h ${local.db_host} -p ${local.db_port} -U ${local.db_user}; do echo 'Waiting for PostgreSQL...'; sleep 2; done; echo 'PostgreSQL is ready!'"]
         }
 
@@ -201,8 +201,8 @@ resource "kubernetes_deployment" "authorization-service_listener" {
 
         # Wait until database is ready
         init_container {
-          name  = "wait-for-postgres"
-          image = "postgres:14-alpine"
+          name    = "wait-for-postgres"
+          image   = "postgres:14-alpine"
           command = ["sh", "-c", "until pg_isready -h ${local.db_host} -p ${local.db_port} -U ${local.db_user}; do echo 'Waiting for PostgreSQL...'; sleep 2; done; echo 'PostgreSQL is ready!'"]
         }
 
@@ -257,8 +257,8 @@ resource "kubernetes_deployment" "authorization-service_worker" {
 
         # Wait until database is ready
         init_container {
-          name  = "wait-for-postgres"
-          image = "postgres:14-alpine"
+          name    = "wait-for-postgres"
+          image   = "postgres:14-alpine"
           command = ["sh", "-c", "until pg_isready -h ${local.db_host} -p ${local.db_port} -U ${local.db_user}; do echo 'Waiting for PostgreSQL...'; sleep 2; done; echo 'PostgreSQL is ready!'"]
         }
 
