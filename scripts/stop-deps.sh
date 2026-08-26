@@ -14,7 +14,7 @@ echo -e "${BLUE}🗑️  Stopping all containers...${NC}"
 
 # Stop dependencies
 cd "$PROJECT_ROOT/docker/dependencies"
-docker-compose down 2>/dev/null || true
+docker compose down 2>/dev/null || true
 
 # Remove network
 docker network rm authz-network 2>/dev/null || true

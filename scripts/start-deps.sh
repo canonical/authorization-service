@@ -9,6 +9,7 @@ PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}🐳 Starting dependencies...${NC}"
@@ -19,7 +20,7 @@ echo -e "${BLUE}Creating network...${NC}"
 docker network create authz-network 2>/dev/null || true
 
 echo -e "${BLUE}Starting services...${NC}"
-docker-compose up -d
+docker compose up -d
 
 echo ""
 echo -e "${YELLOW}⏳ Waiting for services to be healthy...${NC}"
@@ -27,7 +28,7 @@ echo -e "${YELLOW}⏳ Waiting for services to be healthy...${NC}"
 # Wait for OpenFGA
 echo -n "Waiting for OpenFGA..."
 for i in {1..30}; do
-    if curl -s http://localhost:8080/healthz > /dev/null 2>&1; then
+    if curl -s http://localhost:8082/healthz > /dev/null 2>&1; then
         echo -e " ${GREEN}✓${NC}"
         break
     fi
@@ -42,7 +43,7 @@ done
 # Wait for Valkey
 echo -n "Waiting for Valkey..."
 for i in {1..30}; do
-    if docker run --network authz-network -it valkey/valkey:latest valkey-cli -h valkey ping > /dev/null 2>&1; then
+    if docker exec authz-valkey valkey-cli ping > /dev/null 2>&1; then
         echo -e " ${GREEN}✓${NC}"
         break
     fi
@@ -54,14 +55,47 @@ for i in {1..30}; do
     fi
 done
 
+# Wait for Postgres
+echo -n "Waiting for Postgres..."
+for i in {1..30}; do
+    if docker exec authz-postgres pg_isready -U authorization-service -d "authorization-service" > /dev/null 2>&1; then
+        echo -e " ${GREEN}✓${NC}"
+        break
+    fi
+    echo -n "."
+    sleep 1
+    if [ $i -eq 30 ]; then
+        echo -e " ${RED}✗ Timeout${NC}"
+        exit 1
+    fi
+done
+
+
+# Initialize application data if binary exists
+if [ -f "$PROJECT_ROOT/bin/app" ]; then
+    echo ""
+    echo -e "${BLUE}📦 Initializing application database and OpenFGA model...${NC}"
+
+    cd "$PROJECT_ROOT"
+
+    echo -e "${BLUE}Applying database migrations...${NC}"
+    "$PROJECT_ROOT/bin/app" migrate --dsn "postgresql://authorization-service:password@localhost:5433/authorization-service?sslmode=disable" up
+
+    echo -e "${BLUE}Writing authorization model to OpenFGA...${NC}"
+    "$PROJECT_ROOT/bin/app" authz write-model 01GP1254CHWJC1MNGVB0WDG1T0 --fga-address http://localhost:8082
+
+    echo -e "${BLUE}Seeding route rules...${NC}"
+    POSTGRES_PASSWORD=password "$PROJECT_ROOT/bin/app" seed --db-port 5433 --db-user authorization-service
+fi
+
 echo ""
 echo -e "${GREEN}✓ All dependencies are running!${NC}"
 echo ""
 echo "Service endpoints:"
-echo "  OpenFGA HTTP:  http://localhost:8080"
+echo "  OpenFGA HTTP:  http://localhost:8082"
 echo "  OpenFGA gRPC:  localhost:8081"
-echo "  OpenFGA UI:    http://localhost:3000"
+echo "  Postgres:      localhost:5433"
 echo "  Valkey:        localhost:6379"
 echo ""
 echo "To stop dependencies:"
-echo "  cd docker/dependencies && docker-compose down"
+echo "  cd docker/dependencies && docker compose down"
