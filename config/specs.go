@@ -49,7 +49,7 @@ type ServerConfig struct {
 	HTTPPort                int           `validate:"required,min=1,max=65535" envconfig:"HTTP_PORT" mapstructure:"http_port" default:"8070"`
 	Host                    string        `validate:"required" envconfig:"SERVER_HOST" mapstructure:"host" default:"0.0.0.0"`
 	GracefulShutdownTimeout time.Duration `validate:"" envconfig:"SERVER_SHUTDOWN_TIMEOUT" mapstructure:"shutdown_timeout" default:"15s"`
-	Development             bool          `validate:"required" envconfig:"DEV" mapstructure:"development" default:"false"`
+	Development             bool          `validate:"" envconfig:"DEV" mapstructure:"development" default:"false"`
 }
 
 type ExtAuthzServiceConfig struct {

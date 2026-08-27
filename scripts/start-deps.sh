@@ -28,7 +28,7 @@ echo -e "${YELLOW}⏳ Waiting for services to be healthy...${NC}"
 # Wait for OpenFGA
 echo -n "Waiting for OpenFGA..."
 for i in {1..30}; do
-    if curl -s http://localhost:8080/healthz > /dev/null 2>&1; then
+    if curl -s http://localhost:8082/healthz > /dev/null 2>&1; then
         echo -e " ${GREEN}✓${NC}"
         break
     fi
@@ -76,7 +76,7 @@ echo ""
 echo -e "${GREEN}✓ All dependencies are running!${NC}"
 echo ""
 echo "Service endpoints:"
-echo "  OpenFGA HTTP:  http://localhost:8080"
+echo "  OpenFGA HTTP:  http://localhost:8082"
 echo "  OpenFGA gRPC:  localhost:8081"
 echo "  OpenFGA UI:    http://localhost:3000"
 echo "  Valkey:        localhost:6379"
