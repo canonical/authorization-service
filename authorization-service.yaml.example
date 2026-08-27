@@ -17,7 +17,7 @@ ext_authz_service:
   # The URL to fetch JWKs for JWT signature validation.
   jwk_set_url: "http://localhost:8080/.well-known/jwks.json"
 
-open_fga:
+openfga:
   # The address of the OpenFGA instance.
   address: "http://localhost:8082"
   # The Store ID of the OpenFGA workspace. (Required)

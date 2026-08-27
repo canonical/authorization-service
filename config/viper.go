@@ -92,11 +92,11 @@ func setViperDefaults(v *viper.Viper) {
 	v.SetDefault("ext_authz_service.jwk_set_url", "http://localhost:8080/.well-known/jwks.json")
 
 	// OpenFGA
-	v.SetDefault("open_fga.address", "http://localhost:8081")
-	v.SetDefault("open_fga.timeout", 10*time.Second)
-	v.SetDefault("open_fga.store_id", "")
-	v.SetDefault("open_fga.authorization_model_id", "")
-	v.SetDefault("open_fga.api_key", "")
+	v.SetDefault("openfga.address", "http://localhost:8081")
+	v.SetDefault("openfga.timeout", 10*time.Second)
+	v.SetDefault("openfga.store_id", "")
+	v.SetDefault("openfga.authorization_model_id", "")
+	v.SetDefault("openfga.api_key", "")
 
 	// Valkey
 	v.SetDefault("valkey.enabled", false)
@@ -171,9 +171,9 @@ func bindFlags(v *viper.Viper, cmd *cobra.Command) {
 	bindFlagIfChanged(v, flags, "dev", "server.development")
 	bindFlagIfChanged(v, flags, "log-level", "logging.level")
 	bindFlagIfChanged(v, flags, "log-format", "logging.format")
-	bindFlagIfChanged(v, flags, "fga-address", "open_fga.address")
-	bindFlagIfChanged(v, flags, "fga-store-id", "open_fga.store_id")
-	bindFlagIfChanged(v, flags, "fga-model-id", "open_fga.authorization_model_id")
+	bindFlagIfChanged(v, flags, "fga-address", "openfga.address")
+	bindFlagIfChanged(v, flags, "fga-store-id", "openfga.store_id")
+	bindFlagIfChanged(v, flags, "fga-model-id", "openfga.authorization_model_id")
 }
 
 // bindFlagIfChanged binds a pflag to a Viper key only if the flag was explicitly changed by the user

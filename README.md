@@ -250,11 +250,11 @@ The following flags are available globally across all CLI commands to quickly ov
 #### OpenFGA Configuration
 | YAML Path | Environment Variable | Type | Default | Description |
 |-----------|----------------------|------|---------|-------------|
-| `open_fga.address` | `OPEN_FGA_ADDRESS` | string | `http://localhost:8081` | OpenFGA server address |
-| `open_fga.store_id` | `OPEN_FGA_STORE_ID` | string | *(Required)* | OpenFGA store ID |
-| `open_fga.authorization_model_id`| `OPEN_FGA_AUTHORIZATION_MODEL_ID` | string | *(Required)* | OpenFGA authorization model ID |
-| `open_fga.api_key` | `OPEN_FGA_API_KEY` | string | *(Required)* | OpenFGA authentication API token |
-| `open_fga.timeout` | `OPEN_FGA_TIMEOUT` | duration | `10s` | Request timeout |
+| `openfga.address` | `OPENFGA_ADDRESS` | string | `http://localhost:8081` | OpenFGA server address |
+| `openfga.store_id` | `OPENFGA_STORE_ID` | string | *(Required)* | OpenFGA store ID |
+| `openfga.authorization_model_id`| `OPENFGA_AUTHORIZATION_MODEL_ID` | string | *(Required)* | OpenFGA authorization model ID |
+| `openfga.api_key` | `OPENFGA_API_KEY` | string | *(Required)* | OpenFGA authentication API token |
+| `openfga.timeout` | `OPENFGA_TIMEOUT` | duration | `10s` | Request timeout |
 
 #### Valkey Configuration
 | YAML Path | Environment Variable | Type | Default | Description |

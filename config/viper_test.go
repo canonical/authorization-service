@@ -15,9 +15,9 @@ import (
 
 func setupRequiredEnv(t *testing.T) {
 	t.Setenv("SERVER_DEVELOPMENT", "true")
-	t.Setenv("OPEN_FGA_STORE_ID", "test-store")
-	t.Setenv("OPEN_FGA_AUTHORIZATION_MODEL_ID", "test-model")
-	t.Setenv("OPEN_FGA_API_KEY", "test-key")
+	t.Setenv("OPENFGA_STORE_ID", "test-store")
+	t.Setenv("OPENFGA_AUTHORIZATION_MODEL_ID", "test-model")
+	t.Setenv("OPENFGA_API_KEY", "test-key")
 }
 
 func TestLoadConfig_Defaults(t *testing.T) {

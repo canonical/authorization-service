@@ -230,7 +230,7 @@ resource "kubernetes_job" "authorization-service_bootstrap" {
                    -X PATCH \
                    -H "Authorization: Bearer $TOKEN" \
                    -H "Content-Type: application/merge-patch+json" \
-                   -d "{\"data\":{\"OPENFGA_AUTHZ_MODEL_ID\":\"$MODEL_ID\"}}" \
+                   -d "{\"data\":{\"OPENFGA_AUTHORIZATION_MODEL_ID\":\"$MODEL_ID\"}}" \
                    "https://kubernetes.default.svc/api/v1/namespaces/$NAMESPACE/configmaps/authorization-service-config"
             else
               echo "Skip OpenFGA Model Discovery and ConfigMap patching (using external OpenFGA)."
