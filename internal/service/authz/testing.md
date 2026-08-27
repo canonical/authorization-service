@@ -18,7 +18,7 @@ Navigate to the `docker/dependencies` directory and start only the essential ser
 
 ```bash
 cd docker/dependencies
-docker-compose up openfga migrateopenfga postgres insert-hardcoded-store
+docker compose up openfga migrateopenfga postgres insert-hardcoded-store
 ```
 
 This will start:

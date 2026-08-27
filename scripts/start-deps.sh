@@ -20,7 +20,7 @@ echo -e "${BLUE}Creating network...${NC}"
 docker network create authz-network 2>/dev/null || true
 
 echo -e "${BLUE}Starting services...${NC}"
-docker-compose up -d
+docker compose up -d
 
 echo ""
 echo -e "${YELLOW}⏳ Waiting for services to be healthy...${NC}"
@@ -82,4 +82,4 @@ echo "  OpenFGA UI:    http://localhost:3000"
 echo "  Valkey:        localhost:6379"
 echo ""
 echo "To stop dependencies:"
-echo "  cd docker/dependencies && docker-compose down"
+echo "  cd docker/dependencies && docker compose down"
