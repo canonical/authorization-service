@@ -79,6 +79,7 @@ func init() {
 	rootCmd.PersistentFlags().String("fga-address", "http://localhost:8081", "OpenFGA server address")
 	rootCmd.PersistentFlags().String("fga-store-id", "", "OpenFGA store ID")
 	rootCmd.PersistentFlags().String("fga-model-id", "", "OpenFGA authorization model ID")
+	rootCmd.PersistentFlags().String("fga-api-key", "", "OpenFGA API key")
 
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(serveCmd)

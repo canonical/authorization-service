@@ -29,6 +29,7 @@ func LoadConfig(cmd *cobra.Command) (*Config, error) {
 	// 2. Bind Environment Variables automatically using a key replacer
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
+	bindEnvVars(v)
 
 	// 3. Bind CLI flags (only if explicitly changed by the user)
 	if cmd != nil {
@@ -174,6 +175,7 @@ func bindFlags(v *viper.Viper, cmd *cobra.Command) {
 	bindFlagIfChanged(v, flags, "fga-address", "openfga.address")
 	bindFlagIfChanged(v, flags, "fga-store-id", "openfga.store_id")
 	bindFlagIfChanged(v, flags, "fga-model-id", "openfga.authorization_model_id")
+	bindFlagIfChanged(v, flags, "fga-api-key", "openfga.api_key")
 }
 
 // bindFlagIfChanged binds a pflag to a Viper key only if the flag was explicitly changed by the user
@@ -181,4 +183,90 @@ func bindFlagIfChanged(v *viper.Viper, flags *pflag.FlagSet, flagName string, vi
 	if flags.Lookup(flagName) != nil && flags.Changed(flagName) {
 		_ = v.BindPFlag(viperKey, flags.Lookup(flagName))
 	}
+}
+
+// bindEnvVars explicitly registers environment variable keys and aliases with Viper so
+// that v.Unmarshal can bind environment variables into struct fields reliably.
+func bindEnvVars(v *viper.Viper) {
+	// Multitenancy
+	_ = v.BindEnv("multitenancy_enabled", "MULTITENANCY_ENABLED")
+
+	// Server
+	_ = v.BindEnv("server.grpc_port", "GRPC_PORT", "SERVER_GRPC_PORT")
+	_ = v.BindEnv("server.http_port", "HTTP_PORT", "SERVER_HTTP_PORT")
+	_ = v.BindEnv("server.host", "SERVER_HOST")
+	_ = v.BindEnv("server.shutdown_timeout", "SERVER_SHUTDOWN_TIMEOUT")
+	_ = v.BindEnv("server.development", "DEV", "SERVER_DEVELOPMENT")
+
+	// ExtAuthzService
+	_ = v.BindEnv("ext_authz_service.jwk_set_url", "EXTAUTHZ_JWK_SET_URL", "EXT_AUTHZ_SERVICE_JWK_SET_URL")
+
+	// OpenFGA
+	_ = v.BindEnv("openfga.address", "OPENFGA_ADDRESS")
+	_ = v.BindEnv("openfga.store_id", "OPENFGA_STORE_ID")
+	_ = v.BindEnv("openfga.authorization_model_id", "OPENFGA_AUTHORIZATION_MODEL_ID")
+	_ = v.BindEnv("openfga.api_key", "OPENFGA_API_KEY")
+	_ = v.BindEnv("openfga.timeout", "OPENFGA_TIMEOUT")
+
+	// Valkey
+	_ = v.BindEnv("valkey.enabled", "VALKEY_ENABLED")
+	_ = v.BindEnv("valkey.address", "VALKEY_ADDRESS")
+	_ = v.BindEnv("valkey.username", "VALKEY_USERNAME")
+	_ = v.BindEnv("valkey.password", "VALKEY_PASSWORD")
+	_ = v.BindEnv("valkey.db", "VALKEY_DB")
+	_ = v.BindEnv("valkey.pool_size", "VALKEY_POOL_SIZE")
+	_ = v.BindEnv("valkey.timeout", "VALKEY_TIMEOUT")
+	_ = v.BindEnv("valkey.use_tls", "VALKEY_USE_TLS")
+
+	// Postgres
+	_ = v.BindEnv("postgres.host", "POSTGRES_HOST")
+	_ = v.BindEnv("postgres.port", "POSTGRES_PORT")
+	_ = v.BindEnv("postgres.user", "POSTGRES_USER")
+	_ = v.BindEnv("postgres.password", "POSTGRES_PASSWORD")
+	_ = v.BindEnv("postgres.db_name", "POSTGRES_DB", "POSTGRES_DB_NAME")
+	_ = v.BindEnv("postgres.ssl_mode", "POSTGRES_SSL_MODE")
+	_ = v.BindEnv("postgres.max_open_conns", "POSTGRES_MAX_OPEN_CONNS")
+	_ = v.BindEnv("postgres.max_idle_conns", "POSTGRES_MAX_IDLE_CONNS")
+	_ = v.BindEnv("postgres.conn_max_lifetime", "POSTGRES_CONN_MAX_LIFETIME")
+	_ = v.BindEnv("postgres.conn_max_idle_time", "POSTGRES_CONN_MAX_IDLE_TIME")
+	_ = v.BindEnv("postgres.connect_timeout", "POSTGRES_CONNECT_TIMEOUT")
+
+	// STS
+	_ = v.BindEnv("sts.address", "STS_ADDRESS")
+	_ = v.BindEnv("sts.use_tls", "STS_USE_TLS")
+	_ = v.BindEnv("sts.timeout", "STS_TIMEOUT")
+	_ = v.BindEnv("sts.eager_connection_check", "STS_EAGER_CONNECTION_CHECK")
+
+	// Kafka
+	_ = v.BindEnv("kafka.enabled", "KAFKA_ENABLED")
+	_ = v.BindEnv("kafka.brokers", "KAFKA_BROKERS")
+	_ = v.BindEnv("kafka.federated_services", "FEDERATED_SERVICES", "KAFKA_FEDERATED_SERVICES")
+	_ = v.BindEnv("kafka.consumer_group", "KAFKA_CONSUMER_GROUP")
+	_ = v.BindEnv("kafka.topic_partitions", "KAFKA_TOPIC_PARTITIONS")
+	_ = v.BindEnv("kafka.topic_replication_factor", "KAFKA_TOPIC_REPLICATION_FACTOR")
+
+	// Worker
+	_ = v.BindEnv("worker.enabled", "WORKER_ENABLED")
+	_ = v.BindEnv("worker.batch_size", "WORKER_BATCH_SIZE")
+	_ = v.BindEnv("worker.poll_interval", "WORKER_POLL_INTERVAL")
+	_ = v.BindEnv("worker.max_attempts", "WORKER_MAX_ATTEMPTS")
+	_ = v.BindEnv("worker.retry_backoff", "WORKER_RETRY_BACKOFF")
+	_ = v.BindEnv("worker.stale_timeout", "WORKER_STALE_TIMEOUT")
+	_ = v.BindEnv("worker.reaper_interval", "WORKER_REAPER_INTERVAL")
+
+	// Logging
+	_ = v.BindEnv("logging.level", "LOG_LEVEL", "LOGGING_LEVEL")
+	_ = v.BindEnv("logging.format", "LOG_FORMAT", "LOGGING_FORMAT")
+	_ = v.BindEnv("logging.add_source", "LOG_ADD_SOURCE", "LOGGING_ADD_SOURCE")
+
+	// Telemetry
+	_ = v.BindEnv("telemetry.enabled", "TELEMETRY_ENABLED")
+	_ = v.BindEnv("telemetry.otlp_endpoint", "OTEL_EXPORTER_OTLP_ENDPOINT", "TELEMETRY_OTLP_ENDPOINT")
+	_ = v.BindEnv("telemetry.service_name", "OTEL_SERVICE_NAME", "TELEMETRY_SERVICE_NAME")
+	_ = v.BindEnv("telemetry.service_version", "OTEL_SERVICE_VERSION", "TELEMETRY_SERVICE_VERSION")
+
+	// Metrics
+	_ = v.BindEnv("metrics.enabled", "METRICS_ENABLED")
+	_ = v.BindEnv("metrics.port", "METRICS_PORT")
+	_ = v.BindEnv("metrics.path", "METRICS_PATH")
 }

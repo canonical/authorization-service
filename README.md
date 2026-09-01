@@ -230,6 +230,7 @@ The following flags are available globally across all CLI commands to quickly ov
 * `--fga-address <string>`: Overrides the OpenFGA server address.
 * `--fga-store-id <string>`: Overrides the OpenFGA Store ID.
 * `--fga-model-id <string>`: Overrides the OpenFGA Authorization Model ID.
+* `--fga-api-key <string>`: Overrides the OpenFGA API key.
 
 ### Structured Environment Variables & YAML Keys
 

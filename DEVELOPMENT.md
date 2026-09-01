@@ -5,7 +5,7 @@ The Authorization Service follows a layered architecture:
 ```
 CLI Layer (Cobra)
         ↓
-Configuration Layer (envconfig)
+Configuration Layer (Viper)
         ↓
 Service Layer (Business Logic)
         ↓
@@ -16,24 +16,24 @@ API Layer (gRPC + REST)
 ### CLI Layer
 Located in `cmd/`:
 - **root.go**: Defines the root command and command registration
-- **serve.go**: Main serve command with configuration loading via envconfig
+- **serve.go**: Main serve command
 - **version.go**: Version command
 ### Configuration Layer
-Configuration is loaded in `cmd/serve.go` using:
-- **envconfig**: Environment variable parsing with defaults
-- **Struct tags**: Define variable names, types, and defaults
-- **Direct instantiation**: No separate config package (avoids circular imports)
+Configuration is managed in the `config/` package using:
+- **Viper**: Multi-layered configuration loading (defaults, YAML file, environment variables, CLI flags)
+- **Struct tags**: Mapstructure, validator, and default tags in `config/specs.go`
+- **Helper functions**: `config.LoadConfig(cmd)` to parse and validate settings across all CLI commands
 ### Service Layer
 Located in `internal/service/`:
 - **permissions/**: Permission registration and management
 - **authz/**: Authorization checks and decision logic
 ### Integration Layer
-Located in `internal/integrations/`:
+Located in `internal/integration/`:
 - **openfga/**: Client for fine-grained authorization
 - **valkey/**: Client for caching
 - **sts/**: Client for secure token service
 ### API Layer
-Located in `internal/server/`:
+Located in `server/`:
 - **grpc/**: gRPC server implementation
 - **rest/**: REST gateway using grpc-gateway
 ## Key Design Patterns
@@ -70,34 +70,28 @@ logger.Info("Starting service", "version", Version, "port", cfg.Server.GRPCPort)
 logger.Error("Connection failed", "error", err, "service", "OpenFGA")
 ```
 ## Configuration Management
-### Using envconfig
-Configuration is defined as struct fields with tags:
+### Using Viper
+Configuration structs are defined in `config/specs.go`:
 ```go
 type ServerConfig struct {
-    GRPCPort int           `envconfig:"GRPC_PORT" default:"9090"`
-    Host     string        `envconfig:"SERVER_HOST" default:"0.0.0.0"`
-    Timeout  time.Duration `envconfig:"SERVER_SHUTDOWN_TIMEOUT" default:"30s"`
+    GRPCPort int           `validate:"required,min=1,max=65535" mapstructure:"grpc_port"`
+    Host     string        `validate:"required" mapstructure:"host"`
+    Timeout  time.Duration `mapstructure:"shutdown_timeout"`
 }
 ```
 Loading configuration:
 ```go
-cfg := &Config{}
-if err := envconfig.Process("", cfg); err != nil {
+cfg, err := config.LoadConfig(cmd)
+if err != nil {
     return fmt.Errorf("failed to load configuration: %w", err)
 }
 ```
 ### Adding New Configuration
-1. Add field to appropriate config struct in `cmd/serve.go`
-2. Add envconfig tag with environment variable name
-3. Add default tag with sensible default
-4. Update README.md with the new variable
-Example:
-```go
-type MyConfig struct {
-    MyVar string `envconfig:"MY_VAR" default:"default-value"`
-}
-```
-Then document in README.md Configuration section.
+1. Add field to appropriate config struct in `config/specs.go`
+2. Set default value in `setViperDefaults()` in `config/viper.go`
+3. Add environment variable binding in `bindEnvVars()` in `config/viper.go`
+4. If exposing via CLI, add persistent flag to `cmd/root.go` and `bindFlags()` in `config/viper.go`
+5. Update `README.md` with the new setting
 ## Development Workflow
 ### 1. Local Setup
 ```bash

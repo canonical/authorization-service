@@ -37,6 +37,9 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	assert.Equal(t, "info", cfg.Logging.Level)
 	assert.Equal(t, false, cfg.Valkey.Enabled)
 	assert.Equal(t, "authorization-service", cfg.Postgres.DBName)
+	assert.Equal(t, "test-key", cfg.OpenFGA.ApiKey)
+	assert.Equal(t, "test-store", cfg.OpenFGA.StoreID)
+	assert.Equal(t, "test-model", cfg.OpenFGA.AuthorizationModelID)
 }
 
 func TestLoadConfig_File(t *testing.T) {
@@ -111,4 +114,37 @@ func TestLoadConfig_FlagsOverride(t *testing.T) {
 	// THEN the CLI flag should have the highest priority and override the Env var
 	require.NoError(t, err)
 	assert.Equal(t, 7777, cfg.Server.GRPCPort)
+}
+
+func TestLoadConfig_OpenFGAEnvAndFlags(t *testing.T) {
+	setupRequiredEnv(t)
+
+	t.Setenv("OPENFGA_API_KEY", "env-secret-token")
+	t.Setenv("OPENFGA_STORE_ID", "env-store-123")
+	t.Setenv("POSTGRES_DB", "env_postgres_db")
+	t.Setenv("LOG_LEVEL", "debug")
+	t.Setenv("DEV", "true")
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("config", "", "")
+	cmd.Flags().String("fga-api-key", "", "")
+	cmd.Flags().String("fga-store-id", "", "")
+
+	// WHEN loading without setting flags
+	cfg1, err := LoadConfig(cmd)
+	require.NoError(t, err)
+	assert.Equal(t, "env-secret-token", cfg1.OpenFGA.ApiKey)
+	assert.Equal(t, "env-store-123", cfg1.OpenFGA.StoreID)
+	assert.Equal(t, "env_postgres_db", cfg1.Postgres.DBName)
+	assert.Equal(t, "debug", cfg1.Logging.Level)
+	assert.True(t, cfg1.Server.Development)
+
+	// WHEN explicitly setting CLI flags
+	_ = cmd.Flags().Set("fga-api-key", "cli-override-token")
+	_ = cmd.Flags().Set("fga-store-id", "cli-override-store")
+
+	cfg2, err := LoadConfig(cmd)
+	require.NoError(t, err)
+	assert.Equal(t, "cli-override-token", cfg2.OpenFGA.ApiKey)
+	assert.Equal(t, "cli-override-store", cfg2.OpenFGA.StoreID)
 }
