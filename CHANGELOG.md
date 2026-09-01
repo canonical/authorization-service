@@ -1,5 +1,38 @@
 # Changelog
 
+## [2.0.0](https://github.com/canonical/authorization-service/compare/v1.0.0...v2.0.0) (2026-09-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* conform openfga env var names
+
+### Features
+
+* **authz:** log a single structured decision line per Check() call ([bfc8a4d](https://github.com/canonical/authorization-service/commit/bfc8a4decd665ac8a707f6ccb40d6e89314e36e0))
+* **cli:** add persistent --fga-api-key flag to root command ([032e17f](https://github.com/canonical/authorization-service/commit/032e17f25f9ccf9e624f62e42c84f39d09b916ed))
+* **config:** correlate SetupLogger output with service identity and traces ([de4f085](https://github.com/canonical/authorization-service/commit/de4f0859eb70674fed5ef470138b52127f4f7c85))
+* **logging:** add trace-correlated log handler and capturing test helper ([ea44afe](https://github.com/canonical/authorization-service/commit/ea44afe411713f970fc60944c45c65f088a6231d))
+* **logging:** propagate correlation ID through the Kafka ingest and worker pipeline ([07e29e6](https://github.com/canonical/authorization-service/commit/07e29e60ffdcaf1593e229a1a4bfb0a58a2d8bf9))
+* **metrics:** add core Prometheus metrics package ([7d46cdf](https://github.com/canonical/authorization-service/commit/7d46cdfb2cbdc36b338ba894758f713cadf9810f))
+* **metrics:** expose dedicated /metrics endpoint on each long-running binary ([5a16602](https://github.com/canonical/authorization-service/commit/5a166029bb572782fd8716b8a04d830d9c426111))
+* **metrics:** instrument gRPC and REST transport layers ([2bc2b5c](https://github.com/canonical/authorization-service/commit/2bc2b5c4cff38c91e4450de442d3a572bb4fc495))
+* **metrics:** instrument repository, authz check, and permissions services ([5736577](https://github.com/canonical/authorization-service/commit/57365777470b4c3bc6949a8436d89c717daaf3d5))
+* **metrics:** instrument worker, reaper, and Kafka ingestion pipeline ([8ba8ae5](https://github.com/canonical/authorization-service/commit/8ba8ae566d6ee82709b7d5f639c561c1a299fdc4))
+* **server:** correlate gRPC and REST requests with a request ID ([c5b12ce](https://github.com/canonical/authorization-service/commit/c5b12ce3b45c87ad64a5df454424e969766eb1c8))
+* **terraform:** integrate Kafka pipeline, split deployments, and sequence bootstrapping ([29ac97e](https://github.com/canonical/authorization-service/commit/29ac97e219d215d0250ea27ddcb0bb96ace161d3))
+
+
+### Bug Fixes
+
+* add viper default for logging.add_source ([65ec149](https://github.com/canonical/authorization-service/commit/65ec1498ddbc0150941493fcf2338e45a245b24d))
+* **cmd:** emit valid JSON fallback log when config fails to load ([317e5c6](https://github.com/canonical/authorization-service/commit/317e5c636fc34a227462f6700357622c71bb4f0d))
+* **config:** bind environment variables and CLI flag for OpenFGA API key ([d8309ce](https://github.com/canonical/authorization-service/commit/d8309cee31d5939904a7c5e671a94926757417aa))
+* conform openfga env var names ([ac7ca06](https://github.com/canonical/authorization-service/commit/ac7ca06dc72eadbee69e328bb747e17875e959cb))
+* **postgres:** drop raw SQL text from query and exec logs ([92f560d](https://github.com/canonical/authorization-service/commit/92f560d5fea48743b47c25d911b67ae0679f3964))
+* properly quote db init script ([d2abbf8](https://github.com/canonical/authorization-service/commit/d2abbf8449fe774ae96eb66a1a1deff92dd27450))
+* update the default ports ([066f19f](https://github.com/canonical/authorization-service/commit/066f19f1e0383888042fa2f87413035194826a2c))
+
 ## [1.0.0](https://github.com/canonical/authorization-service/compare/v0.2.0...v1.0.0) (2026-08-27)
 
 
