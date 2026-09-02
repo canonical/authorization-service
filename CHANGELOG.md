@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.0.1](https://github.com/canonical/authorization-service/compare/v2.0.0...v2.0.1) (2026-09-02)
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/getkin/kin-openapi to v0.144.0 [security] ([f6b628e](https://github.com/canonical/authorization-service/commit/f6b628e29c31d60846cceee2c29e801594bbd70d))
+* **deps:** update module github.com/getkin/kin-openapi to v0.144.0 [security] ([#48](https://github.com/canonical/authorization-service/issues/48)) ([e8f28ec](https://github.com/canonical/authorization-service/commit/e8f28ec90784148355f2e43455540165cfcff651))
+* passing of OpenFGA credentials to HTTPClient for the SDK ([46a9300](https://github.com/canonical/authorization-service/commit/46a930061b30d0b6ac7351120e82222ac3d491f1))
+
 ## [2.0.0](https://github.com/canonical/authorization-service/compare/v1.0.0...v2.0.0) (2026-09-01)
 
 
