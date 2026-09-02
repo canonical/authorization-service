@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"path/filepath"
 
 	openfga "github.com/openfga/go-sdk"
@@ -127,27 +126,33 @@ func WriteAuthorizationModel(ctx context.Context, storeID string, cfg *config.Co
 		return fmt.Errorf("failed to compile modular authorization model: %w", err)
 	}
 
-	// Create OpenFGA SDK client
-	clientConfig := &client.ClientConfiguration{
-		ApiUrl:  cfg.OpenFGA.Address,
-		StoreId: storeID,
-		HTTPClient: &http.Client{
-			Timeout: cfg.OpenFGA.Timeout,
-		},
-	}
-
+	var creds *credentials.Credentials
 	if cfg.OpenFGA.ApiKey != "" {
-		clientConfig.Credentials = &credentials.Credentials{
+		creds, err = credentials.NewCredentials(credentials.Credentials{
 			Method: credentials.CredentialsMethodApiToken,
 			Config: &credentials.Config{
 				ApiToken: cfg.OpenFGA.ApiKey,
 			},
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create OpenFGA credentials: %w", err)
 		}
+	}
+
+	// Create OpenFGA SDK client
+	clientConfig := &client.ClientConfiguration{
+		ApiUrl:      cfg.OpenFGA.Address,
+		StoreId:     storeID,
+		Credentials: creds,
 	}
 
 	fgaClient, err := client.NewSdkClient(clientConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create OpenFGA client: %w", err)
+	}
+
+	if cfg.OpenFGA.Timeout > 0 && fgaClient.GetConfig().HTTPClient != nil {
+		fgaClient.GetConfig().HTTPClient.Timeout = cfg.OpenFGA.Timeout
 	}
 
 	// Write the authorization model via the SDK
