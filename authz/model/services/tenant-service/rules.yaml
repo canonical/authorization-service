@@ -1,0 +1,98 @@
+version: "1"
+service: tenant-service
+revision: "2026.09.28.1"
+description: |
+  Route protection rules for the tenant service.
+
+rules:
+  - method: GET
+    match: '/api/v0/tenants/{tenant_id}'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_view
+        object_resource_type: tenant
+        object_resource_id: '{tenant_id}'
+
+  - method: PATCH
+    match: '/api/v0/tenants/{tenant_id}'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_edit
+        object_resource_type: tenant
+        object_resource_id: '{tenant_id}'
+
+  - method: DELETE
+    match: '/api/v0/tenants/{tenant_id}'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_delete
+        object_resource_type: tenant
+        object_resource_id: '{tenant_id}'
+
+  - method: GET
+    match: '/api/v0/tenants/{tenant_id}/users'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_view
+        object_resource_type: tenant
+        object_resource_id: '{tenant_id}'
+
+  - method: POST
+    match: '/api/v0/tenants/{tenant_id}/users'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: assignee
+        object_resource_type: role
+        object_resource_id: 'admin'
+
+  - method: PATCH
+    match: '/api/v0/tenants/{tenant_id}/users/{user_id}'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_edit
+        object_resource_type: tenant
+        object_resource_id: '{tenant_id}'
+
+
+  - method: POST
+    match: '/api/v0/tenants/{tenant_id}/invites'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_edit
+        object_resource_type: tenant
+        object_resource_id: '{tenant_id}'
+
+  - method: POST
+    match: '/api/v0/tenants'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: assignee
+        object_resource_type: role
+        object_resource_id: 'admin'
+
+  - method: GET
+    match: '/api/v0/tenants'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: assignee
+        object_resource_type: role
+        object_resource_id: 'admin'
+
+  - method: GET
+    match: '/api/v0/users/{user_id}/tenants'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: assignee
+        object_resource_type: role
+        object_resource_id: 'admin'
+
