@@ -1,15 +1,11 @@
 module tenant-service
 
-type privileged
-  relations
-    define admin: [user]
-
 type tenant
   relations
-    define privileged: [privileged]
     define owner: [user]
     define member: [user] or owner
-    define can_view: member or admin from privileged
-    define can_edit: owner or admin from privileged
-    define can_delete: owner or admin from privileged
+    define can_view: [group#member, role#assignee] or member
+    define can_edit: [group#member, role#assignee] or owner
+    define can_delete: [group#member, role#assignee] or owner
+
 
