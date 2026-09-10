@@ -25,7 +25,12 @@ This command is suitable for manual execution or external scheduling (e.g. cron)
 }
 
 func runReaperCmd(cmd *cobra.Command, _ []string) error {
-	cfg, err := config.LoadConfig(cmd)
+	cfg, err := config.LoadConfigFor(cmd,
+		config.ComponentPostgres,
+		config.ComponentWorker,
+		config.ComponentLogging,
+		config.ComponentTelemetry,
+	)
 	if err != nil {
 		return err
 	}

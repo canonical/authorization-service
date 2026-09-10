@@ -25,7 +25,11 @@ Configuration is loaded from environment variables.`,
 }
 
 func runEnsureTopics(cmd *cobra.Command, _ []string) error {
-	cfg, err := config.LoadConfig(cmd)
+	cfg, err := config.LoadConfigFor(cmd,
+		config.ComponentKafka,
+		config.ComponentLogging,
+		config.ComponentTelemetry,
+	)
 	if err != nil {
 		return err
 	}
