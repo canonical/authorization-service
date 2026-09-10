@@ -150,31 +150,6 @@ func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Trace
 		}
 	}
 
-	// Initialize Kafka
-	if cfg.Kafka != nil && cfg.Kafka.Enabled {
-		registry, err := listen.NewServiceRegistry(cfg.Kafka.FederatedServices)
-		if err != nil {
-			return nil, fmt.Errorf("failed to build federated service registry: %w", err)
-		}
-		integrations.ServiceRegistry = registry
-
-		kafkaClient, err := kafkaintegration.NewClient(
-			kafkaintegration.Config{
-				Brokers:       cfg.Kafka.Brokers,
-				ConsumerGroup: cfg.Kafka.ConsumerGroup,
-				Topics:        registry.Topics(),
-			},
-			logger,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create Kafka client: %w", err)
-		}
-		integrations.KafkaConsumer = kafkaClient
-	} else {
-		logger.Info("Kafka disabled, using no-op client")
-		integrations.KafkaConsumer = kafkaintegration.NewNoopClient(logger)
-	}
-
 	// Initialize STS
 	if cfg.STS != nil {
 		integrations.stsConn, err = cfg.STS.CreateSTSConnection()
@@ -191,6 +166,40 @@ func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Trace
 
 	return integrations, nil
 }
+
+// InitKafkaConsumer initializes the Kafka consumer and service registry for the listener component.
+// It is kept separate from InitializeIntegrations so that non-listening components (worker, serve, reaper)
+// do not join the consumer group and partition-starve active listeners.
+func (i *Integrations) InitKafkaConsumer(cfg *Config, logger *slog.Logger) error {
+	if cfg.Kafka != nil && cfg.Kafka.Enabled {
+		registry, err := listen.NewServiceRegistry(cfg.Kafka.FederatedServices)
+		if err != nil {
+			return fmt.Errorf("failed to build federated service registry: %w", err)
+		}
+		i.ServiceRegistry = registry
+
+		kafkaClient, err := kafkaintegration.NewClient(
+			kafkaintegration.Config{
+				Brokers:       cfg.Kafka.Brokers,
+				ConsumerGroup: cfg.Kafka.ConsumerGroup,
+				Topics:        registry.Topics(),
+			},
+			logger,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to create Kafka client: %w", err)
+		}
+		i.KafkaConsumer = kafkaClient
+	} else {
+		logger.Info("Kafka disabled, using no-op client")
+		i.KafkaConsumer = kafkaintegration.NewNoopClient(logger)
+		emptyRegistry, _ := listen.NewServiceRegistry(nil)
+		i.ServiceRegistry = emptyRegistry
+	}
+
+	return nil
+}
+
 
 // InitializeServices builds the business-logic services. reg registers the
 // recorders backing each service's Metrics seam; pass a fresh
