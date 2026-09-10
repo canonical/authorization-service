@@ -63,6 +63,10 @@ func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Trace
 	}
 
 	// Initialize OpenFGA
+	if cfg.OpenFGA.AuthorizationModelID == "" {
+		return nil, fmt.Errorf("authorization_model_id is required")
+	}
+
 	creds, err := credentials.NewCredentials(credentials.Credentials{
 		Method: credentials.CredentialsMethodApiToken,
 		Config: &credentials.Config{
