@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.0.2](https://github.com/canonical/authorization-service/compare/v2.0.1...v2.0.2) (2026-09-14)
+
+
+### Bug Fixes
+
+* make `openfga_authorization_model_id` optional ([#80](https://github.com/canonical/authorization-service/issues/80)) ([d734df6](https://github.com/canonical/authorization-service/commit/d734df681e54366c92a480da6ac47e102c908c21))
+* make openfga_authorization_model_id optional ([60cb304](https://github.com/canonical/authorization-service/commit/60cb304e8b270de2b6e78bf27752140241e75f2a))
+
 ## [2.0.1](https://github.com/canonical/authorization-service/compare/v2.0.0...v2.0.1) (2026-09-02)
 
 
