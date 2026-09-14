@@ -70,7 +70,7 @@ func (s *ServerConfig) GetHTTPAddress() string {
 type OpenFGAConfig struct {
 	Address              string        `validate:"required" envconfig:"OPENFGA_ADDRESS" mapstructure:"address" default:"http://localhost:8081"`
 	StoreID              string        `validate:"required" envconfig:"OPENFGA_STORE_ID" mapstructure:"store_id"`
-	AuthorizationModelID string        `validate:"required" envconfig:"OPENFGA_AUTHORIZATION_MODEL_ID" mapstructure:"authorization_model_id"`
+	AuthorizationModelID string        `validate:"" envconfig:"OPENFGA_AUTHORIZATION_MODEL_ID" mapstructure:"authorization_model_id"`
 	ApiKey               string        `validate:"required" envconfig:"OPENFGA_API_KEY" mapstructure:"api_key"`
 	Timeout              time.Duration `validate:"" envconfig:"OPENFGA_TIMEOUT" mapstructure:"timeout" default:"10s"`
 }

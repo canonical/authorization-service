@@ -148,3 +148,16 @@ func TestLoadConfig_OpenFGAEnvAndFlags(t *testing.T) {
 	assert.Equal(t, "cli-override-token", cfg2.OpenFGA.ApiKey)
 	assert.Equal(t, "cli-override-store", cfg2.OpenFGA.StoreID)
 }
+
+func TestLoadConfig_WithoutAuthorizationModelID(t *testing.T) {
+	t.Setenv("SERVER_DEVELOPMENT", "true")
+	t.Setenv("OPENFGA_STORE_ID", "test-store")
+	t.Setenv("OPENFGA_API_KEY", "test-key")
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("config", "", "")
+
+	cfg, err := LoadConfig(cmd)
+	require.NoError(t, err)
+	assert.Equal(t, "", cfg.OpenFGA.AuthorizationModelID)
+}
