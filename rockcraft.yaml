@@ -1,7 +1,7 @@
 name: authorization-service
 base: bare
 build-base: ubuntu@24.04
-version: 2.0.1
+version: 2.0.2
 summary: Canonical Identity Platform Authorization Service
 description: >
   This is the Canonical Identity Platform Authorization Service used
