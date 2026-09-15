@@ -149,15 +149,52 @@ func TestLoadConfig_OpenFGAEnvAndFlags(t *testing.T) {
 	assert.Equal(t, "cli-override-store", cfg2.OpenFGA.StoreID)
 }
 
-func TestLoadConfig_WithoutAuthorizationModelID(t *testing.T) {
-	t.Setenv("SERVER_DEVELOPMENT", "true")
-	t.Setenv("OPENFGA_STORE_ID", "test-store")
-	t.Setenv("OPENFGA_API_KEY", "test-key")
-
+func TestLoadConfigFor_ComponentScoped(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.Flags().String("config", "", "")
 
-	cfg, err := LoadConfig(cmd)
+	// GIVEN only Postgres and Logging config (no OpenFGA, no Server)
+	t.Setenv("POSTGRES_HOST", "db.example.com")
+	t.Setenv("LOG_LEVEL", "debug")
+
+	// WHEN loading config for migrate command components
+	cfg, err := LoadConfigFor(cmd, ComponentPostgres, ComponentLogging)
+
+	// THEN validation succeeds without requiring OpenFGA or Server
+	require.NoError(t, err)
+	assert.Equal(t, "db.example.com", cfg.Postgres.Host)
+	assert.Equal(t, "debug", cfg.Logging.Level)
+}
+
+func TestLoadConfigFor_OpenFGAModelWriter(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.Flags().String("config", "", "")
+
+	t.Setenv("OPENFGA_STORE_ID", "test-store")
+	t.Setenv("OPENFGA_API_KEY", "test-key")
+
+	// WHEN loading config for ComponentOpenFGAModelWriter without model ID
+	cfg, err := LoadConfigFor(cmd, ComponentOpenFGAModelWriter)
+
+	// THEN validation succeeds even though AuthorizationModelID is empty
 	require.NoError(t, err)
 	assert.Equal(t, "", cfg.OpenFGA.AuthorizationModelID)
+
+	// BUT WHEN loading config for ComponentOpenFGA without model ID
+	_, errModelRequired := LoadConfigFor(cmd, ComponentOpenFGA)
+
+	// THEN validation fails because AuthorizationModelID is required for ComponentOpenFGA
+	require.Error(t, errModelRequired)
+	assert.Contains(t, errModelRequired.Error(), "authorization_model_id is required")
+}
+
+func TestLoadConfigFor_MissingRequiredComponent(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.Flags().String("config", "", "")
+
+	t.Setenv("POSTGRES_PORT", "-1") // Invalid port for postgres
+
+	_, err := LoadConfigFor(cmd, ComponentPostgres)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "postgres configuration validation failed")
 }
