@@ -34,7 +34,13 @@ Configuration is loaded from environment variables.`,
 }
 
 func runListen(cmd *cobra.Command, _ []string) error {
-	cfg, err := config.LoadConfig(cmd)
+	cfg, err := config.LoadConfigFor(cmd,
+		config.ComponentPostgres,
+		config.ComponentKafka,
+		config.ComponentLogging,
+		config.ComponentTelemetry,
+		config.ComponentMetrics,
+	)
 	if err != nil {
 		return err
 	}

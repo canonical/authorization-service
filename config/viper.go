@@ -19,8 +19,13 @@ import (
 // config-load failure from errors already logged by a command that got further than LoadConfig.
 var ErrConfigLoad = errors.New("failed to load configuration")
 
-// LoadConfig loads the configuration from default values, config file, environment variables, and CLI flags.
+// LoadConfig loads the full configuration and performs validation across all components.
 func LoadConfig(cmd *cobra.Command) (*Config, error) {
+	return LoadConfigFor(cmd, AllComponents...)
+}
+
+// LoadConfigFor loads configuration and performs component-scoped validation for specified components.
+func LoadConfigFor(cmd *cobra.Command, components ...Component) (*Config, error) {
 	v := viper.New()
 
 	// 1. Set Defaults
@@ -69,8 +74,8 @@ func LoadConfig(cmd *cobra.Command) (*Config, error) {
 		return nil, fmt.Errorf("%w: failed to unmarshal configuration: %w", ErrConfigLoad, err)
 	}
 
-	// 6. Perform Struct Validation
-	if err := cfg.Validate(); err != nil {
+	// 6. Perform Component-Scoped Struct Validation
+	if err := cfg.ValidateComponents(components...); err != nil {
 		return nil, fmt.Errorf("%w: configuration validation failed: %w", ErrConfigLoad, err)
 	}
 

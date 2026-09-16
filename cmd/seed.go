@@ -53,7 +53,11 @@ func runSeedCmd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("the --dir / -d flag can only be used during dry-run validation")
 	}
 
-	cfg, err := config.LoadConfig(cmd)
+	cfg, err := config.LoadConfigFor(cmd,
+		config.ComponentPostgres,
+		config.ComponentLogging,
+		config.ComponentTelemetry,
+	)
 	if err != nil {
 		return err
 	}

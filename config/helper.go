@@ -58,45 +58,51 @@ type Integrations struct {
 func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Tracer) (*Integrations, error) {
 	var err error
 	integrations := &Integrations{
-		jwkSetUrl:           cfg.ExtAuthzService.JwkSetURL,
 		MultitenancyEnabled: cfg.MultitenancyEnabled,
 	}
 
+	if cfg.ExtAuthzService != nil {
+		integrations.jwkSetUrl = cfg.ExtAuthzService.JwkSetURL
+	}
+
 	// Initialize OpenFGA
-	if cfg.OpenFGA.AuthorizationModelID == "" {
-		return nil, fmt.Errorf("authorization_model_id is required")
-	}
+	if cfg.OpenFGA != nil {
+		var creds *credentials.Credentials
+		if cfg.OpenFGA.ApiKey != "" {
+			creds, err = credentials.NewCredentials(credentials.Credentials{
+				Method: credentials.CredentialsMethodApiToken,
+				Config: &credentials.Config{
+					ApiToken: cfg.OpenFGA.ApiKey,
+				},
+			})
+			if err != nil {
+				return nil, fmt.Errorf("error loading OpenFGA auth credentials: %v", err)
+			}
+		}
 
-	creds, err := credentials.NewCredentials(credentials.Credentials{
-		Method: credentials.CredentialsMethodApiToken,
-		Config: &credentials.Config{
-			ApiToken: cfg.OpenFGA.ApiKey,
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error loading OpenFGA auth credentials: %v", err)
-	}
+		openfgaClient, err := client.NewSdkClient(
+			&client.ClientConfiguration{
+				ApiUrl:               cfg.OpenFGA.Address,
+				Credentials:          creds,
+				AuthorizationModelId: cfg.OpenFGA.AuthorizationModelID,
+				Telemetry:            nil,
+			},
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create OpenFGA SDK client: %w", err)
+		}
 
-	openfgaClient, err := client.NewSdkClient(
-		&client.ClientConfiguration{
-			ApiUrl:               cfg.OpenFGA.Address,
-			Credentials:          creds,
-			AuthorizationModelId: cfg.OpenFGA.AuthorizationModelID,
-			Telemetry:            nil,
-		},
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create OpenFGA SDK client: %w", err)
-	}
+		if cfg.OpenFGA.StoreID != "" {
+			if err := openfgaClient.SetStoreId(cfg.OpenFGA.StoreID); err != nil {
+				return nil, fmt.Errorf("failed to set OpenFGA store ID: %w", err)
+			}
+		}
 
-	if err := openfgaClient.SetStoreId(cfg.OpenFGA.StoreID); err != nil {
-		return nil, fmt.Errorf("failed to set OpenFGA store ID: %w", err)
+		integrations.OpenFGA = openfgaClient
 	}
-
-	integrations.OpenFGA = openfgaClient
 
 	// Initialize Valkey
-	if cfg.Valkey.Enabled {
+	if cfg.Valkey != nil && cfg.Valkey.Enabled {
 		integrations.Valkey, err = valkey.NewClient(
 			valkey.Config{
 				Address:  cfg.Valkey.Address,
@@ -120,30 +126,32 @@ func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Trace
 	}
 
 	// Initialize Postgres
-	integrations.Postgres, err = postgres.NewClient(
-		postgres.Config{
-			Host:            cfg.Postgres.Host,
-			Port:            cfg.Postgres.Port,
-			User:            cfg.Postgres.User,
-			Password:        cfg.Postgres.Password,
-			DBName:          cfg.Postgres.DBName,
-			SSLMode:         cfg.Postgres.SSLMode,
-			MaxOpenConns:    cfg.Postgres.MaxOpenConns,
-			MaxIdleConns:    cfg.Postgres.MaxIdleConns,
-			ConnMaxLifetime: cfg.Postgres.ConnMaxLifetime,
-			ConnMaxIdleTime: cfg.Postgres.ConnMaxIdleTime,
-			ConnectTimeout:  cfg.Postgres.ConnectTimeout,
-		},
-		logger,
-		tracer,
-	)
+	if cfg.Postgres != nil {
+		integrations.Postgres, err = postgres.NewClient(
+			postgres.Config{
+				Host:            cfg.Postgres.Host,
+				Port:            cfg.Postgres.Port,
+				User:            cfg.Postgres.User,
+				Password:        cfg.Postgres.Password,
+				DBName:          cfg.Postgres.DBName,
+				SSLMode:         cfg.Postgres.SSLMode,
+				MaxOpenConns:    cfg.Postgres.MaxOpenConns,
+				MaxIdleConns:    cfg.Postgres.MaxIdleConns,
+				ConnMaxLifetime: cfg.Postgres.ConnMaxLifetime,
+				ConnMaxIdleTime: cfg.Postgres.ConnMaxIdleTime,
+				ConnectTimeout:  cfg.Postgres.ConnectTimeout,
+			},
+			logger,
+			tracer,
+		)
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Postgres client: %w", err)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create Postgres client: %w", err)
+		}
 	}
 
 	// Initialize Kafka
-	if cfg.Kafka.Enabled {
+	if cfg.Kafka != nil && cfg.Kafka.Enabled {
 		registry, err := listen.NewServiceRegistry(cfg.Kafka.FederatedServices)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build federated service registry: %w", err)
@@ -168,16 +176,18 @@ func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Trace
 	}
 
 	// Initialize STS
-	integrations.stsConn, err = cfg.STS.CreateSTSConnection()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create STS connection: %w", err)
-	}
+	if cfg.STS != nil {
+		integrations.stsConn, err = cfg.STS.CreateSTSConnection()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create STS connection: %w", err)
+		}
 
-	integrations.STS = sts.NewSTSClientWrapper(
-		stsv1.NewSecurityTokenServiceClient(integrations.stsConn),
-		logger,
-		tracer,
-	)
+		integrations.STS = sts.NewSTSClientWrapper(
+			stsv1.NewSecurityTokenServiceClient(integrations.stsConn),
+			logger,
+			tracer,
+		)
+	}
 
 	return integrations, nil
 }

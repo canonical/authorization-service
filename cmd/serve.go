@@ -33,7 +33,17 @@ Configuration is loaded from environment variables.`,
 
 // serve is the main serve command handler
 func serve(cmd *cobra.Command, args []string) error {
-	cfg, err := config.LoadConfig(cmd)
+	cfg, err := config.LoadConfigFor(cmd,
+		config.ComponentServer,
+		config.ComponentExtAuthz,
+		config.ComponentOpenFGA,
+		config.ComponentValkey,
+		config.ComponentSTS,
+		config.ComponentPostgres,
+		config.ComponentLogging,
+		config.ComponentTelemetry,
+		config.ComponentMetrics,
+	)
 	if err != nil {
 		return err
 	}

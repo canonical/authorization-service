@@ -37,7 +37,11 @@ and uploads it to the specified OpenFGA store.`,
 func writeModel(cmd *cobra.Command, args []string) error {
 	storeID := args[0]
 
-	cfg, err := config.LoadConfig(cmd)
+	cfg, err := config.LoadConfigFor(cmd,
+		config.ComponentOpenFGAModelWriter,
+		config.ComponentLogging,
+		config.ComponentTelemetry,
+	)
 	if err != nil {
 		return err
 	}

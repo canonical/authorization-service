@@ -47,7 +47,15 @@ func init() {
 func runCheck(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	cfg, err := config.LoadConfig(cmd)
+	cfg, err := config.LoadConfigFor(cmd,
+		config.ComponentPostgres,
+		config.ComponentOpenFGA,
+		config.ComponentValkey,
+		config.ComponentSTS,
+		config.ComponentExtAuthz,
+		config.ComponentLogging,
+		config.ComponentTelemetry,
+	)
 	if err != nil {
 		return err
 	}
