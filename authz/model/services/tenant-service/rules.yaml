@@ -1,6 +1,6 @@
 version: "1"
 service: tenant-service
-revision: "2026.09.09.1"
+revision: "2026.09.17.1"
 description: |
   Route protection rules for the tenant service.
 
@@ -101,6 +101,6 @@ rules:
     priority: 100
     tuples:
       - user_resource_type: user
-        permission: viewer
-        object_resource_type: generic-asset
+        permission: can_view
+        object_resource_type: account
         object_resource_id: 'me'
