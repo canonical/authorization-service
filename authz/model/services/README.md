@@ -46,18 +46,21 @@ To prevent parsing anomalies and security issues, Authorization-service enforces
   - `/api/v1/admin/**/reports` is **invalid**.
   - `/api/v1/**/items/{itemId}` is **invalid**.
 
-### Service Scoping & OpenFGA Type Namespacing (`serviceSlug/type`)
+### Service Scoping & Type Namespacing (`serviceSlug/type`)
 To isolate authorization models and resource types to a specific service scope and prevent naming collisions across federated services, Authorization-service relies on the `serviceSlug/type` nomenclature supported by OpenFGA model syntax.
 
-- **Service Scope**:
-  Types should be namespaced with their respective `serviceSlug`:
-  - `dummy/testGroup`
-  - `dummy/domainAdmin`
+#### Service Slugs
+- **Assignment**: Service slugs are proposed by teams during Pull Request onboarding. Any naming collisions or adjustments are addressed and resolved during the PR review process.
+- **Namespace Boundary**: The `serviceSlug` acts as the primary namespace preventing collisions across federated services (e.g., `dummy`).
 
-- **Multitenancy Scope**:
-  When multitenancy is enabled, the nomenclature extends to include the tenant identifier as a prefix:
+#### Scoped vs. Unscoped OpenFGA Types
+- **Unscoped OpenFGA Types**: The core module of the model provides global, unscoped OpenFGA types (e.g., `user`, `group`) intended for shared use across the entire platform. Other services may propose their own unscoped types for global use.
+- **Scoped OpenFGA Types**: Services define domain-specific OpenFGA types scoped with their `serviceSlug` (e.g., `dummy/testGroup`, `dummy/domainAdmin`) for their internal domain logic.
+- **Multitenancy Scope**: When multitenancy is enabled, the nomenclature extends to include the tenant identifier as a prefix:
   - `tenantX/dummy/testGroup`
 
+#### Event Topic ACLs & Ingestion Validation
+- **Topic Write Isolation**: Each federated service will have an ACL granting write access strictly to a single event topic matching `<serviceSlug>.permissions`. Meanwhile, Authorization-service maintains read access to all available service topics following this slug-based nomenclature.
 ---
 
 ## 3. Tuple Validation & Classification
@@ -99,6 +102,7 @@ graph TD
 2. **Duplicate Rules**: Ensures there is no duplicate combination of `method` and `match` (e.g., two rules for `GET /api/v1/status`).
 3. **Duplicate Tuples**: Validates that all tuples within a single rule are unique to prevent redundant DB rows.
 4. **Path & Placeholders**: Parses each match path, runs syntactic checks on curly braces and wildcards, and ensures dynamic tuples have corresponding capture groups.
+5. **Namespace Alignment**: Verifies that all scoped-permission tuples belong strictly to the service's own namespace (`serviceSlug`), rejecting cross-namespace declarations.
 
 ### Natural Revision Comparison & Atomic Seeding
 If the file validation succeeds:
