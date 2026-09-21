@@ -46,6 +46,18 @@ To prevent parsing anomalies and security issues, Authorization-service enforces
   - `/api/v1/admin/**/reports` is **invalid**.
   - `/api/v1/**/items/{itemId}` is **invalid**.
 
+### Service Scoping & OpenFGA Type Namespacing (`serviceSlug/type`)
+To isolate authorization models and resource types to a specific service scope and prevent naming collisions across federated services, Authorization-service relies on the `serviceSlug/type` nomenclature supported by OpenFGA model syntax.
+
+- **Service Scope**:
+  Types should be namespaced with their respective `serviceSlug`:
+  - `dummy/testGroup`
+  - `dummy/domainAdmin`
+
+- **Multitenancy Scope**:
+  When multitenancy is enabled, the nomenclature extends to include the tenant identifier as a prefix:
+  - `tenantX/dummy/testGroup`
+
 ---
 
 ## 3. Tuple Validation & Classification
