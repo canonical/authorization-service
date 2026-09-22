@@ -6,10 +6,9 @@ type account
 
 type tenant
   relations
-    define owner: [user]
-    define member: [user] or owner
-    define can_view: [group#member, role#assignee] or member
-    define can_edit: [group#member, role#assignee] or owner
-    define can_delete: [group#member, role#assignee] or owner
+    define can_delete: [user, group#member, role#assignee]
+    define can_edit: [user, group#member, role#assignee] or can_delete
+    define can_view: [user, group#member, role#assignee] or can_edit
+
 
 
