@@ -59,6 +59,10 @@ func runListen(cmd *cobra.Command, _ []string) error {
 	}
 	defer integrations.CleanupIntegrations(logger)
 
+	if err := integrations.InitKafkaConsumer(cfg, logger); err != nil {
+		return fmt.Errorf("kafka consumer initialization failed: %w", err)
+	}
+
 	reg := metrics.NewRegistry()
 
 	workRepo := repository.NewPostgresPermissionWorkRepository(integrations.Postgres, metrics.NewRepositoryRecorder(reg))
