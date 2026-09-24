@@ -89,6 +89,15 @@ deps:
 	@go mod download
 	@go mod tidy
 
+vendor: mocks
+	$(GO) mod vendor
+.PHONY: vendor
+
+govulncheck: vendor
+	$(GO) install golang.org/x/vuln/cmd/govulncheck@latest
+	PATH="$$($(GO) env GOPATH)/bin:$$PATH" govulncheck ./...
+.PHONY: govulncheck
+
 start-deps:
 	@./scripts/start-deps.sh
 
