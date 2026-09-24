@@ -1,9 +1,5 @@
 module tenant-service
 
-type account
-  relations
-    define can_view: [user, user:*, role#assignee]
-
 type tenant
   relations
     define can_delete: [user, group#member, role#assignee]
