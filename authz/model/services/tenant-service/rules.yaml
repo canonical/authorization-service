@@ -1,6 +1,6 @@
 version: "1"
 service: tenant-service
-revision: "2026.09.22.1"
+revision: "2026.09.28.1"
 description: |
   Route protection rules for the tenant service.
 
@@ -46,9 +46,9 @@ rules:
     priority: 100
     tuples:
       - user_resource_type: user
-        permission: can_edit
-        object_resource_type: tenant
-        object_resource_id: '{tenant_id}'
+        permission: assignee
+        object_resource_type: role
+        object_resource_id: 'admin'
 
   - method: PATCH
     match: '/api/v0/tenants/{tenant_id}/users/{user_id}'
