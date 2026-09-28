@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.0.3](https://github.com/canonical/authorization-service/compare/v2.0.2...v2.0.3) (2026-09-24)
+
+
+### Bug Fixes
+
+* only initialize kafka on the listener ([e0d0a7e](https://github.com/canonical/authorization-service/commit/e0d0a7e5a07be808efd5e7553202321ba5fcb1f5))
+* only initialize kafka on the listener ([#82](https://github.com/canonical/authorization-service/issues/82)) ([fc844e3](https://github.com/canonical/authorization-service/commit/fc844e36d3a87e9e749567c53c2ab75ddf0ba75d))
+
 ## [2.0.2](https://github.com/canonical/authorization-service/compare/v2.0.1...v2.0.2) (2026-09-14)
 
 
