@@ -19,7 +19,7 @@ jobs:
   e2e-test:
     uses: ./.github/workflows/e2e-test.yaml
   build:
-    uses: canonical/identity-team/.github/workflows/_rock-build.yaml@6b27807be4ec7c25045d52ef09ac780d684f65a2 # v1.10.0
+    uses: canonical/identity-team/.github/workflows/_rock-build.yaml@fc85af7448538c473be450dc2c8ec5d158ea0d15 # v1.17.0
     with:
       structure-tests-enabled: true
   gh-publish:
@@ -28,7 +28,7 @@ jobs:
       contents: read
     if: ${{ (github.ref == 'refs/heads/main') || (github.ref_type == 'tag') }}
     needs: [ build, unit-test ]
-    uses: canonical/identity-team/.github/workflows/_rock-gh-publish.yaml@6b27807be4ec7c25045d52ef09ac780d684f65a2 # v1.10.0
+    uses: canonical/identity-team/.github/workflows/_rock-gh-publish.yaml@fc85af7448538c473be450dc2c8ec5d158ea0d15 # v1.17.0
     with:
       rock: ${{ needs.build.outputs.rock }}
   
@@ -58,6 +58,6 @@ jobs:
           output: trivy-results.sarif
 
       - name: Upload scan results to GitHub
-        uses: github/codeql-action/upload-sarif@181d5eefc20863364f96762470ba6f862bdef56b # v3
+        uses: github/codeql-action/upload-sarif@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3
         with:
           sarif_file: trivy-results.sarif
