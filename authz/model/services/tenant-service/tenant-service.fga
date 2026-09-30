@@ -1,0 +1,10 @@
+module tenant-service
+
+type tenant
+  relations
+    define can_delete: [user, group#member, role#assignee]
+    define can_edit: [user, group#member, role#assignee] or can_delete
+    define can_view: [user, group#member, role#assignee] or can_edit
+
+
+
