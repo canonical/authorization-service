@@ -1,0 +1,88 @@
+version: "1"
+service: hook-service
+revision: "2026.09.22.1"
+description: |
+  Route protection rules for the federated hook-service admin API.
+  Enforces coarse-grained authorization requiring role:admin assignee membership across all admin endpoints.
+
+rules:
+  - method: GET
+    match: '/api/v0/authz/groups'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: assignee
+        object_resource_type: role
+        object_resource_id: 'admin'
+  - method: POST
+    match: '/api/v0/authz/groups'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: assignee
+        object_resource_type: role
+        object_resource_id: 'admin'
+  - method: GET
+    match: '/api/v0/authz/groups/{groupId}'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: assignee
+        object_resource_type: role
+        object_resource_id: 'admin'
+  - method: PUT
+    match: '/api/v0/authz/groups/{groupId}'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: assignee
+        object_resource_type: role
+        object_resource_id: 'admin'
+  - method: DELETE
+    match: '/api/v0/authz/groups/{groupId}'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: assignee
+        object_resource_type: role
+        object_resource_id: 'admin'
+  - method: GET
+    match: '/api/v0/authz/groups/{groupId}/users'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: assignee
+        object_resource_type: role
+        object_resource_id: 'admin'
+  - method: POST
+    match: '/api/v0/authz/groups/{groupId}/users'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: assignee
+        object_resource_type: role
+        object_resource_id: 'admin'
+  - method: DELETE
+    match: '/api/v0/authz/groups/{groupId}/users/**'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: assignee
+        object_resource_type: role
+        object_resource_id: 'admin'
+  - method: GET
+    match: '/api/v0/authz/users/{userId}/groups'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: assignee
+        object_resource_type: role
+        object_resource_id: 'admin'
+  - method: POST
+    match: '/api/v0/authz/users/{userId}/groups'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: assignee
+        object_resource_type: role
+        object_resource_id: 'admin'
