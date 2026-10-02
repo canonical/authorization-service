@@ -60,7 +60,7 @@ To isolate authorization models and resource types to a specific service scope a
   - `tenantX/dummy/testGroup`
 
 #### Event Topic ACLs & Ingestion Validation
-- **Topic Write Isolation**: Each federated service will have an ACL granting write access strictly to a single event topic matching `<serviceSlug>.permissions`. Meanwhile, Authorization-service maintains read access to all available service topics following this slug-based nomenclature.
+- **Topic Write Isolation**: Each federated service will have an ACL granting write access strictly to a single event topic matching `permissions.<serviceSlug>`. Meanwhile, Authorization-service maintains read access to all available service topics following this slug-based nomenclature.
 ---
 
 ## 3. Tuple Validation & Classification

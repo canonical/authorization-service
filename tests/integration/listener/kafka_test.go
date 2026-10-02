@@ -18,7 +18,7 @@ import (
 )
 
 // TestKafkaConsumerGroup_MultiTopic verifies the consumer group receives messages
-// published across multiple "<slug>.permissions" topics, and that msg.Topic
+// published across multiple "permissions.<slug>" topics, and that msg.Topic
 // carries the originating topic (used for service resolution).
 func TestKafkaConsumerGroup_MultiTopic(t *testing.T) {
 	suffix := suite.UniqueSuffix()

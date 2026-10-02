@@ -140,7 +140,7 @@ Runs schema migrations against the PostgreSQL database. Supports `up`, `down [ve
 ```bash
 ./bin/app listen
 ```
-Starts the Kafka permission-update listener which consumes permission events from federated services' `<slug>.permissions` topics and persists them into the PostgreSQL work queue.
+Starts the Kafka permission-update listener which consumes permission events from federated services' `permissions.<slug>` topics and persists them into the PostgreSQL work queue.
 
 ### `worker` - Start Async Permission Worker
 ```bash
@@ -158,7 +158,7 @@ Scans the work queue for processing jobs that have timed out and returns them to
 ```bash
 ./bin/app ensure-topics
 ```
-Creates the `<slug>.permissions` Kafka topic for every federated service listed in the `FEDERATED_SERVICES` configuration. Existing topics are left untouched, making this command safe to run repeatedly.
+Creates the `permissions.<slug>` Kafka topic for every federated service listed in the `FEDERATED_SERVICES` configuration. Existing topics are left untouched, making this command safe to run repeatedly.
 
 ### `seed` - Seeding & Validation of Route Rules
 Handles loading, verifying, and seeding versioned `rules.yaml` routing rules:

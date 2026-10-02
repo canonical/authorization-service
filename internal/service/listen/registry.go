@@ -8,9 +8,9 @@ import (
 	"strings"
 )
 
-// TopicSuffix is appended to a service slug to form its permission-update topic.
-// Each federated service publishes to "<slug>.permissions".
-const TopicSuffix = ".permissions"
+// TopicPrefix is prepended to a service slug to form its permission-update topic.
+// Each federated service publishes to "permissions.<slug>".
+const TopicPrefix = "permissions."
 
 // ServiceRegistry resolves the mapping between federated service slugs and their
 // Kafka permission-update topics. It is the single source of truth for which
@@ -20,7 +20,7 @@ const TopicSuffix = ".permissions"
 // (a list of slugs). It could later be sourced from the service federation
 // folder layout without changing consumers of this type.
 type ServiceRegistry struct {
-	// topicToService maps "<slug>.permissions" back to its slug.
+	// topicToService maps "permissions.<slug>" back to its slug.
 	topicToService map[string]string
 	// slugs preserves the configured slugs in a stable, deduplicated form.
 	slugs []string
@@ -43,7 +43,7 @@ func NewServiceRegistry(slugs []string) (*ServiceRegistry, error) {
 			return nil, err
 		}
 
-		topic := slug + TopicSuffix
+		topic := TopicPrefix + slug
 		if _, exists := r.topicToService[topic]; exists {
 			return nil, fmt.Errorf("duplicate federated service slug %q", slug)
 		}
@@ -66,13 +66,13 @@ func (r *ServiceRegistry) Slugs() []string {
 func (r *ServiceRegistry) Topics() []string {
 	topics := make([]string, 0, len(r.slugs))
 	for _, slug := range r.slugs {
-		topics = append(topics, slug+TopicSuffix)
+		topics = append(topics, TopicPrefix+slug)
 	}
 	return topics
 }
 
 // ResolveService returns the service slug that owns the given topic. The second
-// return value is false if the topic is not a known "<slug>.permissions" topic.
+// return value is false if the topic is not a known "permissions.<slug>" topic.
 func (r *ServiceRegistry) ResolveService(topic string) (string, bool) {
 	slug, ok := r.topicToService[topic]
 	return slug, ok
