@@ -14,7 +14,7 @@ func TestNewServiceRegistry_TopicsAndSlugs(t *testing.T) {
 	}
 
 	topics := r.Topics()
-	want := []string{"payments.permissions", "invoicing.permissions"}
+	want := []string{"permissions.payments", "permissions.invoicing"}
 	if len(topics) != len(want) {
 		t.Fatalf("Topics() = %v, want %v", topics, want)
 	}
@@ -31,14 +31,14 @@ func TestServiceRegistry_ResolveService(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if slug, ok := r.ResolveService("payments.permissions"); !ok || slug != "payments" {
-		t.Errorf("ResolveService(payments.permissions) = %q,%v; want payments,true", slug, ok)
+	if slug, ok := r.ResolveService("permissions.payments"); !ok || slug != "payments" {
+		t.Errorf("ResolveService(permissions.payments) = %q,%v; want payments,true", slug, ok)
 	}
-	if _, ok := r.ResolveService("unknown.permissions"); ok {
-		t.Errorf("ResolveService(unknown.permissions) resolved unexpectedly")
+	if _, ok := r.ResolveService("permissions.unknown"); ok {
+		t.Errorf("ResolveService(permissions.unknown) resolved unexpectedly")
 	}
 	if _, ok := r.ResolveService("payments"); ok {
-		t.Errorf("ResolveService(payments) resolved without suffix")
+		t.Errorf("ResolveService(payments) resolved without prefix")
 	}
 }
 
@@ -47,7 +47,7 @@ func TestServiceRegistry_TrimsWhitespace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if slug, ok := r.ResolveService("payments.permissions"); !ok || slug != "payments" {
+	if slug, ok := r.ResolveService("permissions.payments"); !ok || slug != "payments" {
 		t.Errorf("ResolveService after trim = %q,%v; want payments,true", slug, ok)
 	}
 }

@@ -33,7 +33,7 @@ import (
 
 var FederatedServices = []string{"payments", "invoicing"}
 
-func TopicFor(slug string) string { return slug + listen.TopicSuffix }
+func TopicFor(slug string) string { return listen.TopicPrefix + slug }
 
 var TestLogger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 

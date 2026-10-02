@@ -144,7 +144,7 @@ func TestListener_ServiceMismatchNotPersisted(t *testing.T) {
 	client, pool := newTestPostgres(t)
 
 	env := suite.SampleEnvelope("invoicing", idem) // service=invoicing...
-	suite.PublishEnvelope(t, kafkaBroker, "payments", env)      // ...published to payments.permissions
+	suite.PublishEnvelope(t, kafkaBroker, "payments", env)      // ...published to permissions.payments
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

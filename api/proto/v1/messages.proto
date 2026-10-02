@@ -7,7 +7,7 @@ option go_package = "github.com/canonical/authorization-service/api/proto/v1";
 
 import "google/protobuf/timestamp.proto";
 
-// Permission update event published by federated services to <service>.permissions
+// Permission update event published by federated services to permissions.<service>
 message PermissionUpdateEnvelope {
   string version = 1; // payload schema version
   string service = 2; // service slug/name

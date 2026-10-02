@@ -17,7 +17,7 @@ import (
 var ensureTopicsCmd = &cobra.Command{
 	Use:   "ensure-topics",
 	Short: "Idempotently create the permission-update topics for federated services",
-	Long: `Create the "<slug>.permissions" Kafka topic for every federated service
+	Long: `Create the "permissions.<slug>" Kafka topic for every federated service
 listed in FEDERATED_SERVICES. Existing topics are left untouched, so this command
 is safe to run repeatedly (e.g. as part of a federation sync step).
 Configuration is loaded from environment variables.`,
