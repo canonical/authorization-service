@@ -23,7 +23,7 @@ The Authorization Service is composed of three decoupled logical components, all
    The primary API server running the gRPC server (port `9091`) and REST gateway (port `8070`). It manages service permissions, handles authorization decisions via OpenFGA/Valkey, and integrates with Envoy / Istio external authorization.
    
 2. **Kafka Event Listener (`listen`)**:
-   A background consumer process that subscribes to Kafka topics (`<service-slug>.permissions`). It listens for asynchronous permission update events emitted by federated services and persists them into the PostgreSQL work queue for durable processing.
+   A background consumer process that subscribes to Kafka topics (`permissions.<service-slug>`). It listens for asynchronous permission update events emitted by federated services and persists them into the PostgreSQL work queue for durable processing.
 
 3. **Async Permission Worker & Reaper (`worker`)**:
    A background processing worker that continuously polls pending permission updates from the PostgreSQL work queue and applies them to OpenFGA. It includes an embedded, in-process **reaper** process that scans for stale or timed-out processing items and reclaims them for retry.
@@ -100,7 +100,7 @@ Before starting the `serve` process, you **must** run the following setup CLI se
    ```bash
    ./bin/app ensure-topics
    ```
-   Ensures required Kafka topics (e.g. `<slug>.permissions`) exist for federated services.
+   Ensures required Kafka topics (e.g. `permissions.<slug>`) exist for federated services.
 
 4. **Seed Route Permission Rules (`seed`):**
    ```bash

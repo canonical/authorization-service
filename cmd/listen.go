@@ -27,7 +27,7 @@ var listenCmd = &cobra.Command{
 	Use:   "listen",
 	Short: "Start the Kafka permission-update listener",
 	Long: `Start the Kafka listener that consumes permission-update events from the
-federated services' "<slug>.permissions" topics and durably persists them into
+federated services' "permissions.<slug>" topics and durably persists them into
 the PostgreSQL work table for downstream tuple application.
 Configuration is loaded from environment variables.`,
 	RunE: runListen,

@@ -75,7 +75,7 @@ func (PermissionOp) EnumDescriptor() ([]byte, []int) {
 	return file_v1_messages_proto_rawDescGZIP(), []int{0}
 }
 
-// Permission update event published by federated services to <service>.permissions
+// Permission update event published by federated services to permissions.<service>
 type PermissionUpdateEnvelope struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Version        string                 `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`                      // payload schema version

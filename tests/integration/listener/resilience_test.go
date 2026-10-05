@@ -19,7 +19,7 @@ func TestListener_CorruptedMessageResilience(t *testing.T) {
 
 	client, pool := newTestPostgres(t)
 
-	// Publish corrupted non-protobuf payload to topic "payments.permissions"
+	// Publish corrupted non-protobuf payload to topic "permissions.payments"
 	corruptPayload := []byte("invalid-corrupted-raw-bytes-payload")
 	suite.PublishRaw(t, kafkaBroker, "payments", []byte("corrupt-key-"+suffix), corruptPayload)
 

@@ -223,7 +223,7 @@ func (s *STSConfig) waitForConnectionReady(conn *grpc.ClientConn) error {
 // ingestion listener.
 //
 // FederatedServices is the registry source: each entry is a service slug, and
-// the listener subscribes to the derived "<slug>.permissions" topic within a
+// the listener subscribes to the derived "permissions.<slug>" topic within a
 // single consumer group. Topics are never hardcoded.
 type KafkaConfig struct {
 	Enabled                bool     `validate:"" envconfig:"KAFKA_ENABLED" mapstructure:"enabled" default:"false"`

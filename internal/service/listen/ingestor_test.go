@@ -141,7 +141,7 @@ func TestIngest_HappyPath(t *testing.T) {
 	ing := newIngestor(t, repo, nil)
 
 	value := marshalEnvelope(t, validEnvelope())
-	if err := ing.Ingest(context.Background(), msg("payments.permissions", value)); err != nil {
+	if err := ing.Ingest(context.Background(), msg("permissions.payments", value)); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(repo.inserted) != 1 {
@@ -164,7 +164,7 @@ func TestIngest_DuplicateIsSuccess(t *testing.T) {
 	ing := newIngestor(t, repo, nil)
 
 	value := marshalEnvelope(t, validEnvelope())
-	if err := ing.Ingest(context.Background(), msg("payments.permissions", value)); err != nil {
+	if err := ing.Ingest(context.Background(), msg("permissions.payments", value)); err != nil {
 		t.Fatalf("duplicate should be nil, got %v", err)
 	}
 }
@@ -174,7 +174,7 @@ func TestIngest_DBErrorIsTransient(t *testing.T) {
 	ing := newIngestor(t, repo, nil)
 
 	value := marshalEnvelope(t, validEnvelope())
-	err := ing.Ingest(context.Background(), msg("payments.permissions", value))
+	err := ing.Ingest(context.Background(), msg("permissions.payments", value))
 	if err == nil {
 		t.Fatal("expected transient error, got nil")
 	}
@@ -188,7 +188,7 @@ func TestIngest_DecodeErrorIsPermanent(t *testing.T) {
 	metrics := &countingMetrics{}
 	ing := newIngestor(t, repo, metrics)
 
-	err := ing.Ingest(context.Background(), msg("payments.permissions", []byte("not-a-proto")))
+	err := ing.Ingest(context.Background(), msg("permissions.payments", []byte("not-a-proto")))
 	if err == nil || !permissions.IsPermanent(err) {
 		t.Fatalf("expected permanent error, got %v", err)
 	}
@@ -206,10 +206,10 @@ func TestIngest_ServiceMismatchIsPermanent(t *testing.T) {
 	ing := newIngestor(t, repo, metrics)
 
 	env := validEnvelope()
-	env.Service = "invoicing" // mismatches the payments.permissions topic
+	env.Service = "invoicing" // mismatches the permissions.payments topic
 	value := marshalEnvelope(t, env)
 
-	err := ing.Ingest(context.Background(), msg("payments.permissions", value))
+	err := ing.Ingest(context.Background(), msg("permissions.payments", value))
 	if err == nil || !permissions.IsPermanent(err) {
 		t.Fatalf("expected permanent error, got %v", err)
 	}
@@ -223,7 +223,7 @@ func TestIngest_UnknownTopicIsPermanent(t *testing.T) {
 	ing := newIngestor(t, repo, nil)
 
 	value := marshalEnvelope(t, validEnvelope())
-	err := ing.Ingest(context.Background(), msg("other.permissions", value))
+	err := ing.Ingest(context.Background(), msg("permissions.other", value))
 	if err == nil || !permissions.IsPermanent(err) {
 		t.Fatalf("expected permanent error for unknown topic, got %v", err)
 	}
@@ -242,7 +242,7 @@ func TestIngest_LogsCorrelationID_OnSuccess(t *testing.T) {
 	env.CorrelationId = proto.String("corr-123")
 	value := marshalEnvelope(t, env)
 
-	if err := ing.Ingest(context.Background(), msg("payments.permissions", value)); err != nil {
+	if err := ing.Ingest(context.Background(), msg("permissions.payments", value)); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -265,7 +265,7 @@ func TestIngest_LogsCorrelationID_OnDuplicate(t *testing.T) {
 	env.CorrelationId = proto.String("corr-dup")
 	value := marshalEnvelope(t, env)
 
-	if err := ing.Ingest(context.Background(), msg("payments.permissions", value)); err != nil {
+	if err := ing.Ingest(context.Background(), msg("permissions.payments", value)); err != nil {
 		t.Fatalf("duplicate should be nil, got %v", err)
 	}
 
@@ -286,10 +286,10 @@ func TestIngest_LogsCorrelationID_OnValidationFailure(t *testing.T) {
 
 	env := validEnvelope()
 	env.CorrelationId = proto.String("corr-invalid")
-	env.Service = "invoicing" // mismatches the payments.permissions topic
+	env.Service = "invoicing" // mismatches the permissions.payments topic
 	value := marshalEnvelope(t, env)
 
-	if err := ing.Ingest(context.Background(), msg("payments.permissions", value)); err == nil {
+	if err := ing.Ingest(context.Background(), msg("permissions.payments", value)); err == nil {
 		t.Fatal("expected permanent error, got nil")
 	}
 
