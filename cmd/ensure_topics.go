@@ -4,7 +4,9 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/spf13/cobra"
 
@@ -36,6 +38,11 @@ func runEnsureTopics(cmd *cobra.Command, _ []string) error {
 
 	logger := cfg.Logging.SetupLogger(cfg.Telemetry.ServiceName, version.Version)
 
+	return ensureTopics(cmd.Context(), cfg, logger)
+}
+
+// ensureTopics idempotently creates the permission-update topics for federated services.
+func ensureTopics(ctx context.Context, cfg *config.Config, logger *slog.Logger) error {
 	registry, err := listen.NewServiceRegistry(cfg.Kafka.FederatedServices)
 	if err != nil {
 		return fmt.Errorf("failed to build federated service registry: %w", err)
@@ -50,7 +57,7 @@ func runEnsureTopics(cmd *cobra.Command, _ []string) error {
 		})
 	}
 
-	if err := kafkaintegration.EnsureTopics(cmd.Context(), cfg.Kafka.Brokers, specs, logger); err != nil {
+	if err := kafkaintegration.EnsureTopics(ctx, cfg.Kafka.Brokers, specs, logger); err != nil {
 		return fmt.Errorf("failed to ensure topics: %w", err)
 	}
 
