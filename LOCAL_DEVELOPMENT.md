@@ -121,6 +121,7 @@ Once bootstrapping is complete, you can launch the logical components:
   ```bash
   ./bin/app listen
   ```
+  *(Note: `listen` automatically runs topic creation on startup. Pass `--no-topics` if you want to skip topic creation.)*
 
 * **Start Async Permission Worker & Reaper (in a separate terminal):**
   ```bash

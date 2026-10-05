@@ -48,6 +48,13 @@ func runListen(cmd *cobra.Command, _ []string) error {
 	logger := cfg.Logging.SetupLogger(cfg.Telemetry.ServiceName, version.Version)
 	logger.Info("Starting Kafka listener", "version", version.Version)
 
+	// Automatically ensure topics exist before starting listener unless --no-topics is set.
+	if !noTopics {
+		if err := ensureTopics(cmd.Context(), cfg, logger); err != nil {
+			return fmt.Errorf("ensuring topics failed: %w", err)
+		}
+	}
+
 	tracer, tracerShutdown, err := cfg.Telemetry.SetupTelemetry(cmd.Context(), logger)
 	if err != nil {
 		return fmt.Errorf("telemetry setup failed: %w", err)
@@ -167,4 +174,10 @@ func runListen(cmd *cobra.Command, _ []string) error {
 
 	logger.Info("Listener stopped")
 	return nil
+}
+
+var noTopics bool
+
+func init() {
+	listenCmd.Flags().BoolVar(&noTopics, "no-topics", false, "Disable automatic topic creation before listening")
 }
