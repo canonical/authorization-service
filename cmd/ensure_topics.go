@@ -12,7 +12,6 @@ import (
 
 	"github.com/canonical/authorization-service/config"
 	kafkaintegration "github.com/canonical/authorization-service/internal/integration/kafka"
-	"github.com/canonical/authorization-service/internal/service/listen"
 	"github.com/canonical/authorization-service/internal/version"
 )
 
@@ -43,7 +42,7 @@ func runEnsureTopics(cmd *cobra.Command, _ []string) error {
 
 // ensureTopics idempotently creates the permission-update topics for federated services.
 func ensureTopics(ctx context.Context, cfg *config.Config, logger *slog.Logger) error {
-	registry, err := listen.NewServiceRegistry(cfg.Kafka.FederatedServices)
+	registry, err := config.BuildServiceRegistry(cfg.Kafka)
 	if err != nil {
 		return fmt.Errorf("failed to build federated service registry: %w", err)
 	}

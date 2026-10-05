@@ -5,6 +5,8 @@ package listen
 
 import (
 	"fmt"
+	"io/fs"
+	"sort"
 	"strings"
 )
 
@@ -76,6 +78,38 @@ func (r *ServiceRegistry) Topics() []string {
 func (r *ServiceRegistry) ResolveService(topic string) (string, bool) {
 	slug, ok := r.topicToService[topic]
 	return slug, ok
+}
+
+// NewServiceRegistryFromFS scans fsys under rootDir for subdirectories,
+// excluding any directory names in excludedDirs, and constructs a ServiceRegistry.
+// Non-directory entries, hidden directories (starting with '.'), and names in
+// excludedDirs (e.g. "dummy", "core") are ignored.
+func NewServiceRegistryFromFS(fsys fs.FS, rootDir string, excludedDirs ...string) (*ServiceRegistry, error) {
+	entries, err := fs.ReadDir(fsys, rootDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read service directory %q: %w", rootDir, err)
+	}
+
+	excludeMap := make(map[string]bool, len(excludedDirs))
+	for _, ex := range excludedDirs {
+		excludeMap[strings.TrimSpace(ex)] = true
+	}
+
+	var slugs []string
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if strings.HasPrefix(name, ".") || excludeMap[name] {
+			continue
+		}
+		slugs = append(slugs, name)
+	}
+
+	sort.Strings(slugs)
+
+	return NewServiceRegistry(slugs)
 }
 
 // validateSlug enforces a conservative slug charset so that a slug maps cleanly

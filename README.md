@@ -304,7 +304,8 @@ The following flags are available globally across all CLI commands to quickly ov
 |-----------|----------------------|------|---------|-------------|
 | `kafka.enabled` | `KAFKA_ENABLED` | bool | `false` | Enable Kafka listener |
 | `kafka.brokers` | `KAFKA_BROKERS` | []string | `localhost:9092` | Kafka broker addresses (Required if enabled) |
-| `kafka.federated_services` | `KAFKA_FEDERATED_SERVICES` | []string | *(Required if enabled)* | Service slugs whose permission topics are to be federated |
+| `kafka.federated_services_strategy` | `KAFKA_FEDERATED_SERVICES_STRATEGY` | string | `auto` | Discovery strategy: `auto` (uses list if set, else scans `authz/model`), `fs` (scans embedded model folders excluding `dummy`/`core`), `config` (requires explicit list) |
+| `kafka.federated_services` | `KAFKA_FEDERATED_SERVICES` | []string | `[]` | Service slugs whose permission topics are to be federated (required if strategy is `config`) |
 | `kafka.consumer_group` | `KAFKA_CONSUMER_GROUP` | string | `authz-listener` | Kafka consumer group ID |
 | `kafka.topic_partitions` | `KAFKA_TOPIC_PARTITIONS` | int | `1` | Default partition count for auto-created topics |
 | `kafka.topic_replication_factor` | `KAFKA_TOPIC_REPLICATION_FACTOR` | int | `1` | Default replication factor for auto-created topics |

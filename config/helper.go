@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 
+	"github.com/canonical/authorization-service/authz/model"
 	stsv1 "github.com/canonical/authorization-service/client/v1/sts"
 	kafkaintegration "github.com/canonical/authorization-service/internal/integration/kafka"
 	"github.com/canonical/authorization-service/internal/integration/openfga"
@@ -167,12 +168,43 @@ func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Trace
 	return integrations, nil
 }
 
+// BuildServiceRegistry constructs a listen.ServiceRegistry based on KafkaConfig
+// strategy settings (auto, fs, config) and model.ModelFS.
+func BuildServiceRegistry(cfg *KafkaConfig) (*listen.ServiceRegistry, error) {
+	if cfg == nil {
+		return listen.NewServiceRegistry(nil)
+	}
+
+	strategy := cfg.FederatedServicesStrategy
+	if strategy == "" {
+		strategy = "auto"
+	}
+
+	useFS := false
+	switch strategy {
+	case "fs":
+		useFS = true
+	case "config":
+		useFS = false
+	case "auto":
+		useFS = len(cfg.FederatedServices) == 0
+	default:
+		return nil, fmt.Errorf("unknown federated services strategy: %q", strategy)
+	}
+
+	if useFS {
+		return listen.NewServiceRegistryFromFS(model.ModelFS, "services", "dummy", "core")
+	}
+
+	return listen.NewServiceRegistry(cfg.FederatedServices)
+}
+
 // InitKafkaConsumer initializes the Kafka consumer and service registry for the listener component.
 // It is kept separate from InitializeIntegrations so that non-listening components (worker, serve, reaper)
 // do not join the consumer group and partition-starve active listeners.
 func (i *Integrations) InitKafkaConsumer(cfg *Config, logger *slog.Logger) error {
 	if cfg.Kafka != nil && cfg.Kafka.Enabled {
-		registry, err := listen.NewServiceRegistry(cfg.Kafka.FederatedServices)
+		registry, err := BuildServiceRegistry(cfg.Kafka)
 		if err != nil {
 			return fmt.Errorf("failed to build federated service registry: %w", err)
 		}
