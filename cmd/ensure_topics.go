@@ -16,8 +16,9 @@ import (
 )
 
 var ensureTopicsCmd = &cobra.Command{
-	Use:   "ensure-topics",
-	Short: "Idempotently create the permission-update topics for federated services",
+	Use:     "ensure",
+	Aliases: []string{"ensure-topics"},
+	Short:   "Idempotently create the permission-update topics for federated services",
 	Long: `Create the "permissions.<slug>" Kafka topic for every federated service
 listed in FEDERATED_SERVICES. Existing topics are left untouched, so this command
 is safe to run repeatedly (e.g. as part of a federation sync step).
@@ -61,8 +62,4 @@ func ensureTopics(ctx context.Context, cfg *config.Config, logger *slog.Logger) 
 	}
 
 	return nil
-}
-
-func init() {
-	rootCmd.AddCommand(ensureTopicsCmd)
 }
