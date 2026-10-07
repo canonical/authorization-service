@@ -10,7 +10,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0
-	github.com/jackc/pgx/v5 v5.8.0
+	github.com/jackc/pgx/v5 v5.9.2
 	github.com/moby/moby/api v1.54.1
 	github.com/openfga/go-sdk v0.7.5
 	github.com/openfga/language/pkg/go v0.2.1
