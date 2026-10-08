@@ -1,0 +1,433 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Authorization Service \u2014 Dual-Authentication & M2M Policy Architecture",
+    "output": ".archify/architecture-authorization-service-20261008-154500/authorization-service.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "git@github.com:canonical/authorization-service.git",
+      "revision": "49e71e3fc453faba4773ca0249c2080baab883d2",
+      "link_mode": "local-only"
+    }
+  },
+  "components": [
+    {
+      "id": "client_user",
+      "type": "external",
+      "label": "User Agent / Browser",
+      "sublabel": "Cookie: session_id=...",
+      "pos": [
+        30,
+        50
+      ],
+      "size": [
+        155,
+        60
+      ]
+    },
+    {
+      "id": "client_machine",
+      "type": "external",
+      "label": "Machine Caller",
+      "sublabel": "Bearer token \u00b7 M2M",
+      "pos": [
+        30,
+        220
+      ],
+      "size": [
+        155,
+        60
+      ]
+    },
+    {
+      "id": "hydraidp",
+      "type": "external",
+      "label": "Ory Hydra IdP",
+      "sublabel": "OAuth2 Client Credentials",
+      "pos": [
+        30,
+        390
+      ],
+      "size": [
+        155,
+        60
+      ]
+    },
+    {
+      "id": "envoy",
+      "type": "external",
+      "label": "Istio Envoy Gateway",
+      "sublabel": "PEP \u00b7 CUSTOM policy",
+      "pos": [
+        270,
+        50
+      ],
+      "size": [
+        165,
+        64
+      ]
+    },
+    {
+      "id": "backends",
+      "type": "backend",
+      "label": "Upstream Services",
+      "sublabel": "Bearer <sts_jwt>",
+      "pos": [
+        270,
+        220
+      ],
+      "size": [
+        165,
+        64
+      ]
+    },
+    {
+      "id": "grpcserver",
+      "type": "backend",
+      "label": "gRPC Server (:9091)",
+      "sublabel": "envoy.service.auth.v3",
+      "pos": [
+        520,
+        50
+      ],
+      "size": [
+        165,
+        64
+      ],
+      "sources": [
+        {
+          "path": "server/grpc/server.go",
+          "line": 52,
+          "end_line": 99,
+          "label": "server + registers"
+        },
+        {
+          "path": "config/specs.go",
+          "line": 79,
+          "end_line": 80,
+          "label": "ports"
+        }
+      ]
+    },
+    {
+      "id": "hydra_verifier",
+      "type": "security",
+      "label": "Hydra JWKS Verifier",
+      "sublabel": "signature & issuer",
+      "pos": [
+        520,
+        220
+      ],
+      "size": [
+        165,
+        64
+      ],
+      "sources": [
+        {
+          "path": "config/specs.go",
+          "line": 86,
+          "end_line": 88,
+          "label": "Hydra config"
+        },
+        {
+          "path": "internal/service/authz/external.go",
+          "line": 270,
+          "end_line": 275,
+          "label": "JWT signature verification"
+        }
+      ]
+    },
+    {
+      "id": "extauthz",
+      "type": "security",
+      "label": "External AuthZ Service",
+      "sublabel": "dual-auth check pipeline",
+      "pos": [
+        780,
+        50
+      ],
+      "size": [
+        175,
+        64
+      ],
+      "sources": [
+        {
+          "path": "internal/service/authz/external.go",
+          "line": 93,
+          "end_line": 125,
+          "label": "Check entry"
+        },
+        {
+          "path": "internal/service/authz/external.go",
+          "line": 139,
+          "end_line": 263,
+          "label": "check pipeline"
+        }
+      ]
+    },
+    {
+      "id": "mapper",
+      "type": "backend",
+      "label": "Resource Mapper",
+      "sublabel": "match rules -> tuples",
+      "pos": [
+        780,
+        220
+      ],
+      "size": [
+        175,
+        64
+      ],
+      "sources": [
+        {
+          "path": "internal/service/rules/resolver.go",
+          "line": 108,
+          "end_line": 115,
+          "label": "ResourceMapper"
+        },
+        {
+          "path": "config/helper.go",
+          "line": 208,
+          "end_line": 211,
+          "label": "mapper wiring"
+        }
+      ]
+    },
+    {
+      "id": "postgres",
+      "type": "database",
+      "label": "PostgreSQL (:5432)",
+      "sublabel": "authorization rules SQL",
+      "pos": [
+        780,
+        390
+      ],
+      "size": [
+        175,
+        60
+      ],
+      "sources": [
+        {
+          "path": "migrations/00001_initial_schema.sql",
+          "line": 18,
+          "end_line": 36,
+          "label": "rules tables"
+        }
+      ]
+    },
+    {
+      "id": "sts_client",
+      "type": "security",
+      "label": "STS Client Wrapper",
+      "sublabel": "ExchangeSession / Token",
+      "pos": [
+        1060,
+        50
+      ],
+      "size": [
+        175,
+        64
+      ],
+      "sources": [
+        {
+          "path": "config/helper.go",
+          "line": 154,
+          "end_line": 165,
+          "label": "STS client wiring"
+        },
+        {
+          "path": "internal/integration/sts/client.go",
+          "line": 29,
+          "end_line": 58,
+          "label": "STSClientWrapper"
+        }
+      ]
+    },
+    {
+      "id": "sts",
+      "type": "security",
+      "label": "Secure Token Service",
+      "sublabel": "gRPC :9090 \u00b7 mints STS JWT",
+      "pos": [
+        1340,
+        50
+      ],
+      "size": [
+        165,
+        64
+      ]
+    },
+    {
+      "id": "openfga",
+      "type": "security",
+      "label": "OpenFGA Engine",
+      "sublabel": ":8081 \u00b7 tuple check",
+      "pos": [
+        1340,
+        220
+      ],
+      "size": [
+        165,
+        64
+      ],
+      "sources": [
+        {
+          "path": "config/helper.go",
+          "line": 69,
+          "end_line": 101,
+          "label": "client wiring"
+        },
+        {
+          "path": "internal/service/authz/external.go",
+          "line": 224,
+          "end_line": 260,
+          "label": "BatchCheck"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Authorization Service (:9091 gRPC & ExtAuthz Engine)",
+      "wraps": [
+        "grpcserver",
+        "extauthz",
+        "hydra_verifier",
+        "sts_client",
+        "mapper"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "machine-to-hydra",
+      "from": "client_machine",
+      "to": "hydraidp",
+      "label": "credentials grant",
+      "variant": "security"
+    },
+    {
+      "id": "user-to-envoy",
+      "from": "client_user",
+      "to": "envoy",
+      "label": "session cookie",
+      "variant": "emphasis"
+    },
+    {
+      "id": "machine-to-envoy",
+      "from": "client_machine",
+      "to": "envoy",
+      "label": "Bearer token",
+      "variant": "emphasis"
+    },
+    {
+      "id": "envoy-to-grpc",
+      "from": "envoy",
+      "to": "grpcserver",
+      "label": "ext_authz Check",
+      "variant": "emphasis"
+    },
+    {
+      "id": "grpc-to-extauthz",
+      "from": "grpcserver",
+      "to": "extauthz",
+      "label": "Check(ctx, req)"
+    },
+    {
+      "id": "extauthz-to-hydra-verifier",
+      "from": "extauthz",
+      "to": "hydra_verifier",
+      "label": "verify bearer"
+    },
+    {
+      "id": "verifier-to-hydra",
+      "from": "hydra_verifier",
+      "to": "hydraidp",
+      "label": "fetch JWKS",
+      "variant": "dashed"
+    },
+    {
+      "id": "extauthz-to-sts-client",
+      "from": "extauthz",
+      "to": "sts_client",
+      "label": "Exchange RPC"
+    },
+    {
+      "id": "sts-client-to-sts",
+      "from": "sts_client",
+      "to": "sts",
+      "label": "token exchange",
+      "variant": "security"
+    },
+    {
+      "id": "extauthz-to-mapper",
+      "from": "extauthz",
+      "to": "mapper",
+      "label": "Map(method, path)"
+    },
+    {
+      "id": "mapper-to-postgres",
+      "from": "mapper",
+      "to": "postgres",
+      "label": "query rules"
+    },
+    {
+      "id": "extauthz-to-openfga",
+      "from": "extauthz",
+      "to": "openfga",
+      "label": "BatchCheck",
+      "variant": "security"
+    },
+    {
+      "id": "envoy-to-backends",
+      "from": "envoy",
+      "to": "backends",
+      "label": "Bearer <sts_jwt>",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Dual-Auth Ingress & Istio PEP",
+      "items": [
+        "Unified Istio CUSTOM AuthorizationPolicy routes all traffic through ext_authz (:9091)",
+        "Human users supply session cookies; machine clients supply Authorization: Bearer <token>",
+        "Credentials inspected at ingress: requests missing both are rejected immediately (401)",
+        "Mutated header: upon authorization, Istio injects Authorization: Bearer <sts_jwt> upstream"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Hydra Validation & STS Translation",
+      "items": [
+        "Machine tokens validated cryptographically against Ory Hydra JWKS endpoint",
+        "Issuer validation ensures token originates strictly from configured Hydra instance",
+        "Machine token exchanged via sts.ExchangeToken; session cookie exchanged via sts.ExchangeSession",
+        "Decouples internal microservices: downstreams only trust and verify internal STS ES256 JWTs"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Strict Zero-Bypass Authorization",
+      "items": [
+        "Normalized subject: user email for humans, client_id for machine accounts",
+        "ResourceMapper maps HTTP method + path to OpenFGA tuple checks",
+        "OpenFGA BatchCheck strictly evaluates permissions: zero bypass for service accounts",
+        "Machine accounts require explicit relationship tuples configured via future authorization APIs"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Observability & Operational Metrics",
+      "items": [
+        "Check outcome metrics record latency, result (allow/deny/error), and reason",
+        "Auth method tagged to track user session vs client_credentials volume",
+        "OpenTelemetry spans trace STS exchange and OpenFGA BatchCheck latencies",
+        "Structured Zap logs capture request_id, subject, and decision context"
+      ]
+    }
+  ]
+}
