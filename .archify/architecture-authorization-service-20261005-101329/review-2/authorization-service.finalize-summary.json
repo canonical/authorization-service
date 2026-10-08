@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "architecture",
+  "quality": "showcase",
+  "specification": {
+    "path": "/home/shipperizer/shipperizer/authorization-service/.archify/architecture-authorization-service-20261005-101329/candidate.json",
+    "sha256": "d10abaea550c55a1b7fc0fe95dc26e83620407acf58a37e9a22576dda211b7be",
+    "bytes": 9455
+  },
+  "artifact": {
+    "path": "/home/shipperizer/shipperizer/authorization-service/.archify/architecture-authorization-service-20261005-101329/authorization-service.html",
+    "sha256": "e1648b98b6cdbd819218a1fda30c0138cb3e1bf62f6810e8e195f9c4d97ea597",
+    "bytes": 782560
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "/home/shipperizer/shipperizer/authorization-service/.archify/architecture-authorization-service-20261005-101329/review-2/authorization-service.finalize.json",
+    "summaryReceipt": "/home/shipperizer/shipperizer/authorization-service/.archify/architecture-authorization-service-20261005-101329/review-2/authorization-service.finalize-summary.json",
+    "browserCheckReceipt": "/home/shipperizer/shipperizer/authorization-service/.archify/architecture-authorization-service-20261005-101329/review-2/authorization-service.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.0.1",
+    "availableVersion": "3.0.1",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-05T08:30:36.067Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 3263
+}

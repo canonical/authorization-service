@@ -1,0 +1,391 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Multi-Domain Gateway Exposure & Kafka Federation — Contract Service Architecture",
+    "output": ".archify/architecture-contract-service-federation-20261006-163800/contract-service-federation.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "git@github.com:canonical/authorization-service.git",
+      "revision": "49e71e3fc453faba4773ca0249c2080baab883d2",
+      "link_mode": "local-only"
+    }
+  },
+  "components": [
+    {
+      "id": "portal_user",
+      "type": "external",
+      "label": "Portal User Browser",
+      "sublabel": "portal.example.com · session cookie",
+      "pos": [360, 40],
+      "size": [190, 60]
+    },
+    {
+      "id": "app_x",
+      "type": "frontend",
+      "label": "Application X (Portal App)",
+      "sublabel": "outside Istio · calls contract service",
+      "pos": [680, 40],
+      "size": [190, 60]
+    },
+    {
+      "id": "ext_services",
+      "type": "external",
+      "label": "External & Partner Services",
+      "sublabel": "contracts.example.com · mTLS / token",
+      "pos": [1000, 40],
+      "size": [190, 60]
+    },
+    {
+      "id": "sts",
+      "type": "security",
+      "label": "Session Service / STS",
+      "sublabel": "exposed by Istio · ExchangeSession",
+      "pos": [40, 200],
+      "size": [180, 64],
+      "sources": [
+        {
+          "path": "config/helper.go",
+          "line": 154,
+          "end_line": 160,
+          "label": "STS client wiring"
+        },
+        {
+          "path": "internal/service/authz/external.go",
+          "line": 164,
+          "end_line": 172,
+          "label": "ExchangeSession call"
+        }
+      ]
+    },
+    {
+      "id": "istio_gw",
+      "type": "cloud",
+      "label": "Main Istio Gateway",
+      "sublabel": "portal.example.com · ext_authz + strip",
+      "tag": "Domain: portal.example.com",
+      "pos": [360, 200],
+      "size": [190, 68],
+      "sources": [
+        {
+          "path": "k8s/istio/gateway.yaml",
+          "line": 1,
+          "end_line": 17,
+          "label": "Gateway definition"
+        },
+        {
+          "path": "k8s/echoserver/AMBIENT_MODE.md",
+          "line": 28,
+          "end_line": 40,
+          "label": "Waypoint proxy"
+        }
+      ]
+    },
+    {
+      "id": "contract_svc",
+      "type": "backend",
+      "label": "Contract Service",
+      "sublabel": "contracts CRUD · events & perms",
+      "pos": [680, 200],
+      "size": [190, 68]
+    },
+    {
+      "id": "contract_gw",
+      "type": "cloud",
+      "label": "Contracts Istio Gateway",
+      "sublabel": "contracts.example.com · full API",
+      "tag": "Domain: contracts.example.com",
+      "pos": [1000, 200],
+      "size": [190, 68],
+      "sources": [
+        {
+          "path": "k8s/istio/gateway.yaml",
+          "line": 1,
+          "end_line": 17,
+          "label": "Gateway ingress"
+        }
+      ]
+    },
+    {
+      "id": "authz_svc",
+      "type": "security",
+      "label": "Authorization Service",
+      "sublabel": "exposed by Istio · ext_authz :9091",
+      "pos": [40, 340],
+      "size": [180, 64],
+      "sources": [
+        {
+          "path": "internal/service/authz/external.go",
+          "line": 93,
+          "end_line": 125,
+          "label": "Check entry"
+        },
+        {
+          "path": "internal/service/authz/external.go",
+          "line": 139,
+          "end_line": 263,
+          "label": "check pipeline"
+        }
+      ]
+    },
+    {
+      "id": "kafka",
+      "type": "messagebus",
+      "label": "Kafka Message Bus",
+      "sublabel": "contract.permissions + domain events",
+      "pos": [680, 480],
+      "size": [190, 64],
+      "sources": [
+        {
+          "path": "terraform/kafka.tf",
+          "line": 4,
+          "end_line": 25,
+          "label": "Kafka service"
+        },
+        {
+          "path": "internal/service/listen/listener.go",
+          "line": 16,
+          "end_line": 24,
+          "label": "Topic consumer"
+        }
+      ]
+    },
+    {
+      "id": "federated_svcs",
+      "type": "backend",
+      "label": "Other Federated Services",
+      "sublabel": "billing · notifications · audit",
+      "pos": [1000, 480],
+      "size": [190, 64]
+    },
+    {
+      "id": "openfga",
+      "type": "security",
+      "label": "OpenFGA Engine",
+      "sublabel": "ReBAC tuples · BatchCheck",
+      "pos": [40, 660],
+      "size": [180, 64],
+      "sources": [
+        {
+          "path": "authz/model/services/README.md",
+          "line": 49,
+          "end_line": 64,
+          "label": "service scoping"
+        },
+        {
+          "path": "internal/service/authz/external.go",
+          "line": 226,
+          "end_line": 232,
+          "label": "BatchCheck"
+        }
+      ]
+    },
+    {
+      "id": "postgres",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "rules catalog + permission work queue",
+      "pos": [360, 660],
+      "size": [190, 64],
+      "sources": [
+        {
+          "path": "migrations/00001_initial_schema.sql",
+          "line": 18,
+          "end_line": 36,
+          "label": "rules tables"
+        },
+        {
+          "path": "migrations/00003_add_permission_update_work.sql",
+          "line": 18,
+          "end_line": 56,
+          "label": "work queue"
+        }
+      ]
+    },
+    {
+      "id": "authz_worker",
+      "type": "backend",
+      "label": "Authz Listener & Worker",
+      "sublabel": "listen (Kafka ingest) + worker (FGA apply)",
+      "pos": [680, 660],
+      "size": [190, 64],
+      "sources": [
+        {
+          "path": "internal/service/listen/listener.go",
+          "line": 40,
+          "end_line": 47,
+          "label": "Kafka listener"
+        },
+        {
+          "path": "cmd/worker.go",
+          "line": 65,
+          "end_line": 96,
+          "label": "worker wiring"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Istio Service Mesh Boundary (Exposed Services & Multi-Domain Ingress)",
+      "wraps": ["sts", "authz_svc", "istio_gw", "contract_svc", "contract_gw"]
+    },
+    {
+      "kind": "region",
+      "label": "Policy Storage & Authorization Engine",
+      "wraps": ["openfga", "postgres"]
+    },
+    {
+      "kind": "region",
+      "label": "Kafka Event Mesh & Federated Ecosystem",
+      "wraps": ["kafka", "authz_worker", "federated_svcs"]
+    }
+  ],
+  "connections": [
+    {
+      "id": "user-to-gw",
+      "from": "portal_user",
+      "to": "istio_gw",
+      "label": "GET /api/v0/contracts (cookie)"
+    },
+    {
+      "id": "gw-to-sts",
+      "from": "istio_gw",
+      "to": "sts",
+      "label": "exposes session API"
+    },
+    {
+      "id": "gw-to-authz",
+      "from": "istio_gw",
+      "to": "authz_svc",
+      "label": "ext_authz Check",
+      "variant": "emphasis"
+    },
+    {
+      "id": "authz-to-sts",
+      "from": "authz_svc",
+      "to": "sts",
+      "label": "ExchangeSession(cookie)",
+      "variant": "security"
+    },
+    {
+      "id": "authz-to-openfga",
+      "from": "authz_svc",
+      "to": "openfga",
+      "label": "BatchCheck(tuples)",
+      "variant": "security"
+    },
+    {
+      "id": "authz-to-postgres",
+      "from": "authz_svc",
+      "to": "postgres",
+      "label": "Map rules"
+    },
+    {
+      "id": "gw-to-contract",
+      "from": "istio_gw",
+      "to": "contract_svc",
+      "label": "route + inject JWT",
+      "variant": "emphasis"
+    },
+    {
+      "id": "contract-to-gw",
+      "from": "contract_svc",
+      "to": "istio_gw",
+      "label": "strip payload fields"
+    },
+    {
+      "id": "appx-to-contractgw",
+      "from": "app_x",
+      "to": "contract_gw",
+      "label": "call contracts API",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "ext-to-contractgw",
+      "from": "ext_services",
+      "to": "contract_gw",
+      "label": "mTLS / API token",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "contractgw-to-contract",
+      "from": "contract_gw",
+      "to": "contract_svc",
+      "label": "proxy full endpoints"
+    },
+    {
+      "id": "contract-to-kafka",
+      "from": "contract_svc",
+      "to": "kafka",
+      "label": "publish events + perms"
+    },
+    {
+      "id": "kafka-to-worker",
+      "from": "kafka",
+      "to": "authz_worker",
+      "label": "consume perms"
+    },
+    {
+      "id": "worker-to-postgres",
+      "from": "authz_worker",
+      "to": "postgres",
+      "label": "insert work rows"
+    },
+    {
+      "id": "kafka-to-federated",
+      "from": "kafka",
+      "to": "federated_svcs",
+      "label": "contract.events"
+    },
+    {
+      "id": "federated-to-kafka",
+      "from": "federated_svcs",
+      "to": "kafka",
+      "label": "publish updates"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Multi-Domain Gateway Exposure & Response Stripping",
+      "items": [
+        "Subset endpoints (/api/v0/contracts, /api/v0/contracts/{id}) exposed directly on Main Istio Gateway (portal.example.com)",
+        "Envoy Response Transformation Filter (Wasm/Lua) strips internal payload fields on egress before returning to portal users",
+        "Contracts Istio Gateway on the side exposes full domain endpoints on a distinct domain (contracts.example.com)"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Identity & AuthZ Tier (Exposed by Istio)",
+      "items": [
+        "Main Istio Gateway waypoint triggers Envoy ext_authz gRPC Check on Authorization Service",
+        "Session Service / STS and Authorization Service are both deployed within and exposed by the Istio mesh",
+        "Authorization Service validates session_id cookies with STS and evaluates fine-grained relationship tuples in OpenFGA",
+        "Injects Authorization: Bearer <JWT> upstream to Contract Service with user identity and tenant context"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Application X & External Access",
+      "items": [
+        "Application X (portal app) is outside the Istio boundary and calls Contract Service via the dedicated Contracts Gateway",
+        "External and partner microservices call Contract Service directly via contracts.example.com using mTLS or API tokens",
+        "Preserves unstripped payload fields and administrative access for authorized service callers without portal proxy overhead"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Kafka Event Mesh & Asynchronous Sync",
+      "items": [
+        "Contract Service publishes contract.permissions and domain lifecycle events (contract.events) to Kafka",
+        "Authz Listener consumes permissions topics and persists batch rows into PostgreSQL work table",
+        "Authz Worker claims work batches and idempotently synchronizes relation tuples into OpenFGA",
+        "Downstream federated services (billing, notifications, audit) consume domain events and publish updates"
+      ]
+    }
+  ]
+}
