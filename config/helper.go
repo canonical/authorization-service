@@ -44,6 +44,9 @@ type Services struct {
 // Integrations holds all external service clients
 type Integrations struct {
 	jwkSetUrl           string
+	hydraJwkSetUrl      string
+	hydraIssuer         string
+	HydraVerifier       authz.OidcVerifier
 	MultitenancyEnabled bool
 	OpenFGA             openfga.OpenFGAClientInterface
 	Valkey              valkey.CacheClientInterface
@@ -63,6 +66,16 @@ func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Trace
 
 	if cfg.ExtAuthzService != nil {
 		integrations.jwkSetUrl = cfg.ExtAuthzService.JwkSetURL
+		integrations.hydraJwkSetUrl = cfg.ExtAuthzService.HydraJwkSetURL
+		integrations.hydraIssuer = cfg.ExtAuthzService.HydraIssuer
+
+		if cfg.ExtAuthzService.HydraJwkSetURL != "" {
+			hydraKeySet := authz.NewPreemptingKeySet(context.Background(), cfg.ExtAuthzService.HydraJwkSetURL, nil, logger)
+			integrations.HydraVerifier = oidc.NewVerifier(cfg.ExtAuthzService.HydraIssuer, hydraKeySet, &oidc.Config{
+				SkipClientIDCheck:    true,
+				SupportedSigningAlgs: []string{oidc.RS256, oidc.RS384, oidc.RS512, oidc.ES256, oidc.ES384, oidc.ES512, oidc.EdDSA},
+			})
+		}
 	}
 
 	// Initialize OpenFGA
@@ -217,9 +230,14 @@ func (i *Integrations) InitializeServices(tracer trace.Tracer, serviceLogger *sl
 		SupportedSigningAlgs: []string{oidc.RS256, oidc.ES256},
 	})
 
+	extAuthz := authz.NewExternalAuthzService(verifier, i.STS, resourceMapper, i.OpenFGA, i.MultitenancyEnabled, metrics.NewCheckRecorder(reg), serviceLogger, tracer)
+	if i.HydraVerifier != nil {
+		extAuthz.SetHydraVerifier(i.HydraVerifier)
+	}
+
 	return &Services{
 		Permissions:   permissions.NewService(i.Valkey, metrics.NewPermissionsRecorder(reg), serviceLogger),
-		ExternalAuthz: authz.NewExternalAuthzService(verifier, i.STS, resourceMapper, i.OpenFGA, i.MultitenancyEnabled, metrics.NewCheckRecorder(reg), serviceLogger, tracer),
+		ExternalAuthz: extAuthz,
 	}
 }
 

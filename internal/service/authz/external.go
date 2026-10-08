@@ -41,6 +41,9 @@ type oidcVerifier interface {
 	Verify(ctx context.Context, token string) (*oidc.IDToken, error)
 }
 
+// OidcVerifier is the exported interface alias for OIDC IDToken verification.
+type OidcVerifier = oidcVerifier
+
 // Compile-time check to ensure ExternalAuthzService implements ExternalAuthzServiceInterface
 var _ ExternalAuthzServiceInterface = (*ExternalAuthzService)(nil)
 
@@ -48,6 +51,7 @@ type ExternalAuthzService struct {
 	envoyAuth.UnimplementedAuthorizationServer
 
 	verifier            oidcVerifier
+	hydraVerifier       oidcVerifier
 	sts                 stsv1.SecurityTokenServiceClient
 	resourceMapper      rules.ResourceMapperInterface
 	fga                 openfga.OpenFGAClientInterface
@@ -56,6 +60,11 @@ type ExternalAuthzService struct {
 
 	logger *slog.Logger
 	tracer trace.Tracer
+}
+
+// SetHydraVerifier sets the verifier for Ory Hydra tokens.
+func (s *ExternalAuthzService) SetHydraVerifier(v OidcVerifier) {
+	s.hydraVerifier = v
 }
 
 // NewExternalAuthzService constructs an ExternalAuthzService. If metrics is

@@ -7,9 +7,9 @@
 
 ## 2. Configuration and Preemptive JWKS Warm-Up
 
-- [ ] 2.1 Extend `ExtAuthzServiceConfig` in `config/specs.go` with required `HydraJwkSetURL` and co-dependent `HydraIssuer`
-- [ ] 2.2 Add configuration validation unit tests in `config/specs_test.go` verifying required fields and co-dependency rules
-- [ ] 2.3 Implement preemptive JWKS pre-fetching and verifier initialization in `config/helper.go` so the key cache is warmed during startup
+- [x] 2.1 Extend `ExtAuthzServiceConfig` in `config/specs.go` with required `HydraJwkSetURL` and co-dependent `HydraIssuer`
+- [x] 2.2 Add configuration validation unit tests in `config/specs_test.go` verifying required fields and co-dependency rules
+- [x] 2.3 Implement preemptive JWKS pre-fetching and verifier initialization in `config/helper.go` so the key cache is warmed during startup
 
 ## 3. Observability and Metrics
 

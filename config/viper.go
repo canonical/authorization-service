@@ -96,6 +96,8 @@ func setViperDefaults(v *viper.Viper) {
 
 	// ExtAuthzService
 	v.SetDefault("ext_authz_service.jwk_set_url", "http://localhost:8080/.well-known/jwks.json")
+	v.SetDefault("ext_authz_service.hydra_jwk_set_url", "http://localhost:4444/.well-known/jwks.json")
+	v.SetDefault("ext_authz_service.hydra_issuer", "http://localhost:4444/")
 
 	// OpenFGA
 	v.SetDefault("openfga.address", "http://localhost:8081")
@@ -205,6 +207,8 @@ func bindEnvVars(v *viper.Viper) {
 
 	// ExtAuthzService
 	_ = v.BindEnv("ext_authz_service.jwk_set_url", "EXTAUTHZ_JWK_SET_URL", "EXT_AUTHZ_SERVICE_JWK_SET_URL")
+	_ = v.BindEnv("ext_authz_service.hydra_jwk_set_url", "EXTAUTHZ_HYDRA_JWK_SET_URL", "EXT_AUTHZ_SERVICE_HYDRA_JWK_SET_URL")
+	_ = v.BindEnv("ext_authz_service.hydra_issuer", "EXTAUTHZ_HYDRA_ISSUER", "EXT_AUTHZ_SERVICE_HYDRA_ISSUER")
 
 	// OpenFGA
 	_ = v.BindEnv("openfga.address", "OPENFGA_ADDRESS")
