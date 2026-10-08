@@ -26,5 +26,5 @@
 - [x] 4.6 Add comprehensive unit tests in `internal/service/authz/external_test.go` covering all branches: machine token success, invalid signature, issuer mismatch, conflicting credentials (HTTP 400), and OpenFGA denial
 
 ## 5. Documentation
-
-- [ ] 5.1 Document dual authentication flows, Hydra configuration, and strict mutual exclusivity behavior in `README.md`
+ 
+- [x] 5.1 Document dual authentication flows, Hydra configuration, and strict mutual exclusivity behavior in `README.md`
