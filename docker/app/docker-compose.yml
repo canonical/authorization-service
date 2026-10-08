@@ -17,6 +17,9 @@ services:
       - OPENFGA_ADDRESS=openfga:8081
       - VALKEY_ADDRESS=valkey:6379
       - STS_ADDRESS=sts:9091
+      - EXT_AUTHZ_SERVICE_JWK_SET_URL=http://sts:8080/.well-known/jwks.json
+      - EXT_AUTHZ_SERVICE_HYDRA_JWK_SET_URL=http://hydra:4444/.well-known/jwks.json
+      - EXT_AUTHZ_SERVICE_HYDRA_ISSUER=http://hydra:4444/
       - LOG_LEVEL=debug
       - LOG_FORMAT=json
       - LOG_ADD_SOURCE=true

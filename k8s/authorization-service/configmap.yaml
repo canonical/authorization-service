@@ -21,3 +21,8 @@ data:
   VALKEY_ADDRESS: "valkey-primary.data.svc.cluster.local:6379"
   STS_ADDRESS: "secure-token-service.default.svc.cluster.local:9090"
   STS_ENABLED: "false"
+
+  # External AuthZ & Hydra Configuration
+  EXT_AUTHZ_SERVICE_JWK_SET_URL: "http://secure-token-service.default.svc.cluster.local:8080/.well-known/jwks.json"
+  EXT_AUTHZ_SERVICE_HYDRA_JWK_SET_URL: "http://hydra.default.svc.cluster.local:4444/.well-known/jwks.json"
+  EXT_AUTHZ_SERVICE_HYDRA_ISSUER: "http://hydra.default.svc.cluster.local:4444/"

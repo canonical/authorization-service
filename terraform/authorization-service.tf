@@ -31,6 +31,11 @@ resource "kubernetes_config_map" "authorization-service_config" {
     STS_USE_TLS                = local.sts_use_tls
     STS_EAGER_CONNECTION_CHECK = local.sts_eager_connection_check
 
+    # External Authz & Ory Hydra Configuration
+    EXT_AUTHZ_SERVICE_JWK_SET_URL       = var.ext_authz_service_jwk_set_url
+    EXT_AUTHZ_SERVICE_HYDRA_JWK_SET_URL = var.ext_authz_service_hydra_jwk_set_url
+    EXT_AUTHZ_SERVICE_HYDRA_ISSUER      = var.ext_authz_service_hydra_issuer
+
     # Kafka configuration (asynchronous pipeline)
     KAFKA_ENABLED                  = var.kafka_enabled ? "true" : "false"
     KAFKA_BROKERS                  = join(",", local.kafka_brokers)
