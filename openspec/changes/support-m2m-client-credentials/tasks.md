@@ -13,8 +13,8 @@
 
 ## 3. Observability and Metrics
 
-- [ ] 3.1 Extend `internal/service/authz/metrics.go` interface and `internal/metrics/authz.go` with `auth_type` dimension (`cookie`, `client_credentials`, `none`), Hydra verification latency histogram, and STS exchange latency partitioned by exchange type
-- [ ] 3.2 Add unit tests in `internal/metrics/authz_test.go` asserting metric registration and observation behavior
+- [x] 3.1 Extend `internal/service/authz/metrics.go` interface and `internal/metrics/authz.go` with `auth_type` dimension (`cookie`, `client_credentials`, `none`), Hydra verification latency histogram, and STS exchange latency partitioned by exchange type
+- [x] 3.2 Add unit tests in `internal/metrics/authz_test.go` asserting metric registration and observation behavior
 
 ## 4. External Authorization Dual Authentication Pipeline
 

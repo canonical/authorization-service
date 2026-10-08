@@ -140,8 +140,9 @@ func buildCheckRequest(headers map[string]string, method, path string) *envoyAut
 
 // checkMetricsCall captures a single RecordCheck invocation.
 type checkMetricsCall struct {
-	result string
-	reason string
+	result   string
+	reason   string
+	authType string
 }
 
 // fakeCheckMetrics is a hand-rolled Metrics fake that records every call so
@@ -150,20 +151,26 @@ type checkMetricsCall struct {
 type fakeCheckMetrics struct {
 	recordCheckCalls  []checkMetricsCall
 	stsExchangeCalls  int
+	stsExchangeTypes  []string
+	hydraVerifyCalls  int
 	resourceMapCalls  int
 	openFGACheckCalls int
 }
 
-func (f *fakeCheckMetrics) RecordCheck(result, reason string, _ time.Duration) {
-	f.recordCheckCalls = append(f.recordCheckCalls, checkMetricsCall{result: result, reason: reason})
+func (f *fakeCheckMetrics) RecordCheck(result, reason, authType string, _ time.Duration) {
+	f.recordCheckCalls = append(f.recordCheckCalls, checkMetricsCall{result: result, reason: reason, authType: authType})
 }
-func (f *fakeCheckMetrics) ObserveSTSExchange(_ time.Duration)  { f.stsExchangeCalls++ }
+func (f *fakeCheckMetrics) ObserveHydraVerify(_ time.Duration) { f.hydraVerifyCalls++ }
+func (f *fakeCheckMetrics) ObserveSTSExchange(exchangeType string, _ time.Duration) {
+	f.stsExchangeCalls++
+	f.stsExchangeTypes = append(f.stsExchangeTypes, exchangeType)
+}
 func (f *fakeCheckMetrics) ObserveResourceMap(_ time.Duration)  { f.resourceMapCalls++ }
 func (f *fakeCheckMetrics) ObserveOpenFGACheck(_ time.Duration) { f.openFGACheckCalls++ }
 
 // assertRecordCheck asserts that RecordCheck was called exactly once with the
-// given result/reason pair.
-func assertRecordCheck(t *testing.T, m *fakeCheckMetrics, wantResult, wantReason string) {
+// given result/reason pair and optional wantAuthType.
+func assertRecordCheck(t *testing.T, m *fakeCheckMetrics, wantResult, wantReason string, wantAuthType ...string) {
 	t.Helper()
 	if len(m.recordCheckCalls) != 1 {
 		t.Fatalf("expected exactly 1 RecordCheck call, got %d: %+v", len(m.recordCheckCalls), m.recordCheckCalls)
@@ -171,6 +178,9 @@ func assertRecordCheck(t *testing.T, m *fakeCheckMetrics, wantResult, wantReason
 	got := m.recordCheckCalls[0]
 	if got.result != wantResult || got.reason != wantReason {
 		t.Errorf("RecordCheck = (%q, %q), want (%q, %q)", got.result, got.reason, wantResult, wantReason)
+	}
+	if len(wantAuthType) > 0 && got.authType != wantAuthType[0] {
+		t.Errorf("RecordCheck authType = %q, want %q", got.authType, wantAuthType[0])
 	}
 }
 
