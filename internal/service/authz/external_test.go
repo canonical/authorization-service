@@ -199,6 +199,13 @@ func assertObserveCalls(t *testing.T, m *fakeCheckMetrics, wantSTS, wantResource
 	}
 }
 
+func assertObserveHydraCalls(t *testing.T, m *fakeCheckMetrics, wantHydra int) {
+	t.Helper()
+	if m.hydraVerifyCalls != wantHydra {
+		t.Errorf("ObserveHydraVerify calls = %d, want %d", m.hydraVerifyCalls, wantHydra)
+	}
+}
+
 // --- Check: early-exit paths --------------------------------------------------
 
 // TestExternalAuthzService_Check_NoSubjectEarlyReturn verifies that when the JWT
@@ -283,10 +290,10 @@ func TestExternalAuthzService_Check_NoCookieHeader(t *testing.T) {
 	if deniedResp.Status.Code != envoyType.StatusCode_Unauthorized {
 		t.Errorf("expected HTTP status %d, got %d", envoyType.StatusCode_Unauthorized, deniedResp.Status.Code)
 	}
-	if deniedResp.Body != "no session cookie provided" {
-		t.Errorf("expected body %q, got %q", "No session cookie provided", deniedResp.Body)
+	if deniedResp.Body != "no credentials provided" {
+		t.Errorf("expected body %q, got %q", "no credentials provided", deniedResp.Body)
 	}
-	assertRecordCheck(t, metrics, "deny", "no_cookie")
+	assertRecordCheck(t, metrics, "deny", "no_credentials", "none")
 	assertObserveCalls(t, metrics, 0, 0, 0)
 }
 
@@ -318,10 +325,10 @@ func TestExternalAuthzService_Check_NoSessionCookie(t *testing.T) {
 	if deniedResp == nil {
 		t.Fatal("expected DeniedResponse, got nil")
 	}
-	if deniedResp.Body != "session cookie not found" {
-		t.Errorf("expected body %q, got %q", "session cookie not found", deniedResp.Body)
+	if deniedResp.Body != "no credentials provided" {
+		t.Errorf("expected body %q, got %q", "no credentials provided", deniedResp.Body)
 	}
-	assertRecordCheck(t, metrics, "deny", "no_session")
+	assertRecordCheck(t, metrics, "deny", "no_credentials", "none")
 	assertObserveCalls(t, metrics, 0, 0, 0)
 }
 
@@ -1351,6 +1358,125 @@ func TestSplitCookies(t *testing.T) {
 	}
 }
 
+func TestExtractBearerToken(t *testing.T) {
+	tests := []struct {
+		name       string
+		authHeader string
+		expected   string
+	}{
+		{
+			name:       "standard bearer token",
+			authHeader: "Bearer eyJhbGciOi...",
+			expected:   "eyJhbGciOi...",
+		},
+		{
+			name:       "lowercase bearer",
+			authHeader: "bearer token-123",
+			expected:   "token-123",
+		},
+		{
+			name:       "uppercase bearer",
+			authHeader: "BEARER token-456",
+			expected:   "token-456",
+		},
+		{
+			name:       "bearer with extra spaces",
+			authHeader: "Bearer   token-789   ",
+			expected:   "token-789",
+		},
+		{
+			name:       "empty bearer value",
+			authHeader: "Bearer ",
+			expected:   "",
+		},
+		{
+			name:       "only bearer without space",
+			authHeader: "Bearer",
+			expected:   "",
+		},
+		{
+			name:       "basic auth header",
+			authHeader: "Basic dXNlcjpwYXNz",
+			expected:   "",
+		},
+		{
+			name:       "empty string",
+			authHeader: "",
+			expected:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractBearerToken(tt.authHeader)
+			if result != tt.expected {
+				t.Errorf("extractBearerToken(%q) = %q, want %q", tt.authHeader, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestGetHeader(t *testing.T) {
+	headers := map[string]string{
+		"Authorization": "Bearer token123",
+		"cookie":        "session_id=abc",
+		"X-Custom":      "value",
+	}
+
+	tests := []struct {
+		name     string
+		headers  map[string]string
+		key      string
+		expected string
+	}{
+		{
+			name:     "exact case match",
+			headers:  headers,
+			key:      "Authorization",
+			expected: "Bearer token123",
+		},
+		{
+			name:     "lowercase lookup matching lowercase",
+			headers:  headers,
+			key:      "cookie",
+			expected: "session_id=abc",
+		},
+		{
+			name:     "lowercase lookup matching title case",
+			headers:  headers,
+			key:      "authorization",
+			expected: "Bearer token123",
+		},
+		{
+			name:     "uppercase lookup",
+			headers:  headers,
+			key:      "COOKIE",
+			expected: "session_id=abc",
+		},
+		{
+			name:     "missing header",
+			headers:  headers,
+			key:      "content-type",
+			expected: "",
+		},
+		{
+			name:     "nil headers map",
+			headers:  nil,
+			key:      "authorization",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getHeader(tt.headers, tt.key)
+			if result != tt.expected {
+				t.Errorf("getHeader(%v, %q) = %q, want %q", tt.headers, tt.key, result, tt.expected)
+			}
+		})
+	}
+}
+
 func TestUnauthorized(t *testing.T) {
 	tests := []struct {
 		name string
@@ -1426,6 +1552,7 @@ func TestDenyResponse(t *testing.T) {
 	}{
 		{name: "unauthorized error", body: "Unauthorized", expectedStatus: envoyType.StatusCode_Unauthorized, expectedGRPCCode: codes.Unauthenticated},
 		{name: "forbidden error", body: "Forbidden", expectedStatus: envoyType.StatusCode_Forbidden, expectedGRPCCode: codes.PermissionDenied},
+		{name: "bad request error", body: "Bad Request", expectedStatus: envoyType.StatusCode_BadRequest, expectedGRPCCode: codes.InvalidArgument},
 		{name: "custom error message", body: "Invalid session", expectedStatus: envoyType.StatusCode_Forbidden, expectedGRPCCode: codes.PermissionDenied},
 		{name: "empty message", body: "", expectedStatus: envoyType.StatusCode_Unauthorized, expectedGRPCCode: codes.Unauthenticated},
 	}
@@ -1450,6 +1577,26 @@ func TestDenyResponse(t *testing.T) {
 				t.Errorf("expected body %q, got %q", tt.body, deniedResp.Body)
 			}
 		})
+	}
+}
+
+func TestBadRequest(t *testing.T) {
+	resp := badRequest("test error")
+	if resp == nil {
+		t.Fatal("badRequest returned nil")
+	}
+	if resp.Status.Code != int32(codes.InvalidArgument) {
+		t.Errorf("expected status code %d, got %d", codes.InvalidArgument, resp.Status.Code)
+	}
+	deniedResp := resp.GetDeniedResponse()
+	if deniedResp == nil {
+		t.Fatal("expected DeniedResponse, got nil")
+	}
+	if deniedResp.Status.Code != envoyType.StatusCode_BadRequest {
+		t.Errorf("expected HTTP status %d, got %d", envoyType.StatusCode_BadRequest, deniedResp.Status.Code)
+	}
+	if deniedResp.Body != "test error" {
+		t.Errorf("expected body %q, got %q", "test error", deniedResp.Body)
 	}
 }
 
@@ -1681,4 +1828,557 @@ func TestExternalAuthzService_Check_MissingMatchedRule(t *testing.T) {
 	}
 	assertRecordCheck(t, metrics, "error", "internal_error")
 	assertObserveCalls(t, metrics, 1, 1, 0)
+}
+
+// --- Dual Authentication & Machine Token (M2M) Tests -------------------------
+
+func TestExternalAuthzService_Check_ConflictingCredentials(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSTS := authz.NewMockSecurityTokenServiceClient(ctrl)
+	mockResourceMapper := authz.NewMockResourceMapperInterface(ctrl)
+	mockOpenFGA := authz.NewMockOpenFGAClientInterface(ctrl)
+	mockVerifier := authz.NewMockoidcVerifier(ctrl)
+	mockHydraVerifier := authz.NewMockoidcVerifier(ctrl)
+
+	// Neither STS nor verifiers should be invoked when credentials conflict
+	mockSTS.EXPECT().ExchangeSession(gomock.Any(), gomock.Any()).Times(0)
+	mockSTS.EXPECT().ExchangeToken(gomock.Any(), gomock.Any()).Times(0)
+	mockVerifier.EXPECT().Verify(gomock.Any(), gomock.Any()).Times(0)
+	mockHydraVerifier.EXPECT().Verify(gomock.Any(), gomock.Any()).Times(0)
+
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc.SetHydraVerifier(mockHydraVerifier)
+
+	resp, err := svc.Check(context.Background(), buildCheckRequest(
+		map[string]string{
+			"cookie":        "session_id=user-session-123",
+			"authorization": "Bearer hydra-machine-token-456",
+		},
+		"GET",
+		"/api/data",
+	))
+
+	if err != nil {
+		t.Fatalf("Check returned unexpected error: %v", err)
+	}
+	if resp.Status.Code != int32(codes.InvalidArgument) {
+		t.Errorf("expected gRPC status code %d (InvalidArgument), got %d", codes.InvalidArgument, resp.Status.Code)
+	}
+	deniedResp := resp.GetDeniedResponse()
+	if deniedResp == nil {
+		t.Fatal("expected DeniedResponse, got nil")
+	}
+	if deniedResp.Status.Code != envoyType.StatusCode_BadRequest {
+		t.Errorf("expected HTTP status %d (BadRequest), got %d", envoyType.StatusCode_BadRequest, deniedResp.Status.Code)
+	}
+	if deniedResp.Body != "conflicting credentials provided" {
+		t.Errorf("expected body %q, got %q", "conflicting credentials provided", deniedResp.Body)
+	}
+	assertRecordCheck(t, metrics, "deny", "conflicting_credentials", "none")
+	assertObserveCalls(t, metrics, 0, 0, 0)
+	assertObserveHydraCalls(t, metrics, 0)
+}
+
+func TestExternalAuthzService_Check_MachineBearerToken_Success(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSTS := authz.NewMockSecurityTokenServiceClient(ctrl)
+	mockResourceMapper := authz.NewMockResourceMapperInterface(ctrl)
+	mockOpenFGA := authz.NewMockOpenFGAClientInterface(ctrl)
+	mockVerifier := authz.NewMockoidcVerifier(ctrl)
+	mockHydraVerifier := authz.NewMockoidcVerifier(ctrl)
+
+	rawHydraToken := "raw-hydra-bearer-token"
+	stsAccessToken := "sts-internal-jwt"
+	clientID := "m2m-service-client-id"
+
+	// 1. Hydra verifier checks the incoming bearer token
+	mockHydraVerifier.EXPECT().
+		Verify(gomock.Any(), rawHydraToken).
+		Return(newTestIDToken(t, []byte(`{"sub":"hydra-sub"}`)), nil).
+		Times(1)
+
+	// 2. STS ExchangeToken exchanges raw Hydra token for internal STS JWT
+	mockSTS.EXPECT().
+		ExchangeToken(gomock.Any(), &stsv1.ExchangeTokenRequest{Token: rawHydraToken}).
+		Return(&stsv1.ExchangeResponse{AccessToken: stsAccessToken, ExpiresIn: 3600}, nil).
+		Times(1)
+
+	// 3. Verifier parses STS JWT claims
+	claimsJSON, _ := json.Marshal(map[string]string{"sub": clientID, "org": "Canonical"})
+	mockVerifier.EXPECT().
+		Verify(gomock.Any(), stsAccessToken).
+		Return(newTestIDToken(t, claimsJSON), nil).
+		Times(1)
+
+	// 4. Resource mapper maps client ID to OpenFGA check tuples (subject formatted as user:<client_id>)
+	mappedTuples := []client.ClientBatchCheckItem{
+		{User: "user:" + clientID, Relation: "viewer", Object: "resource:api-data"},
+	}
+	mockResourceMapper.EXPECT().
+		Map(gomock.Any(), clientID, "GET", "/api/data").
+		Return(mappedTuples, &rules.RuleWithTuples{Id: "rule-123"}, nil).
+		Times(1)
+
+	// 5. OpenFGA evaluates tuples
+	batchCheckResult := openfga.BatchCheckResponse{
+		Result: &map[string]openfga.BatchCheckSingleResult{
+			"0": {Allowed: boolPtr(true)},
+		},
+	}
+	mockOpenFGA.EXPECT().
+		BatchCheck(gomock.Any()).
+		Return(&mockBatchCheckRequest{response: &batchCheckResult, err: nil}).
+		Times(1)
+
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc.SetHydraVerifier(mockHydraVerifier)
+
+	resp, err := svc.Check(context.Background(), buildCheckRequest(
+		map[string]string{"authorization": "Bearer " + rawHydraToken},
+		"GET",
+		"/api/data",
+	))
+
+	if err != nil {
+		t.Fatalf("Check returned error: %v", err)
+	}
+	if resp.Status.Code != int32(codes.OK) {
+		t.Errorf("expected status code %d (OK), got %d", codes.OK, resp.Status.Code)
+	}
+
+	// Verify internal STS JWT is injected into Envoy OkResponse
+	okResp := resp.GetOkResponse()
+	if okResp == nil {
+		t.Fatal("expected OkResponse, got nil")
+	}
+	if len(okResp.Headers) != 1 {
+		t.Fatalf("expected 1 header, got %d", len(okResp.Headers))
+	}
+	if okResp.Headers[0].Header.Key != "authorization" {
+		t.Errorf("expected header key 'authorization', got %q", okResp.Headers[0].Header.Key)
+	}
+	expectedAuthHeader := "Bearer " + stsAccessToken
+	if okResp.Headers[0].Header.Value != expectedAuthHeader {
+		t.Errorf("expected header value %q, got %q", expectedAuthHeader, okResp.Headers[0].Header.Value)
+	}
+
+	assertRecordCheck(t, metrics, "allow", "ok", "client_credentials")
+	assertObserveCalls(t, metrics, 1, 1, 1)
+	assertObserveHydraCalls(t, metrics, 1)
+	if len(metrics.stsExchangeTypes) != 1 || metrics.stsExchangeTypes[0] != "token" {
+		t.Errorf("expected STS exchange type ['token'], got %v", metrics.stsExchangeTypes)
+	}
+}
+
+func TestExternalAuthzService_Check_MachineBearerToken_HydraVerificationFailed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSTS := authz.NewMockSecurityTokenServiceClient(ctrl)
+	mockResourceMapper := authz.NewMockResourceMapperInterface(ctrl)
+	mockOpenFGA := authz.NewMockOpenFGAClientInterface(ctrl)
+	mockVerifier := authz.NewMockoidcVerifier(ctrl)
+	mockHydraVerifier := authz.NewMockoidcVerifier(ctrl)
+
+	rawHydraToken := "tampered-or-expired-token"
+
+	// Hydra verification fails (signature mismatch or wrong issuer)
+	mockHydraVerifier.EXPECT().
+		Verify(gomock.Any(), rawHydraToken).
+		Return(nil, errors.New("oidc: token signature is invalid")).
+		Times(1)
+
+	// STS, mapper, and FGA must NOT be called
+	mockSTS.EXPECT().ExchangeToken(gomock.Any(), gomock.Any()).Times(0)
+	mockResourceMapper.EXPECT().Map(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+	mockOpenFGA.EXPECT().BatchCheck(gomock.Any()).Times(0)
+
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc.SetHydraVerifier(mockHydraVerifier)
+
+	resp, err := svc.Check(context.Background(), buildCheckRequest(
+		map[string]string{"authorization": "Bearer " + rawHydraToken},
+		"GET",
+		"/api/data",
+	))
+
+	if err != nil {
+		t.Fatalf("Check returned unexpected error: %v", err)
+	}
+	if resp.Status.Code != int32(codes.Unauthenticated) {
+		t.Errorf("expected status code %d (Unauthenticated), got %d", codes.Unauthenticated, resp.Status.Code)
+	}
+	deniedResp := resp.GetDeniedResponse()
+	if deniedResp == nil {
+		t.Fatal("expected DeniedResponse, got nil")
+	}
+	if deniedResp.Status.Code != envoyType.StatusCode_Unauthorized {
+		t.Errorf("expected HTTP status %d (Unauthorized), got %d", envoyType.StatusCode_Unauthorized, deniedResp.Status.Code)
+	}
+	if deniedResp.Body != "invalid bearer token" {
+		t.Errorf("expected body %q, got %q", "invalid bearer token", deniedResp.Body)
+	}
+	assertRecordCheck(t, metrics, "deny", "jwt_invalid", "client_credentials")
+	assertObserveCalls(t, metrics, 0, 0, 0)
+	assertObserveHydraCalls(t, metrics, 1)
+}
+
+func TestExternalAuthzService_Check_MachineBearerToken_HydraVerifierNotConfigured(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSTS := authz.NewMockSecurityTokenServiceClient(ctrl)
+	mockResourceMapper := authz.NewMockResourceMapperInterface(ctrl)
+	mockOpenFGA := authz.NewMockOpenFGAClientInterface(ctrl)
+	mockVerifier := authz.NewMockoidcVerifier(ctrl)
+
+	metrics := &fakeCheckMetrics{}
+	// No Hydra verifier configured
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+
+	resp, err := svc.Check(context.Background(), buildCheckRequest(
+		map[string]string{"authorization": "Bearer some-token"},
+		"GET",
+		"/api/data",
+	))
+
+	if err != nil {
+		t.Fatalf("Check returned unexpected error: %v", err)
+	}
+	if resp.Status.Code != int32(codes.Unauthenticated) {
+		t.Errorf("expected status code %d, got %d", codes.Unauthenticated, resp.Status.Code)
+	}
+	deniedResp := resp.GetDeniedResponse()
+	if deniedResp.Body != "hydra verifier not configured" {
+		t.Errorf("expected body %q, got %q", "hydra verifier not configured", deniedResp.Body)
+	}
+	assertRecordCheck(t, metrics, "deny", "jwt_invalid", "client_credentials")
+	assertObserveCalls(t, metrics, 0, 0, 0)
+	assertObserveHydraCalls(t, metrics, 0)
+}
+
+func TestExternalAuthzService_Check_MachineBearerToken_STSExchangeFailed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSTS := authz.NewMockSecurityTokenServiceClient(ctrl)
+	mockResourceMapper := authz.NewMockResourceMapperInterface(ctrl)
+	mockOpenFGA := authz.NewMockOpenFGAClientInterface(ctrl)
+	mockVerifier := authz.NewMockoidcVerifier(ctrl)
+	mockHydraVerifier := authz.NewMockoidcVerifier(ctrl)
+
+	rawHydraToken := "valid-hydra-token"
+
+	mockHydraVerifier.EXPECT().
+		Verify(gomock.Any(), rawHydraToken).
+		Return(newTestIDToken(t, []byte(`{}`)), nil).
+		Times(1)
+
+	mockSTS.EXPECT().
+		ExchangeToken(gomock.Any(), &stsv1.ExchangeTokenRequest{Token: rawHydraToken}).
+		Return(nil, errors.New("sts unavailable")).
+		Times(1)
+
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc.SetHydraVerifier(mockHydraVerifier)
+
+	resp, err := svc.Check(context.Background(), buildCheckRequest(
+		map[string]string{"authorization": "Bearer " + rawHydraToken},
+		"GET",
+		"/api/data",
+	))
+
+	if err != nil {
+		t.Fatalf("Check returned unexpected error: %v", err)
+	}
+	if resp.Status.Code != int32(codes.PermissionDenied) {
+		t.Errorf("expected status code %d (PermissionDenied), got %d", codes.PermissionDenied, resp.Status.Code)
+	}
+	deniedResp := resp.GetDeniedResponse()
+	if deniedResp.Status.Code != envoyType.StatusCode_Forbidden {
+		t.Errorf("expected HTTP status %d (Forbidden), got %d", envoyType.StatusCode_Forbidden, deniedResp.Status.Code)
+	}
+	if deniedResp.Body != "sts unavailable" {
+		t.Errorf("expected body %q, got %q", "sts unavailable", deniedResp.Body)
+	}
+	assertRecordCheck(t, metrics, "deny", "sts_exchange_failed", "client_credentials")
+	assertObserveCalls(t, metrics, 1, 0, 0)
+	assertObserveHydraCalls(t, metrics, 1)
+	if len(metrics.stsExchangeTypes) != 1 || metrics.stsExchangeTypes[0] != "token" {
+		t.Errorf("expected STS exchange type ['token'], got %v", metrics.stsExchangeTypes)
+	}
+}
+
+func TestExternalAuthzService_Check_MachineBearerToken_InvalidSTSJWT(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSTS := authz.NewMockSecurityTokenServiceClient(ctrl)
+	mockResourceMapper := authz.NewMockResourceMapperInterface(ctrl)
+	mockOpenFGA := authz.NewMockOpenFGAClientInterface(ctrl)
+	mockVerifier := authz.NewMockoidcVerifier(ctrl)
+	mockHydraVerifier := authz.NewMockoidcVerifier(ctrl)
+
+	rawHydraToken := "valid-hydra-token"
+	stsAccessToken := "sts-token-without-sub"
+
+	mockHydraVerifier.EXPECT().
+		Verify(gomock.Any(), rawHydraToken).
+		Return(newTestIDToken(t, []byte(`{}`)), nil).
+		Times(1)
+
+	mockSTS.EXPECT().
+		ExchangeToken(gomock.Any(), &stsv1.ExchangeTokenRequest{Token: rawHydraToken}).
+		Return(&stsv1.ExchangeResponse{AccessToken: stsAccessToken}, nil).
+		Times(1)
+
+	// STS JWT verification fails or returns no sub
+	mockVerifier.EXPECT().
+		Verify(gomock.Any(), stsAccessToken).
+		Return(newTestIDToken(t, []byte(`{}`)), nil).
+		Times(1)
+
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc.SetHydraVerifier(mockHydraVerifier)
+
+	resp, err := svc.Check(context.Background(), buildCheckRequest(
+		map[string]string{"authorization": "Bearer " + rawHydraToken},
+		"GET",
+		"/api/data",
+	))
+
+	if err != nil {
+		t.Fatalf("Check returned unexpected error: %v", err)
+	}
+	if resp.Status.Code != int32(codes.Unauthenticated) {
+		t.Errorf("expected status code %d, got %d", codes.Unauthenticated, resp.Status.Code)
+	}
+	assertRecordCheck(t, metrics, "deny", "jwt_invalid", "client_credentials")
+	assertObserveCalls(t, metrics, 1, 0, 0)
+	assertObserveHydraCalls(t, metrics, 1)
+}
+
+func TestExternalAuthzService_Check_MachineBearerToken_OpenFGADenied(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSTS := authz.NewMockSecurityTokenServiceClient(ctrl)
+	mockResourceMapper := authz.NewMockResourceMapperInterface(ctrl)
+	mockOpenFGA := authz.NewMockOpenFGAClientInterface(ctrl)
+	mockVerifier := authz.NewMockoidcVerifier(ctrl)
+	mockHydraVerifier := authz.NewMockoidcVerifier(ctrl)
+
+	rawHydraToken := "valid-hydra-token"
+	stsAccessToken := "sts-jwt"
+	clientID := "unauthorized-client"
+
+	mockHydraVerifier.EXPECT().
+		Verify(gomock.Any(), rawHydraToken).
+		Return(newTestIDToken(t, []byte(`{}`)), nil).
+		Times(1)
+
+	mockSTS.EXPECT().
+		ExchangeToken(gomock.Any(), &stsv1.ExchangeTokenRequest{Token: rawHydraToken}).
+		Return(&stsv1.ExchangeResponse{AccessToken: stsAccessToken}, nil).
+		Times(1)
+
+	claimsJSON, _ := json.Marshal(map[string]string{"sub": clientID})
+	mockVerifier.EXPECT().
+		Verify(gomock.Any(), stsAccessToken).
+		Return(newTestIDToken(t, claimsJSON), nil).
+		Times(1)
+
+	mockResourceMapper.EXPECT().
+		Map(gomock.Any(), clientID, "POST", "/api/restricted").
+		Return([]client.ClientBatchCheckItem{
+			{User: "user:" + clientID, Relation: "editor", Object: "resource:restricted"},
+		}, &rules.RuleWithTuples{Id: "rule-admin"}, nil).
+		Times(1)
+
+	// OpenFGA check denies access
+	batchCheckResult := openfga.BatchCheckResponse{
+		Result: &map[string]openfga.BatchCheckSingleResult{
+			"0": {Allowed: boolPtr(false)},
+		},
+	}
+	mockOpenFGA.EXPECT().
+		BatchCheck(gomock.Any()).
+		Return(&mockBatchCheckRequest{response: &batchCheckResult, err: nil}).
+		Times(1)
+
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc.SetHydraVerifier(mockHydraVerifier)
+
+	resp, err := svc.Check(context.Background(), buildCheckRequest(
+		map[string]string{"authorization": "Bearer " + rawHydraToken},
+		"POST",
+		"/api/restricted",
+	))
+
+	if err != nil {
+		t.Fatalf("Check returned unexpected error: %v", err)
+	}
+	if resp.Status.Code != int32(codes.PermissionDenied) {
+		t.Errorf("expected status code %d (PermissionDenied), got %d", codes.PermissionDenied, resp.Status.Code)
+	}
+	deniedResp := resp.GetDeniedResponse()
+	if deniedResp.Status.Code != envoyType.StatusCode_Forbidden {
+		t.Errorf("expected HTTP status %d, got %d", envoyType.StatusCode_Forbidden, deniedResp.Status.Code)
+	}
+	assertRecordCheck(t, metrics, "deny", "openfga_denied", "client_credentials")
+	assertObserveCalls(t, metrics, 1, 1, 1)
+	assertObserveHydraCalls(t, metrics, 1)
+}
+
+func TestExternalAuthzService_Check_MachineBearerToken_CaseInsensitiveAuthorizationHeader(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSTS := authz.NewMockSecurityTokenServiceClient(ctrl)
+	mockResourceMapper := authz.NewMockResourceMapperInterface(ctrl)
+	mockOpenFGA := authz.NewMockOpenFGAClientInterface(ctrl)
+	mockVerifier := authz.NewMockoidcVerifier(ctrl)
+	mockHydraVerifier := authz.NewMockoidcVerifier(ctrl)
+
+	rawHydraToken := "case-test-token"
+	stsAccessToken := "sts-jwt-case"
+	clientID := "case-client"
+
+	mockHydraVerifier.EXPECT().
+		Verify(gomock.Any(), rawHydraToken).
+		Return(newTestIDToken(t, []byte(`{}`)), nil).
+		Times(1)
+
+	mockSTS.EXPECT().
+		ExchangeToken(gomock.Any(), &stsv1.ExchangeTokenRequest{Token: rawHydraToken}).
+		Return(&stsv1.ExchangeResponse{AccessToken: stsAccessToken}, nil).
+		Times(1)
+
+	claimsJSON, _ := json.Marshal(map[string]string{"sub": clientID})
+	mockVerifier.EXPECT().
+		Verify(gomock.Any(), stsAccessToken).
+		Return(newTestIDToken(t, claimsJSON), nil).
+		Times(1)
+
+	mockResourceMapper.EXPECT().
+		Map(gomock.Any(), clientID, "GET", "/api/data").
+		Return([]client.ClientBatchCheckItem{
+			{User: "user:" + clientID, Relation: "viewer", Object: "resource:api-data"},
+		}, &rules.RuleWithTuples{Id: "rule-case"}, nil).
+		Times(1)
+
+	batchCheckResult := openfga.BatchCheckResponse{
+		Result: &map[string]openfga.BatchCheckSingleResult{
+			"0": {Allowed: boolPtr(true)},
+		},
+	}
+	mockOpenFGA.EXPECT().
+		BatchCheck(gomock.Any()).
+		Return(&mockBatchCheckRequest{response: &batchCheckResult, err: nil}).
+		Times(1)
+
+	metrics := &fakeCheckMetrics{}
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
+	svc.SetHydraVerifier(mockHydraVerifier)
+
+	// Note uppercase "AUTHORIZATION" and lowercase "bearer "
+	resp, err := svc.Check(context.Background(), buildCheckRequest(
+		map[string]string{"AUTHORIZATION": "bearer " + rawHydraToken},
+		"GET",
+		"/api/data",
+	))
+
+	if err != nil {
+		t.Fatalf("Check returned error: %v", err)
+	}
+	if resp.Status.Code != int32(codes.OK) {
+		t.Errorf("expected status code %d, got %d", codes.OK, resp.Status.Code)
+	}
+	assertRecordCheck(t, metrics, "allow", "ok", "client_credentials")
+}
+
+func TestExternalAuthzService_Check_LogsAuthorizationDecision_ClientCredentials(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSTS := authz.NewMockSecurityTokenServiceClient(ctrl)
+	mockResourceMapper := authz.NewMockResourceMapperInterface(ctrl)
+	mockOpenFGA := authz.NewMockOpenFGAClientInterface(ctrl)
+	mockVerifier := authz.NewMockoidcVerifier(ctrl)
+	mockHydraVerifier := authz.NewMockoidcVerifier(ctrl)
+
+	rawHydraToken := "hydra-token-log-test"
+	stsAccessToken := "sts-jwt-log"
+	clientID := "logged-m2m-client"
+
+	mockHydraVerifier.EXPECT().
+		Verify(gomock.Any(), rawHydraToken).
+		Return(newTestIDToken(t, []byte(`{}`)), nil).
+		Times(1)
+
+	mockSTS.EXPECT().
+		ExchangeToken(gomock.Any(), &stsv1.ExchangeTokenRequest{Token: rawHydraToken}).
+		Return(&stsv1.ExchangeResponse{AccessToken: stsAccessToken}, nil).
+		Times(1)
+
+	claimsJSON, _ := json.Marshal(map[string]string{"sub": clientID, "org": "my-tenant"})
+	mockVerifier.EXPECT().
+		Verify(gomock.Any(), stsAccessToken).
+		Return(newTestIDToken(t, claimsJSON), nil).
+		Times(1)
+
+	tenantStr := "my-tenant"
+	mockResourceMapper.EXPECT().
+		Map(gomock.Any(), clientID, "GET", "/api/resource").
+		Return([]client.ClientBatchCheckItem{
+			{User: "user:" + clientID, Relation: "viewer", Object: "resource:1"},
+		}, &rules.RuleWithTuples{Id: "rule-1", Tenant: &tenantStr}, nil).
+		Times(1)
+
+	batchCheckResult := openfga.BatchCheckResponse{
+		Result: &map[string]openfga.BatchCheckSingleResult{
+			"0": {Allowed: boolPtr(true)},
+		},
+	}
+	mockOpenFGA.EXPECT().
+		BatchCheck(gomock.Any()).
+		Return(&mockBatchCheckRequest{response: &batchCheckResult, err: nil}).
+		Times(1)
+
+	logger, buf := debugCapturingLogger(t)
+	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, true, nil, logger, noop.NewTracerProvider().Tracer("test"))
+	svc.SetHydraVerifier(mockHydraVerifier)
+
+	_, err := svc.Check(context.Background(), buildCheckRequest(
+		map[string]string{"authorization": "Bearer " + rawHydraToken},
+		"GET",
+		"/api/resource",
+	))
+	if err != nil {
+		t.Fatalf("Check failed: %v", err)
+	}
+
+	entry := decodeAuthzDecisionLine(t, buf)
+	if entry["auth_type"] != "client_credentials" {
+		t.Errorf("log auth_type = %v, want %q", entry["auth_type"], "client_credentials")
+	}
+	if entry["subject"] != clientID {
+		t.Errorf("log subject = %v, want %q", entry["subject"], clientID)
+	}
+	if entry["tenant"] != "my-tenant" {
+		t.Errorf("log tenant = %v, want %q", entry["tenant"], "my-tenant")
+	}
+	if entry["result"] != "allow" {
+		t.Errorf("log result = %v, want %q", entry["result"], "allow")
+	}
 }

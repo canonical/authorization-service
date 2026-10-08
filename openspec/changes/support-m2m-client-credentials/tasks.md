@@ -18,12 +18,12 @@
 
 ## 4. External Authorization Dual Authentication Pipeline
 
-- [ ] 4.1 Update `ExternalAuthzService.check` in `internal/service/authz/external.go` to inspect headers and enforce strict mutual exclusivity (Option B: return HTTP 400 on conflicting credentials)
-- [ ] 4.2 Implement cryptographic signature and issuer verification for Hydra Bearer tokens using the initialized Hydra verifier
-- [ ] 4.3 Call `sts.ExchangeToken` for verified machine Bearer tokens and verify the returned internal STS JWT
-- [ ] 4.4 Verify subject mapping to `user:<client_id>` and OpenFGA zero-bypass evaluation for machine callers
-- [ ] 4.5 Ensure Envoy `OkHttpResponse` injects `Authorization: Bearer <sts_jwt>` for both authentication flows
-- [ ] 4.6 Add comprehensive unit tests in `internal/service/authz/external_test.go` covering all branches: machine token success, invalid signature, issuer mismatch, conflicting credentials (HTTP 400), and OpenFGA denial
+- [x] 4.1 Update `ExternalAuthzService.check` in `internal/service/authz/external.go` to inspect headers and enforce strict mutual exclusivity (Option B: return HTTP 400 on conflicting credentials)
+- [x] 4.2 Implement cryptographic signature and issuer verification for Hydra Bearer tokens using the initialized Hydra verifier
+- [x] 4.3 Call `sts.ExchangeToken` for verified machine Bearer tokens and verify the returned internal STS JWT
+- [x] 4.4 Verify subject mapping to `user:<client_id>` and OpenFGA zero-bypass evaluation for machine callers
+- [x] 4.5 Ensure Envoy `OkHttpResponse` injects `Authorization: Bearer <sts_jwt>` for both authentication flows
+- [x] 4.6 Add comprehensive unit tests in `internal/service/authz/external_test.go` covering all branches: machine token success, invalid signature, issuer mismatch, conflicting credentials (HTTP 400), and OpenFGA denial
 
 ## 5. Documentation
 
