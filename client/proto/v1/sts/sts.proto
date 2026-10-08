@@ -14,12 +14,19 @@ service SecurityTokenService {
   // ExchangeSession swaps an opaque session_id for a customized internal JWT.
   rpc ExchangeSession(ExchangeRequest) returns (ExchangeResponse);
 
+  // ExchangeToken swaps an external machine bearer token for an internal JWT.
+  rpc ExchangeToken(ExchangeTokenRequest) returns (ExchangeResponse);
+
   // RevokeUserSessions forces a logout for a specific user, invalidating all sessions.
   rpc RevokeUserSessions(RevokeUserRequest) returns (RevokeUserResponse);
 }
 
 message ExchangeRequest {
   string session_cookie = 1;
+}
+
+message ExchangeTokenRequest {
+  string token = 1;
 }
 
 message ExchangeResponse {

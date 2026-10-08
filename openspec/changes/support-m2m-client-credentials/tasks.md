@@ -2,8 +2,8 @@
 
 ## 1. Protobuf and Client Generation
 
-- [ ] 1.1 Update `client/proto/v1/sts/sts.proto` to define `ExchangeToken(ExchangeTokenRequest) returns (ExchangeResponse)` and regenerate Go stubs using `buf generate --template buf.gen.client.yaml`
-- [ ] 1.2 Regenerate STS client mocks via `mockgen` and verify `internal/service/authz/mocks` builds cleanly
+- [x] 1.1 Update `client/proto/v1/sts/sts.proto` to define `ExchangeToken(ExchangeTokenRequest) returns (ExchangeResponse)` and regenerate Go stubs using `buf generate --template buf.gen.client.yaml`
+- [x] 1.2 Regenerate STS client mocks via `mockgen` and verify `internal/service/authz/mocks` builds cleanly
 
 ## 2. Configuration and Preemptive JWKS Warm-Up
 
