@@ -1,20 +1,53 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  authorization-service: A production-grade gRPC and REST API service for managing authorization and permissions in a microservices architecture.
+  The service provides permission management, authorization decisions via OpenFGA, Envoy external authorization (v3) for Istio/service meshes, Valkey caching, async Kafka permission updates, and STS token validation.
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+  Tech stack: Go (1.26+), PostgreSQL (Masterminds/squirrel, jackc/pgx/v5), gRPC/REST (grpc-gateway, protobuf/v3), OpenFGA, Valkey, Kafka, Cobra CLI, OpenTelemetry, Prometheus.
+
+  Core Architecture Components:
+  - server/: gRPC and REST API servers, middleware, and transcoder routing
+  - internal/service/: Authorization service and permissions service implementations
+  - internal/repository/: PostgreSQL repository implementations for queue-based updates and state
+  - internal/integration/: External client integrations (OpenFGA, Valkey, Kafka, STS)
+  - authz/: OpenFGA authorization model definitions
+  - config/: Component-based configuration loading and validation via Viper
+  - cmd/: Cobra CLI commands (serve, listen, worker, migrate, seed, reaper, ensure_topics, authz)
+
+  We follow Canonical Go best practices.
+  All Go source files must begin with the standard AGPL-3.0-only header.
+  Use conventional commits.
+
+  Product language:
+  - Write OpenSpec proposals and specs in user-facing product behavior language
+  - Requirements should describe the experience, observable behavior, and product contract
+  - Put internal mechanisms in design.md or tasks.md unless the mechanism is itself part of the user-facing contract
+  - Avoid technical jargon in proposals and specs when possible
+
+rules:
+  proposal:
+    - Include a "Non-goals" section to clarify what is out of scope for the proposal
+    - Include a "Success Metrics" section defining how we will measure the impact of this feature
+    - Reference affected packages by name
+    - Keep proposals concise (under 400 words)
+  specs:
+    - Include a "Purpose" section for each spec to explain the rationale behind the spec
+    - The "Purpose" section is the single source of truth for design rationale (ADR-style); capture intent, goals, non-goals, and key decisions (with brief alternatives)
+    - Cover happy path, validation errors, and edge cases in the spec
+    - Requirements stay behaviour-driven (SHALL/MUST + #### Scenario blocks); the "why" lives in ## Purpose, the "what" in ## Requirements
+    - Explicitly state any breaking changes or backward compatibility requirements
+  design:
+    - All design decisions should be justified with trade-offs and alternatives considered
+    - Include database schema modifications (e.g., tables, indexes, migrations) explicitly when applicable
+    - Include diagrams (Mermaid) or visual aids when describing complex designs
+    - Include security, performance, observability, scalability, migration considerations as applicable to the design
+  tasks:
+    - Break tasks into single-package units of work
+    - Every task must be independently completable (no implicit ordering within a group)
+    - Each task must reference the file(s) it touches
+    - Explicitly list unit, integration, or e2e testing requirements for each task
+    - Include integration tests using testcontainers for external dependencies
+    - Include a verification suite section (e.g. `go test -race ./...` must output zero diagnostic failures)
+    - Include a documentation & rollout section covering any necessary documentation updates and rollout steps
+    - Record deviations from the plan in an "Implementation Notes" section at the end
