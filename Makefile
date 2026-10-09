@@ -82,7 +82,7 @@ protogen: buf-update
 
 protogen-client: buf-update
 	@echo "Generating protobuf client code..."
-	@$(BUF) generate client/proto --template ./buf.gen.client.yaml
+	@$(BUF) generate --template ./buf.gen.client.yaml
 
 deps:
 	@echo "Downloading Go dependencies..."

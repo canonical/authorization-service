@@ -84,7 +84,9 @@ type ServerConfig struct {
 }
 
 type ExtAuthzServiceConfig struct {
-	JwkSetURL string `validate:"required,http_url" envconfig:"EXTAUTHZ_JWK_SET_URL" mapstructure:"jwk_set_url" default:"http://localhost:8080/.well-known/jwks.json"`
+	JwkSetURL      string `validate:"required,http_url" envconfig:"EXTAUTHZ_JWK_SET_URL" mapstructure:"jwk_set_url" default:"http://localhost:8080/.well-known/jwks.json"`
+	HydraJwkSetURL string `validate:"required,required_with=HydraIssuer,http_url" envconfig:"EXTAUTHZ_HYDRA_JWK_SET_URL" mapstructure:"hydra_jwk_set_url" default:"http://localhost:4444/.well-known/jwks.json"`
+	HydraIssuer    string `validate:"required,required_with=HydraJwkSetURL,http_url" envconfig:"EXTAUTHZ_HYDRA_ISSUER" mapstructure:"hydra_issuer" default:"http://localhost:4444/"`
 }
 
 // GetGRPCAddress returns the full gRPC server address

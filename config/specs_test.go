@@ -85,3 +85,77 @@ func TestLoggingConfig_SetupLogger_TextFormat(t *testing.T) {
 	assert.Contains(t, string(out), "service=authorization-service")
 	assert.Contains(t, string(out), "version=v1.2.3")
 }
+
+func TestExtAuthzServiceConfig_Validation(t *testing.T) {
+	tests := []struct {
+		name      string
+		cfg       *ExtAuthzServiceConfig
+		wantError bool
+	}{
+		{
+			name: "valid configuration",
+			cfg: &ExtAuthzServiceConfig{
+				JwkSetURL:      "http://localhost:8080/.well-known/jwks.json",
+				HydraJwkSetURL: "http://localhost:4444/.well-known/jwks.json",
+				HydraIssuer:    "http://localhost:4444/",
+			},
+			wantError: false,
+		},
+		{
+			name: "missing JwkSetURL",
+			cfg: &ExtAuthzServiceConfig{
+				HydraJwkSetURL: "http://localhost:4444/.well-known/jwks.json",
+				HydraIssuer:    "http://localhost:4444/",
+			},
+			wantError: true,
+		},
+		{
+			name: "missing HydraJwkSetURL",
+			cfg: &ExtAuthzServiceConfig{
+				JwkSetURL:   "http://localhost:8080/.well-known/jwks.json",
+				HydraIssuer: "http://localhost:4444/",
+			},
+			wantError: true,
+		},
+		{
+			name: "missing HydraIssuer",
+			cfg: &ExtAuthzServiceConfig{
+				JwkSetURL:      "http://localhost:8080/.well-known/jwks.json",
+				HydraJwkSetURL: "http://localhost:4444/.well-known/jwks.json",
+			},
+			wantError: true,
+		},
+		{
+			name: "invalid HydraJwkSetURL format",
+			cfg: &ExtAuthzServiceConfig{
+				JwkSetURL:      "http://localhost:8080/.well-known/jwks.json",
+				HydraJwkSetURL: "not-a-valid-url",
+				HydraIssuer:    "http://localhost:4444/",
+			},
+			wantError: true,
+		},
+		{
+			name: "invalid HydraIssuer format",
+			cfg: &ExtAuthzServiceConfig{
+				JwkSetURL:      "http://localhost:8080/.well-known/jwks.json",
+				HydraJwkSetURL: "http://localhost:4444/.well-known/jwks.json",
+				HydraIssuer:    "ftp://invalid-scheme",
+			},
+			wantError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &Config{
+				ExtAuthzService: tc.cfg,
+			}
+			err := c.ValidateComponents(ComponentExtAuthz)
+			if tc.wantError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

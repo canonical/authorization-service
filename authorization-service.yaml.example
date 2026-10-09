@@ -14,8 +14,12 @@ server:
   development: false
 
 ext_authz_service:
-  # The URL to fetch JWKs for JWT signature validation.
+  # The URL to fetch JWKs for internal STS JWT signature validation.
   jwk_set_url: "http://localhost:8080/.well-known/jwks.json"
+  # The URL to fetch JWKs for Ory Hydra machine-to-machine tokens.
+  hydra_jwk_set_url: "http://localhost:4444/.well-known/jwks.json"
+  # The expected issuer claim for Ory Hydra machine tokens.
+  hydra_issuer: "http://localhost:4444/"
 
 openfga:
   # The address of the OpenFGA instance.

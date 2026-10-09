@@ -25,6 +25,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	SecurityTokenService_ExchangeSession_FullMethodName    = "/sts.v1.SecurityTokenService/ExchangeSession"
+	SecurityTokenService_ExchangeToken_FullMethodName      = "/sts.v1.SecurityTokenService/ExchangeToken"
 	SecurityTokenService_RevokeUserSessions_FullMethodName = "/sts.v1.SecurityTokenService/RevokeUserSessions"
 )
 
@@ -36,6 +37,8 @@ const (
 type SecurityTokenServiceClient interface {
 	// ExchangeSession swaps an opaque session_id for a customized internal JWT.
 	ExchangeSession(ctx context.Context, in *ExchangeRequest, opts ...grpc.CallOption) (*ExchangeResponse, error)
+	// ExchangeToken swaps an external machine bearer token for an internal JWT.
+	ExchangeToken(ctx context.Context, in *ExchangeTokenRequest, opts ...grpc.CallOption) (*ExchangeResponse, error)
 	// RevokeUserSessions forces a logout for a specific user, invalidating all sessions.
 	RevokeUserSessions(ctx context.Context, in *RevokeUserRequest, opts ...grpc.CallOption) (*RevokeUserResponse, error)
 }
@@ -52,6 +55,16 @@ func (c *securityTokenServiceClient) ExchangeSession(ctx context.Context, in *Ex
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ExchangeResponse)
 	err := c.cc.Invoke(ctx, SecurityTokenService_ExchangeSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *securityTokenServiceClient) ExchangeToken(ctx context.Context, in *ExchangeTokenRequest, opts ...grpc.CallOption) (*ExchangeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExchangeResponse)
+	err := c.cc.Invoke(ctx, SecurityTokenService_ExchangeToken_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -76,6 +89,8 @@ func (c *securityTokenServiceClient) RevokeUserSessions(ctx context.Context, in 
 type SecurityTokenServiceServer interface {
 	// ExchangeSession swaps an opaque session_id for a customized internal JWT.
 	ExchangeSession(context.Context, *ExchangeRequest) (*ExchangeResponse, error)
+	// ExchangeToken swaps an external machine bearer token for an internal JWT.
+	ExchangeToken(context.Context, *ExchangeTokenRequest) (*ExchangeResponse, error)
 	// RevokeUserSessions forces a logout for a specific user, invalidating all sessions.
 	RevokeUserSessions(context.Context, *RevokeUserRequest) (*RevokeUserResponse, error)
 	mustEmbedUnimplementedSecurityTokenServiceServer()
@@ -90,6 +105,9 @@ type UnimplementedSecurityTokenServiceServer struct{}
 
 func (UnimplementedSecurityTokenServiceServer) ExchangeSession(context.Context, *ExchangeRequest) (*ExchangeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ExchangeSession not implemented")
+}
+func (UnimplementedSecurityTokenServiceServer) ExchangeToken(context.Context, *ExchangeTokenRequest) (*ExchangeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ExchangeToken not implemented")
 }
 func (UnimplementedSecurityTokenServiceServer) RevokeUserSessions(context.Context, *RevokeUserRequest) (*RevokeUserResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RevokeUserSessions not implemented")
@@ -133,6 +151,24 @@ func _SecurityTokenService_ExchangeSession_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SecurityTokenService_ExchangeToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExchangeTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecurityTokenServiceServer).ExchangeToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SecurityTokenService_ExchangeToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecurityTokenServiceServer).ExchangeToken(ctx, req.(*ExchangeTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _SecurityTokenService_RevokeUserSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RevokeUserRequest)
 	if err := dec(in); err != nil {
@@ -161,6 +197,10 @@ var SecurityTokenService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ExchangeSession",
 			Handler:    _SecurityTokenService_ExchangeSession_Handler,
+		},
+		{
+			MethodName: "ExchangeToken",
+			Handler:    _SecurityTokenService_ExchangeToken_Handler,
 		},
 		{
 			MethodName: "RevokeUserSessions",

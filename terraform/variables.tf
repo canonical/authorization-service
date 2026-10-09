@@ -80,6 +80,28 @@ variable "sts_eager_connection_check" {
 }
 
 # -----------------------------------------------------------------------------
+# External Authorization & Ory Hydra Configuration
+# -----------------------------------------------------------------------------
+
+variable "ext_authz_service_jwk_set_url" {
+  type        = string
+  default     = "http://secure-token-service.default.svc.cluster.local:8080/.well-known/jwks.json"
+  description = "The JSON Web Key Set (JWKS) URL to verify internal STS tokens."
+}
+
+variable "ext_authz_service_hydra_jwk_set_url" {
+  type        = string
+  default     = "http://hydra.default.svc.cluster.local:4444/.well-known/jwks.json"
+  description = "The Ory Hydra JWKS URL to verify incoming machine OAuth2 client credentials access tokens."
+}
+
+variable "ext_authz_service_hydra_issuer" {
+  type        = string
+  default     = "http://hydra.default.svc.cluster.local:4444/"
+  description = "The expected token issuer claim (iss) for incoming Ory Hydra machine access tokens."
+}
+
+# -----------------------------------------------------------------------------
 # PostgreSQL Database Settings (Internal or External)
 # -----------------------------------------------------------------------------
 

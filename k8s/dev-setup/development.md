@@ -55,23 +55,36 @@ After you have the IP, set it as the `K8S_BRIDGE_IP` environment variable in a f
 
 ## 🧪 Testing and invocation
 
-The infrastructure uses Kubernetes Gateway APIs. To test the echoserver, you must satisfy the gateway requirements (Host header) and the authorization policy (session cookie).
+The infrastructure uses Kubernetes Gateway APIs. To test the echoserver, you must satisfy the gateway requirements (Host header) and the authorization policy (supporting dual authentication: session cookie or machine Bearer token).
 
 ### Curl
-After retrieving the gateway IP, run the following test:
+
+#### 1. User Session Cookie
+After retrieving the gateway IP, run the test with a session cookie:
 
 ```bash
 # Retrieve the current Gateway IP
 GATEWAY_IP=$(authorization-service-gateway)
 
-# Run the test (ensure your local auth app is running)
+# Run the test with user session cookie
 curl -I -H "Host: localhost" \
      --cookie "session=your_session_token_here" \
      http://$GATEWAY_IP/echo
 ```
 
+#### 2. Machine-to-Machine OAuth2 Bearer Token
+Or test using an Ory Hydra machine Bearer token:
+
+```bash
+# Run the test with machine Bearer token
+curl -I -H "Host: localhost" \
+     -H "Authorization: Bearer your_hydra_token_here" \
+     http://$GATEWAY_IP/echo
+```
+
 > ### Important
-> Header Note: Always use Host: localhost. Using Hostname or omitting the header will result in a 403 Forbidden error because the Gateway won't find a matching route.
+> - **Header Note**: Always use `Host: localhost`. Using `Hostname` or omitting the header will result in a 403 Forbidden error because the Gateway won't find a matching route.
+> - **Strict Mutual Exclusivity (Option B)**: Never send both `--cookie "session=..."` and `-H "Authorization: Bearer ..."` in the same request. Requests providing conflicting credentials are immediately rejected with **HTTP 400 Bad Request**.
 
 ---
 
