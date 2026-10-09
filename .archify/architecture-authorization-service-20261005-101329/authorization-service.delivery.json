@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "2c1f9c58-10a4-4cb9-8e4f-9e554319854d",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/home/shipperizer/shipperizer/authorization-service/.archify/architecture-authorization-service-20261005-101329/candidate.json",
+  "output": "/home/shipperizer/shipperizer/authorization-service/.archify/architecture-authorization-service-20261005-101329/authorization-service.html",
+  "specification": {
+    "sha256": "579174efac8ebb2c48487680880befcd40e12a0860578eba70f6500b78d4ace2",
+    "bytes": 13647
+  },
+  "artifact": {
+    "sha256": "4b6c05cea1b5a1f4766d589d8fb8517913ae7d867387931537a1cab61ccc7fd7",
+    "bytes": 784569
+  }
+}

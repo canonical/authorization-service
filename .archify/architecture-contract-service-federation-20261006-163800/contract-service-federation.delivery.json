@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "1b238d2a-77e3-4dee-9ae0-0a150d96a153",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/home/shipperizer/shipperizer/authorization-service/.archify/architecture-contract-service-federation-20261006-163800/candidate.json",
+  "output": "/home/shipperizer/shipperizer/authorization-service/.archify/architecture-contract-service-federation-20261006-163800/contract-service-federation.html",
+  "specification": {
+    "sha256": "e512215f86134a0ef0ef7fb396171aabf380f8f18b7e0b4a6dfcc8db98774afd",
+    "bytes": 10931
+  },
+  "artifact": {
+    "sha256": "3ed3c5521a827ab06e325bcaf607da1c17711e3f0292ff93c1c63f321dbb91db",
+    "bytes": 783989
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "architecture",
+  "quality": "showcase",
+  "specification": {
+    "path": "/home/shipperizer/shipperizer/authorization-service/.archify/architecture-authorization-service-20261005-101329/candidate.json",
+    "sha256": "df8b8ed4ff95ae542c49c5885a654fbd8487ebd816136992ed8cc03454810305",
+    "bytes": 9455
+  },
+  "artifact": {
+    "path": "/home/shipperizer/shipperizer/authorization-service/.archify/architecture-authorization-service-20261005-101329/authorization-service.html",
+    "sha256": "a16283918a9523939e4647a1e074c6ce8350e9cccd4266150c00b2c7b2c0d29d",
+    "bytes": 783261
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "/home/shipperizer/shipperizer/authorization-service/.archify/architecture-authorization-service-20261005-101329/authorization-service.finalize.json",
+    "summaryReceipt": "/home/shipperizer/shipperizer/authorization-service/.archify/architecture-authorization-service-20261005-101329/authorization-service.finalize-summary.json",
+    "browserCheckReceipt": "/home/shipperizer/shipperizer/authorization-service/.archify/architecture-authorization-service-20261005-101329/authorization-service.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.0.1",
+    "availableVersion": "3.0.1",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-05T08:30:36.067Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 3962,
+  "visualReviewRecommendation": {
+    "action": "inspect-route-readability",
+    "signals": {
+      "routesOverSuggestedBends": 2
+    },
+    "reason": "Automated gates passed, but crossings or detours still need perceptual review before claiming visual quality.",
+    "affectedRoutes": {
+      "crossings": [],
+      "detours": [
+        {
+          "relationship": {
+            "id": "envoy-check",
+            "from": "envoy",
+            "to": "grpc",
+            "label": "ext_authz Check",
+            "collectionIndex": 1,
+            "artifactIndex": 2
+          },
+          "bends": 4,
+          "stretch": 1.256
+        },
+        {
+          "relationship": {
+            "id": "grpc-decision",
+            "from": "grpc",
+            "to": "envoy",
+            "label": "allow / deny",
+            "collectionIndex": 2,
+            "artifactIndex": 3
+          },
+          "bends": 4,
+          "stretch": 1.256
+        }
+      ],
+      "truncated": false
+    },
+    "hints": [
+      "envoy → grpc needs 4 bends: move node envoy or grpc so they share a row or column with matching centers, or sit diagonally with a clear corner.",
+      "grpc → envoy needs 4 bends: move node grpc or envoy so they share a row or column with matching centers, or sit diagonally with a clear corner."
+    ],
+    "repair": "Trace these relationships at the desktop viewport. For Architecture, use references/architecture-layout-repair.md: reflow a blocked main path or tangled connected scene, and repair an isolated defect locally only when the surrounding composition is accepted. Preserve all semantic content and user-fixed geometry. Rerun finalize once after the edit."
+  }
+}

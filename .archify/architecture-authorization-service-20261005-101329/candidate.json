@@ -1,0 +1,644 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Authorization Service \u2014 Process Boundaries",
+    "output": ".archify/architecture-authorization-service-20261005-101329/authorization-service.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "git@github.com:canonical/authorization-service.git",
+      "revision": "49e71e3fc453faba4773ca0249c2080baab883d2",
+      "link_mode": "local-only"
+    }
+  },
+  "components": [
+    {
+      "id": "sts",
+      "type": "security",
+      "label": "Secure Token Service",
+      "sublabel": "session \u2192 JWT exchange",
+      "pos": [
+        560,
+        40
+      ],
+      "size": [
+        170,
+        60
+      ],
+      "sources": [
+        {
+          "path": "config/helper.go",
+          "line": 154,
+          "end_line": 160,
+          "label": "STS client wiring"
+        },
+        {
+          "path": "internal/service/authz/external.go",
+          "line": 164,
+          "end_line": 172,
+          "label": "ExchangeSession call"
+        }
+      ]
+    },
+    {
+      "id": "federated",
+      "type": "external",
+      "label": "Federated Services",
+      "sublabel": "event producers",
+      "pos": [
+        980,
+        40
+      ],
+      "size": [
+        180,
+        60
+      ]
+    },
+    {
+      "id": "apps",
+      "type": "external",
+      "label": "Client Apps",
+      "pos": [
+        20,
+        440
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "envoy",
+      "type": "external",
+      "label": "Envoy Proxy",
+      "sublabel": "Istio ext_authz",
+      "pos": [
+        20,
+        260
+      ],
+      "size": [
+        150,
+        60
+      ]
+    },
+    {
+      "id": "grpc",
+      "type": "backend",
+      "label": "gRPC Server",
+      "sublabel": ":9091 \u00b7 ext_authz + health",
+      "pos": [
+        300,
+        260
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "server/grpc/server.go",
+          "line": 52,
+          "end_line": 99,
+          "label": "server + registers"
+        },
+        {
+          "path": "cmd/serve.go",
+          "line": 75,
+          "end_line": 107,
+          "label": "serve wiring"
+        },
+        {
+          "path": "config/specs.go",
+          "line": 79,
+          "end_line": 80,
+          "label": "ports"
+        }
+      ]
+    },
+    {
+      "id": "extauthz",
+      "type": "security",
+      "label": "External AuthZ Service",
+      "sublabel": "check pipeline",
+      "pos": [
+        560,
+        260
+      ],
+      "size": [
+        190,
+        64
+      ],
+      "sources": [
+        {
+          "path": "internal/service/authz/external.go",
+          "line": 93,
+          "end_line": 124,
+          "label": "Check entry"
+        },
+        {
+          "path": "internal/service/authz/external.go",
+          "line": 139,
+          "end_line": 263,
+          "label": "check pipeline"
+        }
+      ]
+    },
+    {
+      "id": "rest",
+      "type": "backend",
+      "label": "REST Gateway",
+      "sublabel": ":8070 \u00b7 /healthz",
+      "pos": [
+        300,
+        440
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "server/rest/gateway.go",
+          "line": 48,
+          "end_line": 68,
+          "label": "gateway + healthz"
+        },
+        {
+          "path": "server/rest/gateway.go",
+          "line": 82,
+          "end_line": 86,
+          "label": "handlers TODO"
+        }
+      ]
+    },
+    {
+      "id": "mapper",
+      "type": "backend",
+      "label": "Rules Mapper",
+      "sublabel": "match + resolve tuples",
+      "pos": [
+        560,
+        450
+      ],
+      "size": [
+        190,
+        64
+      ],
+      "sources": [
+        {
+          "path": "internal/service/rules/resolver.go",
+          "line": 108,
+          "end_line": 115,
+          "label": "ResourceMapper"
+        },
+        {
+          "path": "config/helper.go",
+          "line": 208,
+          "end_line": 211,
+          "label": "mapper wiring"
+        }
+      ]
+    },
+    {
+      "id": "permsvc",
+      "type": "backend",
+      "label": "Permissions Service",
+      "sublabel": "register \u00b7 get \u00b7 delete",
+      "tag": "unregistered API",
+      "pos": [
+        300,
+        620
+      ],
+      "size": [
+        170,
+        60
+      ],
+      "sources": [
+        {
+          "path": "internal/service/permissions/service.go",
+          "line": 56,
+          "end_line": 82,
+          "label": "Register via cache"
+        },
+        {
+          "path": "config/helper.go",
+          "line": 220,
+          "end_line": 223,
+          "label": "construction"
+        },
+        {
+          "path": "server/grpc/server.go",
+          "line": 36,
+          "end_line": 41,
+          "label": "injected option"
+        }
+      ]
+    },
+    {
+      "id": "openfga",
+      "type": "security",
+      "label": "OpenFGA",
+      "sublabel": "FGA check + tuples",
+      "pos": [
+        790,
+        440
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "config/helper.go",
+          "line": 69,
+          "end_line": 101,
+          "label": "client wiring"
+        },
+        {
+          "path": "internal/service/authz/external.go",
+          "line": 224,
+          "end_line": 232,
+          "label": "BatchCheck"
+        },
+        {
+          "path": "cmd/worker.go",
+          "line": 66,
+          "end_line": 66,
+          "label": "applier"
+        }
+      ]
+    },
+    {
+      "id": "kafka",
+      "type": "messagebus",
+      "label": "Kafka",
+      "sublabel": "<slug>.permissions topics",
+      "pos": [
+        980,
+        260
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "config/helper.go",
+          "line": 174,
+          "end_line": 197,
+          "label": "consumer wiring"
+        },
+        {
+          "path": "cmd/listen.go",
+          "line": 62,
+          "end_line": 64,
+          "label": "consumer init"
+        }
+      ]
+    },
+    {
+      "id": "listen",
+      "type": "backend",
+      "label": "listen Process",
+      "sublabel": "consumer + ingestor",
+      "pos": [
+        980,
+        440
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "cmd/listen.go",
+          "line": 26,
+          "end_line": 34,
+          "label": "command"
+        },
+        {
+          "path": "cmd/listen.go",
+          "line": 68,
+          "end_line": 82,
+          "label": "ingestor wiring"
+        }
+      ]
+    },
+    {
+      "id": "worker",
+      "type": "backend",
+      "label": "worker Process",
+      "sublabel": "claim \u00b7 apply \u00b7 retry",
+      "pos": [
+        820,
+        620
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "cmd/worker.go",
+          "line": 25,
+          "end_line": 34,
+          "label": "command"
+        },
+        {
+          "path": "cmd/worker.go",
+          "line": 65,
+          "end_line": 96,
+          "label": "worker wiring"
+        }
+      ]
+    },
+    {
+      "id": "valkey",
+      "type": "database",
+      "label": "Valkey",
+      "sublabel": "permissions store",
+      "pos": [
+        220,
+        980
+      ],
+      "size": [
+        170,
+        60
+      ],
+      "sources": [
+        {
+          "path": "config/helper.go",
+          "line": 105,
+          "end_line": 125,
+          "label": "client wiring"
+        },
+        {
+          "path": "internal/service/permissions/service.go",
+          "line": 70,
+          "end_line": 90,
+          "label": "cache keys"
+        }
+      ]
+    },
+    {
+      "id": "cli",
+      "type": "backend",
+      "label": "Ops Commands",
+      "sublabel": "one-off \u00b7 same binary",
+      "pos": [
+        420,
+        980
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "cmd/migrate.go",
+          "line": 19,
+          "end_line": 21,
+          "label": "migrate"
+        },
+        {
+          "path": "cmd/seed.go",
+          "line": 22,
+          "end_line": 23,
+          "label": "seed"
+        },
+        {
+          "path": "cmd/reaper.go",
+          "line": 17,
+          "end_line": 23,
+          "label": "reaper"
+        }
+      ]
+    },
+    {
+      "id": "postgres",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "rules + work queue",
+      "pos": [
+        780,
+        980
+      ],
+      "size": [
+        190,
+        64
+      ],
+      "sources": [
+        {
+          "path": "migrations/00001_initial_schema.sql",
+          "line": 18,
+          "end_line": 36,
+          "label": "rules tables"
+        },
+        {
+          "path": "migrations/00003_add_permission_update_work.sql",
+          "line": 18,
+          "end_line": 56,
+          "label": "work queue"
+        },
+        {
+          "path": "internal/repository/permission_work.go",
+          "line": 139,
+          "end_line": 139,
+          "label": "ClaimBatch"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "process: serve",
+      "wraps": [
+        "grpc",
+        "extauthz",
+        "rest",
+        "mapper",
+        "permsvc"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "process: listen",
+      "wraps": [
+        "listen"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "process: worker",
+      "wraps": [
+        "worker"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "one-off: migrate \u00b7 seed \u00b7 reaper",
+      "wraps": [
+        "cli"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "apps-to-envoy",
+      "from": "apps",
+      "to": "envoy",
+      "label": "requests"
+    },
+    {
+      "id": "envoy-check",
+      "from": "envoy",
+      "to": "grpc",
+      "label": "ext_authz Check",
+      "variant": "emphasis"
+    },
+    {
+      "id": "grpc-decision",
+      "from": "grpc",
+      "to": "envoy",
+      "label": "allow / deny"
+    },
+    {
+      "id": "grpc-to-extauthz",
+      "from": "grpc",
+      "to": "extauthz",
+      "label": "Check()"
+    },
+    {
+      "id": "extauthz-to-sts",
+      "from": "extauthz",
+      "to": "sts",
+      "label": "ExchangeSession",
+      "variant": "security"
+    },
+    {
+      "id": "extauthz-to-openfga",
+      "from": "extauthz",
+      "to": "openfga",
+      "label": "BatchCheck",
+      "variant": "security"
+    },
+    {
+      "id": "extauthz-to-mapper",
+      "from": "extauthz",
+      "to": "mapper",
+      "label": "Map(method,path)"
+    },
+    {
+      "id": "mapper-to-postgres",
+      "from": "mapper",
+      "to": "postgres",
+      "label": "rules SQL"
+    },
+    {
+      "id": "permsvc-to-valkey",
+      "from": "permsvc",
+      "to": "valkey",
+      "label": "permissions CRUD"
+    },
+    {
+      "id": "apps-to-rest",
+      "from": "apps",
+      "to": "rest",
+      "label": "GET /healthz"
+    },
+    {
+      "id": "rest-to-grpc",
+      "from": "rest",
+      "to": "grpc",
+      "label": "dials :9091",
+      "variant": "dashed"
+    },
+    {
+      "id": "federated-to-kafka",
+      "from": "federated",
+      "to": "kafka",
+      "label": "publish updates"
+    },
+    {
+      "id": "kafka-to-listen",
+      "from": "kafka",
+      "to": "listen",
+      "label": "consume events"
+    },
+    {
+      "id": "listen-to-postgres",
+      "from": "listen",
+      "to": "postgres",
+      "label": "insert work rows",
+      "fromSide": "bottom",
+      "toSide": "bottom",
+      "via": [
+        [
+          1070,
+          1080
+        ],
+        [
+          875,
+          1080
+        ]
+      ]
+    },
+    {
+      "id": "worker-to-postgres",
+      "from": "worker",
+      "to": "postgres",
+      "label": "claim/update"
+    },
+    {
+      "id": "worker-to-openfga",
+      "from": "worker",
+      "to": "openfga",
+      "label": "write tuples"
+    },
+    {
+      "id": "cli-to-postgres",
+      "from": "cli",
+      "to": "postgres",
+      "label": "migrate \u00b7 seed \u00b7 reaper"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Sync authz check (serve)",
+      "items": [
+        "Envoy ext_authz Check \u2192 session cookie \u2192 STS ExchangeSession \u2192 JWT verify (remote JWKS)",
+        "Rules mapper matches method+path against Postgres rules and resolves OpenFGA tuples",
+        "OpenFGA BatchCheck returns allow/deny; allowed requests get the JWT forwarded as bearer"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Async ingestion pipeline",
+      "items": [
+        "listen consumes <slug>.permissions topics and inserts permission_update_work rows",
+        "worker claims batches (retry \u2264 max-attempts) and applies tuple writes to OpenFGA idempotently",
+        "In-process reaper (or one-off `reaper` cmd) reclaims stale 'processing' rows"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Binary & processes",
+      "items": [
+        "Single Go binary: main.go \u2192 cobra root `authz-service` (cmd/root.go:21)",
+        "Process chosen by subcommand (cmd/root.go:84-91): serve, listen, worker",
+        "k8s: Deployment runs `app serve`; migrate runs as a CronJob",
+        "One-off commands: migrate, seed, reaper, ensure-topics, authz model ops"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Not yet wired",
+      "items": [
+        "Permissions API: service constructed and injected into the gRPC server, but registration is absent (gateway TODO at server/rest/gateway.go:82)",
+        "REST gateway currently serves only /healthz"
+      ]
+    }
+  ]
+}
