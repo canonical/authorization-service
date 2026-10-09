@@ -1,67 +1,30 @@
 version: "1"
-service: tenant-service
+service: sso-service
 revision: "2026.10.09.1"
 description: |
-  Route protection rules for the tenant service.
+  Route protection rules for sso-service (BYO-SSO): a tenant's company
+  sign-ins ("connections") and its SSO policy, on the tenant-admin routes;
+  the platform-admin routes. sso-service defines no types of its own: a
+  tenant-admin route needs can_edit on the tenant in the path
+  (tenant-service's type), a platform-admin route the platform's admin role,
+  as tenant-service's own platform-admin routes do. The two sets share the
+  /api/v0/sso prefix, so every route has its own rule and none is matched by
+  a prefix. The browser pages (/login, /callback, /consent, /error) and the
+  gRPC services are not behind the gateway's external authorization.
 
 rules:
+  # Tenant-admin routes: SSOTenantAdminService, the tenant in the path.
   - method: GET
-    match: '/api/v0/tenants/{tenant_id}'
-    priority: 100
-    tuples:
-      - user_resource_type: user
-        permission: can_view
-        object_resource_type: tenant
-        object_resource_id: '{tenant_id}'
-
-  - method: PATCH
-    match: '/api/v0/tenants/{tenant_id}'
+    match: '/api/v0/sso/tenants/{tenant_id}/connections'
     priority: 100
     tuples:
       - user_resource_type: user
         permission: can_edit
-        object_resource_type: tenant
-        object_resource_id: '{tenant_id}'
-
-  - method: DELETE
-    match: '/api/v0/tenants/{tenant_id}'
-    priority: 100
-    tuples:
-      - user_resource_type: user
-        permission: can_delete
-        object_resource_type: tenant
-        object_resource_id: '{tenant_id}'
-
-  - method: GET
-    match: '/api/v0/tenants/{tenant_id}/users'
-    priority: 100
-    tuples:
-      - user_resource_type: user
-        permission: can_view
         object_resource_type: tenant
         object_resource_id: '{tenant_id}'
 
   - method: POST
-    match: '/api/v0/tenants/{tenant_id}/users'
-    priority: 100
-    tuples:
-      - user_resource_type: user
-        permission: assignee
-        object_resource_type: role
-        object_resource_id: 'admin'
-
-  - method: PATCH
-    match: '/api/v0/tenants/{tenant_id}/users/{user_id}'
-    priority: 100
-    tuples:
-      - user_resource_type: user
-        permission: can_edit
-        object_resource_type: tenant
-        object_resource_id: '{tenant_id}'
-
-
-  - method: DELETE
-    match: '/api/v0/tenants/{tenant_id}/users/{user_id}'
+    match: '/api/v0/sso/tenants/{tenant_id}/connections'
     priority: 100
     tuples:
       - user_resource_type: user
@@ -70,16 +33,52 @@ rules:
         object_resource_id: '{tenant_id}'
 
   - method: GET
-    match: '/api/v0/tenants/{tenant_id}/mfa-policy'
+    match: '/api/v0/sso/tenants/{tenant_id}/connections/{connection_id}'
     priority: 100
     tuples:
       - user_resource_type: user
-        permission: can_view
+        permission: can_edit
+        object_resource_type: tenant
+        object_resource_id: '{tenant_id}'
+
+  - method: PATCH
+    match: '/api/v0/sso/tenants/{tenant_id}/connections/{connection_id}'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_edit
+        object_resource_type: tenant
+        object_resource_id: '{tenant_id}'
+
+  - method: DELETE
+    match: '/api/v0/sso/tenants/{tenant_id}/connections/{connection_id}'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_edit
+        object_resource_type: tenant
+        object_resource_id: '{tenant_id}'
+
+  - method: POST
+    match: '/api/v0/sso/tenants/{tenant_id}/connections/{connection_id}/test-logins'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_edit
+        object_resource_type: tenant
+        object_resource_id: '{tenant_id}'
+
+  - method: GET
+    match: '/api/v0/sso/tenants/{tenant_id}/policy'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_edit
         object_resource_type: tenant
         object_resource_id: '{tenant_id}'
 
   - method: PUT
-    match: '/api/v0/tenants/{tenant_id}/mfa-policy'
+    match: '/api/v0/sso/tenants/{tenant_id}/policy'
     priority: 100
     tuples:
       - user_resource_type: user
@@ -87,17 +86,9 @@ rules:
         object_resource_type: tenant
         object_resource_id: '{tenant_id}'
 
-  - method: POST
-    match: '/api/v0/tenants/{tenant_id}/invites'
-    priority: 100
-    tuples:
-      - user_resource_type: user
-        permission: can_edit
-        object_resource_type: tenant
-        object_resource_id: '{tenant_id}'
-
-  - method: POST
-    match: '/api/v0/tenants'
+  # Platform-admin routes: SSOPlatformAdminService, across tenants.
+  - method: GET
+    match: '/api/v0/sso/connections'
     priority: 100
     tuples:
       - user_resource_type: user
@@ -106,7 +97,7 @@ rules:
         object_resource_id: 'admin'
 
   - method: GET
-    match: '/api/v0/tenants'
+    match: '/api/v0/sso/tenants/{tenant_id}/domains'
     priority: 100
     tuples:
       - user_resource_type: user
@@ -114,8 +105,8 @@ rules:
         object_resource_type: role
         object_resource_id: 'admin'
 
-  - method: GET
-    match: '/api/v0/users/{user_id}/tenants'
+  - method: PUT
+    match: '/api/v0/sso/tenants/{tenant_id}/domains'
     priority: 100
     tuples:
       - user_resource_type: user
@@ -123,3 +114,11 @@ rules:
         object_resource_type: role
         object_resource_id: 'admin'
 
+  - method: DELETE
+    match: '/api/v0/sso/connections/{connection_id}'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: assignee
+        object_resource_type: role
+        object_resource_id: 'admin'
