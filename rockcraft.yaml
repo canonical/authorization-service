@@ -23,6 +23,7 @@ parts:
       - go/1.26/stable
     build-environment:
       - CGO_ENABLED: '0'
+      - GOTOOLCHAIN: 'local'
     build-packages:
       - make
       - git

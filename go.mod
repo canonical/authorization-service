@@ -1,6 +1,8 @@
 module github.com/canonical/authorization-service
 
-go 1.26.9
+go 1.26.1
+
+toolchain go1.26.9
 
 require (
 	github.com/Masterminds/squirrel v1.5.4
