@@ -226,12 +226,13 @@ func (s *STSConfig) waitForConnectionReady(conn *grpc.ClientConn) error {
 // the listener subscribes to the derived "permissions.<slug>" topic within a
 // single consumer group. Topics are never hardcoded.
 type KafkaConfig struct {
-	Enabled                bool     `validate:"" envconfig:"KAFKA_ENABLED" mapstructure:"enabled" default:"false"`
-	Brokers                []string `validate:"required_if=Enabled true" envconfig:"KAFKA_BROKERS" mapstructure:"brokers" default:"localhost:9092"`
-	FederatedServices      []string `validate:"required_if=Enabled true" envconfig:"FEDERATED_SERVICES" mapstructure:"federated_services"`
-	ConsumerGroup          string   `validate:"required_if=Enabled true" envconfig:"KAFKA_CONSUMER_GROUP" mapstructure:"consumer_group" default:"authz-listener"`
-	TopicPartitions        int      `validate:"min=1" envconfig:"KAFKA_TOPIC_PARTITIONS" mapstructure:"topic_partitions" default:"1"`
-	TopicReplicationFactor int      `validate:"min=1" envconfig:"KAFKA_TOPIC_REPLICATION_FACTOR" mapstructure:"topic_replication_factor" default:"1"`
+	Enabled                   bool     `validate:"" envconfig:"KAFKA_ENABLED" mapstructure:"enabled" default:"false"`
+	Brokers                   []string `validate:"required_if=Enabled true" envconfig:"KAFKA_BROKERS" mapstructure:"brokers" default:"localhost:9092"`
+	FederatedServices         []string `validate:"" envconfig:"FEDERATED_SERVICES" mapstructure:"federated_services"`
+	FederatedServicesStrategy string   `validate:"omitempty,oneof=auto fs config" envconfig:"FEDERATED_SERVICES_STRATEGY" mapstructure:"federated_services_strategy" default:"auto"`
+	ConsumerGroup             string   `validate:"required_if=Enabled true" envconfig:"KAFKA_CONSUMER_GROUP" mapstructure:"consumer_group" default:"authz-listener"`
+	TopicPartitions           int      `validate:"min=1" envconfig:"KAFKA_TOPIC_PARTITIONS" mapstructure:"topic_partitions" default:"1"`
+	TopicReplicationFactor    int      `validate:"min=1" envconfig:"KAFKA_TOPIC_REPLICATION_FACTOR" mapstructure:"topic_replication_factor" default:"1"`
 }
 
 // WorkerConfig contains configuration for the async permission-update worker
@@ -372,7 +373,13 @@ var componentValidators = map[Component]func(c *Config) error{
 		return validateSection("telemetry", c.Telemetry)
 	},
 	ComponentKafka: func(c *Config) error {
-		return validateSection("kafka", c.Kafka)
+		if err := validateSection("kafka", c.Kafka); err != nil {
+			return err
+		}
+		if c.Kafka != nil && c.Kafka.Enabled && c.Kafka.FederatedServicesStrategy == "config" && len(c.Kafka.FederatedServices) == 0 {
+			return fmt.Errorf("kafka configuration validation failed: federated_services is required when strategy is 'config'")
+		}
+		return nil
 	},
 	ComponentWorker: func(c *Config) error {
 		return validateSection("worker", c.Worker)

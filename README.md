@@ -159,13 +159,22 @@ Starts the background worker that polls the PostgreSQL work queue and applies th
 ```
 Scans the work queue for processing jobs that have timed out and returns them to the queue to be retried.
 
-### `ensure-topics` - Idempotently Create Kafka Topics
-```bash
-./bin/app ensure-topics
-```
-Creates the `permissions.<slug>` Kafka topic for every federated service listed in the `FEDERATED_SERVICES` configuration. Existing topics are left untouched, making this command safe to run repeatedly.
+### `topics` - Kafka Topics Management
+Provides subcommands for managing and inspecting Kafka permission-update topics:
 
-*Note: The `listen` command automatically executes `ensure-topics` on startup unless `--no-topics` is specified.*
+- **`topics ensure`** (alias: `ensure-topics`):
+  ```bash
+  ./bin/app topics ensure
+  ```
+  Creates the `permissions.<slug>` Kafka topic for every federated service in the registry. Existing topics are left untouched, making this command safe to run repeatedly.
+
+  *Note: The `listen` command automatically executes topic creation on startup unless `--no-topics` is specified.*
+
+- **`topics list`** (alias: `list-topics`):
+  ```bash
+  ./bin/app topics list
+  ```
+  Prints the resolved `permissions.<slug>` Kafka topic names derived from the federated service registry (according to the `FEDERATED_SERVICES_STRATEGY`) to standard output.
 
 ### `seed` - Seeding & Validation of Route Rules
 Handles loading, verifying, and seeding versioned `rules.yaml` routing rules:
@@ -304,7 +313,8 @@ The following flags are available globally across all CLI commands to quickly ov
 |-----------|----------------------|------|---------|-------------|
 | `kafka.enabled` | `KAFKA_ENABLED` | bool | `false` | Enable Kafka listener |
 | `kafka.brokers` | `KAFKA_BROKERS` | []string | `localhost:9092` | Kafka broker addresses (Required if enabled) |
-| `kafka.federated_services` | `KAFKA_FEDERATED_SERVICES` | []string | *(Required if enabled)* | Service slugs whose permission topics are to be federated |
+| `kafka.federated_services_strategy` | `KAFKA_FEDERATED_SERVICES_STRATEGY` | string | `auto` | Discovery strategy: `auto` (uses list if set, else scans `authz/model`), `fs` (scans embedded model folders excluding `dummy`/`core`), `config` (requires explicit list) |
+| `kafka.federated_services` | `KAFKA_FEDERATED_SERVICES` | []string | `[]` | Service slugs whose permission topics are to be federated (required if strategy is `config`) |
 | `kafka.consumer_group` | `KAFKA_CONSUMER_GROUP` | string | `authz-listener` | Kafka consumer group ID |
 | `kafka.topic_partitions` | `KAFKA_TOPIC_PARTITIONS` | int | `1` | Default partition count for auto-created topics |
 | `kafka.topic_replication_factor` | `KAFKA_TOPIC_REPLICATION_FACTOR` | int | `1` | Default replication factor for auto-created topics |

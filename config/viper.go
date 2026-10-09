@@ -134,6 +134,7 @@ func setViperDefaults(v *viper.Viper) {
 	// Kafka
 	v.SetDefault("kafka.enabled", false)
 	v.SetDefault("kafka.brokers", []string{"localhost:9092"})
+	v.SetDefault("kafka.federated_services_strategy", "auto")
 	v.SetDefault("kafka.consumer_group", "authz-listener")
 	v.SetDefault("kafka.topic_partitions", 1)
 	v.SetDefault("kafka.topic_replication_factor", 1)
@@ -246,6 +247,7 @@ func bindEnvVars(v *viper.Viper) {
 	_ = v.BindEnv("kafka.enabled", "KAFKA_ENABLED")
 	_ = v.BindEnv("kafka.brokers", "KAFKA_BROKERS")
 	_ = v.BindEnv("kafka.federated_services", "FEDERATED_SERVICES", "KAFKA_FEDERATED_SERVICES")
+	_ = v.BindEnv("kafka.federated_services_strategy", "FEDERATED_SERVICES_STRATEGY", "KAFKA_FEDERATED_SERVICES_STRATEGY")
 	_ = v.BindEnv("kafka.consumer_group", "KAFKA_CONSUMER_GROUP")
 	_ = v.BindEnv("kafka.topic_partitions", "KAFKA_TOPIC_PARTITIONS")
 	_ = v.BindEnv("kafka.topic_replication_factor", "KAFKA_TOPIC_REPLICATION_FACTOR")

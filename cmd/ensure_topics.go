@@ -12,16 +12,14 @@ import (
 
 	"github.com/canonical/authorization-service/config"
 	kafkaintegration "github.com/canonical/authorization-service/internal/integration/kafka"
-	"github.com/canonical/authorization-service/internal/service/listen"
 	"github.com/canonical/authorization-service/internal/version"
 )
 
 var ensureTopicsCmd = &cobra.Command{
-	Use:   "ensure-topics",
-	Short: "Idempotently create the permission-update topics for federated services",
-	Long: `Create the "permissions.<slug>" Kafka topic for every federated service
-listed in FEDERATED_SERVICES. Existing topics are left untouched, so this command
-is safe to run repeatedly (e.g. as part of a federation sync step).
+	Use:     "ensure",
+	Aliases: []string{"ensure-topics"},
+	Short:   "Idempotently create the permission-update topics for federated services",
+    Long: `Create the "permissions.<slug>" Kafka topic for all federated services discovered or configured according to FEDERATED_SERVICES_STRATEGY. Existing topics are left untouched, so this command is safe to run repeatedly.
 Configuration is loaded from environment variables.`,
 	RunE: runEnsureTopics,
 }
@@ -43,7 +41,7 @@ func runEnsureTopics(cmd *cobra.Command, _ []string) error {
 
 // ensureTopics idempotently creates the permission-update topics for federated services.
 func ensureTopics(ctx context.Context, cfg *config.Config, logger *slog.Logger) error {
-	registry, err := listen.NewServiceRegistry(cfg.Kafka.FederatedServices)
+	registry, err := config.BuildServiceRegistry(cfg.Kafka)
 	if err != nil {
 		return fmt.Errorf("failed to build federated service registry: %w", err)
 	}
@@ -62,8 +60,4 @@ func ensureTopics(ctx context.Context, cfg *config.Config, logger *slog.Logger) 
 	}
 
 	return nil
-}
-
-func init() {
-	rootCmd.AddCommand(ensureTopicsCmd)
 }
