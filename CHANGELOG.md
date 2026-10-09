@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.1.0](https://github.com/canonical/authorization-service/compare/v2.0.3...v2.1.0) (2026-10-09)
+
+
+### Features
+
+* **ci:** shift-left vulnerability check & release quarantine gate ([eda022f](https://github.com/canonical/authorization-service/commit/eda022f953e188a839ef238da4d324164d0cbf53))
+* **ci:** shift-left vulnerability check & release quarantine gate ([#92](https://github.com/canonical/authorization-service/issues/92)) ([270971a](https://github.com/canonical/authorization-service/commit/270971aedfbd9cc563129de869122f4d1420671e))
+* **cli:** add topics command group with list and ensure subcommands ([b2cf890](https://github.com/canonical/authorization-service/commit/b2cf890e65271885350a76aa2a5b110229b03193))
+* **cmd:** execute ensure-topics automatically on listen command ([c8ff1d9](https://github.com/canonical/authorization-service/commit/c8ff1d9695e5ea44c57a3b9b2aec80c644d2ddd6))
+* **kafka:** add embedded FS strategy for federated services discovery ([107602c](https://github.com/canonical/authorization-service/commit/107602c6de22e37722cd37cf048070f6b2efb860))
+
+
+### Bug Fixes
+
+* **build:** configure local Go toolchain for rockcraft build environment ([0ab1a31](https://github.com/canonical/authorization-service/commit/0ab1a31c9f7597fffd6a8ebb29a4e941503918be))
+* **deps:** update Go toolchain version and dependencies to resolve security vulnerabilities ([e886e66](https://github.com/canonical/authorization-service/commit/e886e667654155e9ae5cbd6a57ae407a01ac0cce))
+* federate hook service ([0925aa9](https://github.com/canonical/authorization-service/commit/0925aa92f17d6b692471a166acd8a4baf0db6d60))
+* invert kafka topic naming convention from suffix to prefix ([ca4b8b4](https://github.com/canonical/authorization-service/commit/ca4b8b4f74ad59a27a1e2181bea1b115fb35febc))
+* invert kafka topic naming convention from suffix to prefix ([#96](https://github.com/canonical/authorization-service/issues/96)) ([2e746ad](https://github.com/canonical/authorization-service/commit/2e746ad1d65349d5e4ce9d83b1d27f968468e9c0))
+
 ## [2.0.3](https://github.com/canonical/authorization-service/compare/v2.0.2...v2.0.3) (2026-09-24)
 
 

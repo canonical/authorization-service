@@ -1,7 +1,7 @@
 name: authorization-service
 base: bare
 build-base: ubuntu@24.04
-version: 2.0.3
+version: 2.1.0
 summary: Canonical Identity Platform Authorization Service
 description: >
   This is the Canonical Identity Platform Authorization Service used
@@ -23,7 +23,7 @@ parts:
       - go/1.26/stable
     build-environment:
       - CGO_ENABLED: '0'
-      - GOTOOLCHAIN: 'local'
+      - GOTOOLCHAIN: local
     build-packages:
       - make
       - git
