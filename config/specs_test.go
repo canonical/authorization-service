@@ -85,3 +85,45 @@ func TestLoggingConfig_SetupLogger_TextFormat(t *testing.T) {
 	assert.Contains(t, string(out), "service=authorization-service")
 	assert.Contains(t, string(out), "version=v1.2.3")
 }
+
+func TestExtAuthzServiceConfig_Validation(t *testing.T) {
+	tests := []struct {
+		name      string
+		cfg       *ExtAuthzServiceConfig
+		wantError bool
+	}{
+		{
+			name: "valid configuration",
+			cfg: &ExtAuthzServiceConfig{
+				JwkSetURL: "http://localhost:8080/.well-known/jwks.json",
+			},
+			wantError: false,
+		},
+		{
+			name:      "missing JwkSetURL",
+			cfg:       &ExtAuthzServiceConfig{},
+			wantError: true,
+		},
+		{
+			name: "invalid JwkSetURL format",
+			cfg: &ExtAuthzServiceConfig{
+				JwkSetURL: "not-a-valid-url",
+			},
+			wantError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &Config{
+				ExtAuthzService: tc.cfg,
+			}
+			err := c.ValidateComponents(ComponentExtAuthz)
+			if tc.wantError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
