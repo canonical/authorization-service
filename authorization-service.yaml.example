@@ -14,7 +14,7 @@ server:
   development: false
 
 ext_authz_service:
-  # The URL to fetch JWKs for JWT signature validation.
+  # The URL to fetch JWKs for internal STS JWT signature validation.
   jwk_set_url: "http://localhost:8080/.well-known/jwks.json"
 
 openfga:

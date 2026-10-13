@@ -21,3 +21,6 @@ data:
   VALKEY_ADDRESS: "valkey-primary.data.svc.cluster.local:6379"
   STS_ADDRESS: "secure-token-service.default.svc.cluster.local:9090"
   STS_ENABLED: "false"
+
+  # External AuthZ Configuration
+  EXT_AUTHZ_SERVICE_JWK_SET_URL: "http://secure-token-service.default.svc.cluster.local:8080/.well-known/jwks.json"

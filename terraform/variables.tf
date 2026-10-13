@@ -80,6 +80,16 @@ variable "sts_eager_connection_check" {
 }
 
 # -----------------------------------------------------------------------------
+# External Authorization Configuration
+# -----------------------------------------------------------------------------
+
+variable "ext_authz_service_jwk_set_url" {
+  type        = string
+  default     = "http://secure-token-service.default.svc.cluster.local:8080/.well-known/jwks.json"
+  description = "The JSON Web Key Set (JWKS) URL to verify internal STS tokens."
+}
+
+# -----------------------------------------------------------------------------
 # PostgreSQL Database Settings (Internal or External)
 # -----------------------------------------------------------------------------
 

@@ -62,6 +62,7 @@ graph TB
 - **Versioned gRPC APIs** with Go code generation from protobuf definitions
 - **REST API Gateway** using grpc-gateway for transcoding gRPC to REST (currently exposes health endpoints)
 - **OpenFGA Integration**: Fine-grained, relationship-based access control
+- **Dual Authentication**: Envoy External Authorization supporting both user session cookies and machine-to-machine OAuth2 client credentials with strict mutual exclusivity and delegated token exchange
 - **Valkey Caching**: Cache authorization decisions for ultra-low latency check responses
 - **Database Durability**: PostgreSQL-backed transactional queue for robust, horizontally scalable ingestion
 - **Kafka-Based Ingestion**: Listeners that consume permission changes asynchronously from federated services
@@ -262,7 +263,7 @@ The following flags are available globally across all CLI commands to quickly ov
 #### External Authz Service Configuration
 | YAML Path | Environment Variable | Type | Default | Description |
 |-----------|----------------------|------|---------|-------------|
-| `ext_authz_service.jwk_set_url` | `EXT_AUTHZ_SERVICE_JWK_SET_URL` | string | `http://localhost:8080/.well-known/jwks.json` | JWKS URL to verify external JWT tokens |
+| `ext_authz_service.jwk_set_url` | `EXT_AUTHZ_SERVICE_JWK_SET_URL` | string | `http://localhost:8080/.well-known/jwks.json` | JWKS URL to verify STS-issued internal JWT tokens |
 
 #### OpenFGA Configuration
 | YAML Path | Environment Variable | Type | Default | Description |
@@ -382,6 +383,36 @@ View the results by opening `coverage.html` in your browser.
 ### REST Gateway Endpoints (Port `8070`)
 - `GET /healthz` - Liveness/readiness health check
 *Note: The `/v1/permissions` routes are defined in proto definitions but are currently comment-disabled in `gateway.go` and require direct gRPC client calls.*
+
+---
+
+## Envoy External Authorization (Dual Authentication)
+
+The Authorization Service implements Envoy's External Authorization API (`envoy.service.auth.v3.Authorization/Check`), providing policy-based access control and token minting for microservice meshes (e.g., Istio).
+
+### Supported Authentication Methods
+
+The service supports two distinct credential mechanisms:
+
+1. **User Session Authentication**:
+   - **Credential**: `Cookie: session_id=<cookie_value>`.
+   - **Flow**: The session cookie is exchanged with the Secure Token Service (STS) via `ExchangeSession`. The returned STS JWT is verified against `ext_authz_service.jwk_set_url`.
+   - **Identity Mapping**: The user subject (`sub`) is extracted from the internal STS JWT and mapped to OpenFGA tuple subject `user:<user_id>`.
+   - **Downstream Header**: On successful evaluation, Envoy's `OkHttpResponse` injects `Authorization: Bearer <sts_jwt>`.
+
+2. **Machine-to-Machine (M2M) Authentication**:
+   - **Credential**: `Authorization: Bearer <token>` (case-insensitive header extraction).
+   - **Flow**: The raw bearer token is forwarded directly to the Secure Token Service (STS) via `ExchangeToken` without edge signature or issuer verification in Authorization Service. STS validates the token against its upstream identity provider (e.g., Ory Hydra) and returns an internal STS JWT.
+   - **Internal Verification**: The returned STS JWT is cryptographically verified against the local STS JWKS endpoint (`ext_authz_service.jwk_set_url`).
+   - **Zero-Bypass Policy Evaluation**: The machine client ID (`sub`) is extracted from the internal STS JWT and evaluated directly in OpenFGA as `user:<client_id>`. Machine identities share the exact same relationship model and policy checks as human users without any bypass or shortcut.
+   - **Downstream Header**: Envoy's `OkHttpResponse` injects the minted internal STS token as `Authorization: Bearer <sts_jwt>`, giving downstream services a uniform token format regardless of caller type.
+
+### Strict Mutual Exclusivity (Option B)
+
+To prevent credential confusion, ambiguous caller identity, or security bypass vulnerabilities, External AuthZ enforces strict mutual exclusivity between credentials:
+
+- **Conflicting Credentials**: If a request supplies **both** a session cookie (`Cookie: session_id=...`) and a Bearer token (`Authorization: Bearer <token>`), the service immediately denies the request with **HTTP 400 Bad Request** (`codes.InvalidArgument`, response body `"conflicting credentials provided"`). The decision is recorded with metric outcome `conflicting_credentials` and `auth_type: "none"`.
+- **Missing Credentials**: If a request supplies **neither** a session cookie nor a Bearer token, the request is denied with **HTTP 401 Unauthorized** (`codes.Unauthenticated`, response body `"no credentials provided"`). The decision is recorded with metric outcome `no_credentials` and `auth_type: "none"`.
 
 ---
 
