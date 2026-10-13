@@ -70,6 +70,40 @@ func (w *STSClientWrapper) ExchangeSession(ctx context.Context, in *stsv1.Exchan
 	return resp, nil
 }
 
+func (w *STSClientWrapper) ExchangeToken(ctx context.Context, in *stsv1.ExchangeTokenRequest, opts ...grpc.CallOption) (*stsv1.ExchangeResponse, error) {
+	ctx, span := w.tracer.Start(ctx, "service.sts.ExchangeToken")
+	defer span.End()
+
+	start := time.Now()
+	w.logger.Debug("Calling STS ExchangeToken")
+
+	resp, err := w.delegate.ExchangeToken(ctx, in, opts...)
+	duration := time.Since(start)
+
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		w.logger.Error("STS ExchangeToken failed",
+			"error", err,
+			"duration_ms", duration.Milliseconds(),
+		)
+		return nil, err
+	}
+
+	span.SetAttributes(
+		attribute.String("access_token_present", fmt.Sprintf("%t", resp.GetAccessToken() != "")),
+		attribute.Int64("expires_in", resp.GetExpiresIn()),
+	)
+	span.SetStatus(codes.Ok, "Success")
+
+	w.logger.Debug("STS ExchangeToken succeeded",
+		"expires_in", resp.GetExpiresIn(),
+		"duration_ms", duration.Milliseconds(),
+	)
+
+	return resp, nil
+}
+
 func (w *STSClientWrapper) RevokeUserSessions(ctx context.Context, in *stsv1.RevokeUserRequest, opts ...grpc.CallOption) (*stsv1.RevokeUserResponse, error) {
 	ctx, span := w.tracer.Start(ctx, "service.sts.RevokeUserSessions",
 		trace.WithAttributes(
