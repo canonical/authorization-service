@@ -27,6 +27,10 @@ func (m *mockSTSClient) ExchangeSession(_ context.Context, _ *stsv1.ExchangeRequ
 	return m.exchangeResp, m.exchangeErr
 }
 
+func (m *mockSTSClient) ExchangeToken(_ context.Context, _ *stsv1.ExchangeTokenRequest, _ ...grpc.CallOption) (*stsv1.ExchangeResponse, error) {
+	return m.exchangeResp, m.exchangeErr
+}
+
 func (m *mockSTSClient) RevokeUserSessions(_ context.Context, _ *stsv1.RevokeUserRequest, _ ...grpc.CallOption) (*stsv1.RevokeUserResponse, error) {
 	return m.revokeResp, m.revokeErr
 }
@@ -95,6 +99,42 @@ func TestExchangeSession_Error(t *testing.T) {
 		t.Fatal("expected error, got nil")
 	}
 	if err.Error() != "exchange failed" {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestExchangeToken_Success(t *testing.T) {
+	mock := &mockSTSClient{
+		exchangeResp: &stsv1.ExchangeResponse{
+			AccessToken: "m2m-token",
+			ExpiresIn:   3600,
+		},
+	}
+	w := newTestWrapper(mock)
+
+	resp, err := w.ExchangeToken(context.Background(), &stsv1.ExchangeTokenRequest{Token: "hydra-access-token"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.GetAccessToken() != "m2m-token" {
+		t.Errorf("expected token 'm2m-token', got %q", resp.GetAccessToken())
+	}
+	if resp.GetExpiresIn() != 3600 {
+		t.Errorf("expected expires_in 3600, got %d", resp.GetExpiresIn())
+	}
+}
+
+func TestExchangeToken_Error(t *testing.T) {
+	mock := &mockSTSClient{
+		exchangeErr: errors.New("exchange token failed"),
+	}
+	w := newTestWrapper(mock)
+
+	_, err := w.ExchangeToken(context.Background(), &stsv1.ExchangeTokenRequest{Token: "bad-token"})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if err.Error() != "exchange token failed" {
 		t.Errorf("unexpected error: %v", err)
 	}
 }

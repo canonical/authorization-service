@@ -9,12 +9,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// CheckRecorder implements authz.Metrics. Cardinality is bounded: result and
-// reason are both small fixed enums, never raw request data.
+// CheckRecorder implements authz.Metrics. Cardinality is bounded: result,
+// reason, and auth_type are small fixed enums, never raw request data.
 type CheckRecorder struct {
 	checksTotal      *prometheus.CounterVec
 	checkDuration    *prometheus.HistogramVec
-	stsExchangeTime  prometheus.Histogram
+	stsExchangeTime  *prometheus.HistogramVec
 	resourceMapTime  prometheus.Histogram
 	openFGACheckTime prometheus.Histogram
 }
@@ -24,18 +24,18 @@ func NewCheckRecorder(reg *prometheus.Registry) *CheckRecorder {
 	m := &CheckRecorder{
 		checksTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "authz_check_total",
-			Help: "Total number of external authorization Check calls, by result and reason.",
-		}, []string{"result", "reason"}),
+			Help: "Total number of external authorization Check calls, by result, reason, and auth_type.",
+		}, []string{"result", "reason", "auth_type"}),
 		checkDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "authz_check_duration_seconds",
-			Help:    "Total duration of an external authorization Check call, by result.",
+			Help:    "Total duration of an external authorization Check call, by result and auth_type.",
 			Buckets: prometheus.DefBuckets,
-		}, []string{"result"}),
-		stsExchangeTime: prometheus.NewHistogram(prometheus.HistogramOpts{
+		}, []string{"result", "auth_type"}),
+		stsExchangeTime: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "authz_check_sts_exchange_duration_seconds",
-			Help:    "Duration of the STS session-exchange call within Check.",
+			Help:    "Duration of the STS exchange call within Check, by exchange_type.",
 			Buckets: prometheus.DefBuckets,
-		}),
+		}, []string{"exchange_type"}),
 		resourceMapTime: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Name:    "authz_check_resource_map_duration_seconds",
 			Help:    "Duration of the rule/tuple resolution step within Check.",
@@ -52,14 +52,14 @@ func NewCheckRecorder(reg *prometheus.Registry) *CheckRecorder {
 }
 
 // RecordCheck implements authz.Metrics.
-func (m *CheckRecorder) RecordCheck(result, reason string, duration time.Duration) {
-	m.checksTotal.WithLabelValues(result, reason).Inc()
-	m.checkDuration.WithLabelValues(result).Observe(duration.Seconds())
+func (m *CheckRecorder) RecordCheck(result, reason, authType string, duration time.Duration) {
+	m.checksTotal.WithLabelValues(result, reason, authType).Inc()
+	m.checkDuration.WithLabelValues(result, authType).Observe(duration.Seconds())
 }
 
 // ObserveSTSExchange implements authz.Metrics.
-func (m *CheckRecorder) ObserveSTSExchange(duration time.Duration) {
-	m.stsExchangeTime.Observe(duration.Seconds())
+func (m *CheckRecorder) ObserveSTSExchange(exchangeType string, duration time.Duration) {
+	m.stsExchangeTime.WithLabelValues(exchangeType).Observe(duration.Seconds())
 }
 
 // ObserveResourceMap implements authz.Metrics.

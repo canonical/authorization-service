@@ -71,6 +71,50 @@ func (x *ExchangeRequest) GetSessionCookie() string {
 	return ""
 }
 
+type ExchangeTokenRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExchangeTokenRequest) Reset() {
+	*x = ExchangeTokenRequest{}
+	mi := &file_v1_sts_sts_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExchangeTokenRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExchangeTokenRequest) ProtoMessage() {}
+
+func (x *ExchangeTokenRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_sts_sts_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExchangeTokenRequest.ProtoReflect.Descriptor instead.
+func (*ExchangeTokenRequest) Descriptor() ([]byte, []int) {
+	return file_v1_sts_sts_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ExchangeTokenRequest) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
 type ExchangeResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AccessToken   string                 `protobuf:"bytes,1,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"` // Signed Internal JWT
@@ -81,7 +125,7 @@ type ExchangeResponse struct {
 
 func (x *ExchangeResponse) Reset() {
 	*x = ExchangeResponse{}
-	mi := &file_v1_sts_sts_proto_msgTypes[1]
+	mi := &file_v1_sts_sts_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -93,7 +137,7 @@ func (x *ExchangeResponse) String() string {
 func (*ExchangeResponse) ProtoMessage() {}
 
 func (x *ExchangeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_sts_sts_proto_msgTypes[1]
+	mi := &file_v1_sts_sts_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -106,7 +150,7 @@ func (x *ExchangeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExchangeResponse.ProtoReflect.Descriptor instead.
 func (*ExchangeResponse) Descriptor() ([]byte, []int) {
-	return file_v1_sts_sts_proto_rawDescGZIP(), []int{1}
+	return file_v1_sts_sts_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ExchangeResponse) GetAccessToken() string {
@@ -132,7 +176,7 @@ type RevokeUserRequest struct {
 
 func (x *RevokeUserRequest) Reset() {
 	*x = RevokeUserRequest{}
-	mi := &file_v1_sts_sts_proto_msgTypes[2]
+	mi := &file_v1_sts_sts_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -144,7 +188,7 @@ func (x *RevokeUserRequest) String() string {
 func (*RevokeUserRequest) ProtoMessage() {}
 
 func (x *RevokeUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_sts_sts_proto_msgTypes[2]
+	mi := &file_v1_sts_sts_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -157,7 +201,7 @@ func (x *RevokeUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeUserRequest.ProtoReflect.Descriptor instead.
 func (*RevokeUserRequest) Descriptor() ([]byte, []int) {
-	return file_v1_sts_sts_proto_rawDescGZIP(), []int{2}
+	return file_v1_sts_sts_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *RevokeUserRequest) GetUserId() string {
@@ -176,7 +220,7 @@ type RevokeUserResponse struct {
 
 func (x *RevokeUserResponse) Reset() {
 	*x = RevokeUserResponse{}
-	mi := &file_v1_sts_sts_proto_msgTypes[3]
+	mi := &file_v1_sts_sts_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -188,7 +232,7 @@ func (x *RevokeUserResponse) String() string {
 func (*RevokeUserResponse) ProtoMessage() {}
 
 func (x *RevokeUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_sts_sts_proto_msgTypes[3]
+	mi := &file_v1_sts_sts_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -201,7 +245,7 @@ func (x *RevokeUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeUserResponse.ProtoReflect.Descriptor instead.
 func (*RevokeUserResponse) Descriptor() ([]byte, []int) {
-	return file_v1_sts_sts_proto_rawDescGZIP(), []int{3}
+	return file_v1_sts_sts_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *RevokeUserResponse) GetSuccess() bool {
@@ -217,7 +261,9 @@ const file_v1_sts_sts_proto_rawDesc = "" +
 	"\n" +
 	"\x10v1/sts/sts.proto\x12\x06sts.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"8\n" +
 	"\x0fExchangeRequest\x12%\n" +
-	"\x0esession_cookie\x18\x01 \x01(\tR\rsessionCookie\"T\n" +
+	"\x0esession_cookie\x18\x01 \x01(\tR\rsessionCookie\",\n" +
+	"\x14ExchangeTokenRequest\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\"T\n" +
 	"\x10ExchangeResponse\x12!\n" +
 	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\x12\x1d\n" +
 	"\n" +
@@ -225,9 +271,10 @@ const file_v1_sts_sts_proto_rawDesc = "" +
 	"\x11RevokeUserRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\".\n" +
 	"\x12RevokeUserResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess2\xa9\x01\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess2\xf2\x01\n" +
 	"\x14SecurityTokenService\x12D\n" +
-	"\x0fExchangeSession\x12\x17.sts.v1.ExchangeRequest\x1a\x18.sts.v1.ExchangeResponse\x12K\n" +
+	"\x0fExchangeSession\x12\x17.sts.v1.ExchangeRequest\x1a\x18.sts.v1.ExchangeResponse\x12G\n" +
+	"\rExchangeToken\x12\x1c.sts.v1.ExchangeTokenRequest\x1a\x18.sts.v1.ExchangeResponse\x12K\n" +
 	"\x12RevokeUserSessions\x12\x19.sts.v1.RevokeUserRequest\x1a\x1a.sts.v1.RevokeUserResponseB\x8e\x01\n" +
 	"\n" +
 	"com.sts.v1B\bStsProtoP\x01Z=github.com/canonical/authorization-service/api/proto/v1;stsv1\xa2\x02\x03SXX\xaa\x02\x06Sts.V1\xca\x02\x06Sts\\V1\xe2\x02\x12Sts\\V1\\GPBMetadata\xea\x02\aSts::V1b\x06proto3"
@@ -244,20 +291,23 @@ func file_v1_sts_sts_proto_rawDescGZIP() []byte {
 	return file_v1_sts_sts_proto_rawDescData
 }
 
-var file_v1_sts_sts_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_v1_sts_sts_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_v1_sts_sts_proto_goTypes = []any{
-	(*ExchangeRequest)(nil),    // 0: sts.v1.ExchangeRequest
-	(*ExchangeResponse)(nil),   // 1: sts.v1.ExchangeResponse
-	(*RevokeUserRequest)(nil),  // 2: sts.v1.RevokeUserRequest
-	(*RevokeUserResponse)(nil), // 3: sts.v1.RevokeUserResponse
+	(*ExchangeRequest)(nil),      // 0: sts.v1.ExchangeRequest
+	(*ExchangeTokenRequest)(nil), // 1: sts.v1.ExchangeTokenRequest
+	(*ExchangeResponse)(nil),     // 2: sts.v1.ExchangeResponse
+	(*RevokeUserRequest)(nil),    // 3: sts.v1.RevokeUserRequest
+	(*RevokeUserResponse)(nil),   // 4: sts.v1.RevokeUserResponse
 }
 var file_v1_sts_sts_proto_depIdxs = []int32{
 	0, // 0: sts.v1.SecurityTokenService.ExchangeSession:input_type -> sts.v1.ExchangeRequest
-	2, // 1: sts.v1.SecurityTokenService.RevokeUserSessions:input_type -> sts.v1.RevokeUserRequest
-	1, // 2: sts.v1.SecurityTokenService.ExchangeSession:output_type -> sts.v1.ExchangeResponse
-	3, // 3: sts.v1.SecurityTokenService.RevokeUserSessions:output_type -> sts.v1.RevokeUserResponse
-	2, // [2:4] is the sub-list for method output_type
-	0, // [0:2] is the sub-list for method input_type
+	1, // 1: sts.v1.SecurityTokenService.ExchangeToken:input_type -> sts.v1.ExchangeTokenRequest
+	3, // 2: sts.v1.SecurityTokenService.RevokeUserSessions:input_type -> sts.v1.RevokeUserRequest
+	2, // 3: sts.v1.SecurityTokenService.ExchangeSession:output_type -> sts.v1.ExchangeResponse
+	2, // 4: sts.v1.SecurityTokenService.ExchangeToken:output_type -> sts.v1.ExchangeResponse
+	4, // 5: sts.v1.SecurityTokenService.RevokeUserSessions:output_type -> sts.v1.RevokeUserResponse
+	3, // [3:6] is the sub-list for method output_type
+	0, // [0:3] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -274,7 +324,7 @@ func file_v1_sts_sts_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_v1_sts_sts_proto_rawDesc), len(file_v1_sts_sts_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

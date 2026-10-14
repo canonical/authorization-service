@@ -52,6 +52,7 @@ You can customise the deployment by passing variables to Terraform via a `terraf
 | `sts_address` | `string` | `secure-token-service.default.svc.cluster.local:9090` | Network endpoint of the pre-deployed STS. |
 | `sts_use_tls` | `bool` | `false` | Enable TLS for connecting to STS. |
 | `sts_eager_connection_check` | `bool` | `false` | Enable startup connection check to STS. |
+| `ext_authz_service_jwk_set_url` | `string` | `http://secure-token-service.default.svc.cluster.local:8080/.well-known/jwks.json` | JWKS URL to verify internal STS tokens. |
 | `kafka_enabled` | `bool` | `false` | Whether to enable Kafka-based permission-update event ingestion. |
 | `deploy_kafka` | `bool` | `false` | Whether to deploy a lightweight, single-node KRaft-based Kafka instance inside the cluster. |
 | `external_kafka_brokers` | `list(string)` | `[]` | Addresses of external Kafka brokers. (Required if `kafka_enabled` is true and `deploy_kafka` is false). |
@@ -120,8 +121,9 @@ deploy_openfga  = false
 deploy_kafka    = false
 
 # Target pre-deployed STS
-sts_address = "sts.prod.identity.svc.cluster.local:9090"
-sts_use_tls = true
+sts_address                   = "sts.prod.identity.svc.cluster.local:9090"
+sts_use_tls                   = true
+ext_authz_service_jwk_set_url = "http://sts.prod.identity.svc.cluster.local:8080/.well-known/jwks.json"
 
 # Enable Kafka pipelines
 kafka_enabled  = true

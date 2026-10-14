@@ -249,9 +249,11 @@ func (i *Integrations) InitializeServices(tracer trace.Tracer, serviceLogger *sl
 		SupportedSigningAlgs: []string{oidc.RS256, oidc.ES256},
 	})
 
+	extAuthz := authz.NewExternalAuthzService(verifier, i.STS, resourceMapper, i.OpenFGA, i.MultitenancyEnabled, metrics.NewCheckRecorder(reg), serviceLogger, tracer)
+
 	return &Services{
 		Permissions:   permissions.NewService(i.Valkey, metrics.NewPermissionsRecorder(reg), serviceLogger),
-		ExternalAuthz: authz.NewExternalAuthzService(verifier, i.STS, resourceMapper, i.OpenFGA, i.MultitenancyEnabled, metrics.NewCheckRecorder(reg), serviceLogger, tracer),
+		ExternalAuthz: extAuthz,
 	}
 }
 
