@@ -81,3 +81,19 @@ func TestHandleWithRetry_SuccessFirstTry(t *testing.T) {
 		t.Fatalf("expected 1 attempt, got %d", calls)
 	}
 }
+
+func TestNoopClient(t *testing.T) {
+	c := NewNoopClient(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if err := c.Consume(ctx, nil); err != nil {
+		t.Fatalf("unexpected Consume error: %v", err)
+	}
+	if stats := c.Stats(); stats.Topic != "" {
+		t.Fatalf("expected zero Stats, got %+v", stats)
+	}
+	if err := c.Close(); err != nil {
+		t.Fatalf("unexpected Close error: %v", err)
+	}
+}

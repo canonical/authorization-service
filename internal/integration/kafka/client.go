@@ -1,3 +1,6 @@
+// Copyright 2026 Canonical Ltd.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package kafka
 
 import (
@@ -64,7 +67,7 @@ func NewClient(cfg Config, logger *slog.Logger) (*Client, error) {
 		MaxBytes:    10e6,
 	})
 
-	logger.Info("Kafka client created", "brokers", cfg.Brokers, "topics", cfg.Topics, "group", cfg.ConsumerGroup)
+	logger.InfoContext(context.Background(), "Kafka client created", "brokers", cfg.Brokers, "topics", cfg.Topics, "group", cfg.ConsumerGroup)
 	return &Client{
 		reader: reader,
 		logger: logger,
@@ -111,7 +114,7 @@ func (c *Client) Consume(ctx context.Context, handler func(ctx context.Context, 
 			if ctx.Err() != nil {
 				return nil
 			}
-			c.logger.Error("Failed to commit Kafka message",
+			c.logger.ErrorContext(ctx, "Failed to commit Kafka message",
 				"topic", msg.Topic, "partition", msg.Partition, "offset", msg.Offset, "error", err)
 		}
 	}
@@ -132,7 +135,7 @@ func (c *Client) handleWithRetry(ctx context.Context, handler func(ctx context.C
 		if err := handler(ctx, msg); err == nil {
 			return nil
 		} else {
-			c.logger.Error("Transient handler failure; retrying same message in place",
+			c.logger.ErrorContext(ctx, "Transient handler failure; retrying same message in place",
 				"topic", msg.Topic, "partition", msg.Partition, "offset", msg.Offset,
 				"attempt", attempt, "backoff", backoff.String(), "error", err)
 		}
@@ -165,7 +168,7 @@ func (c *Client) Close() error {
 		if err := c.reader.Close(); err != nil {
 			c.closeErr = fmt.Errorf("reader: %w", err)
 		}
-		c.logger.Info("Kafka client closed")
+		c.logger.InfoContext(context.Background(), "Kafka client closed")
 	})
 	return c.closeErr
 }

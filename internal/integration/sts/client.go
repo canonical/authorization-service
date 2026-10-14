@@ -5,6 +5,7 @@ package sts
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"time"
@@ -13,11 +14,71 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 
 	stsv1 "github.com/canonical/authorization-service/client/v1/sts"
 )
 
 var _ stsv1.SecurityTokenServiceClient = (*STSClientWrapper)(nil)
+
+// CreateConnection creates a gRPC connection to the STS service.
+func CreateConnection(address string, useTLS bool, timeout time.Duration, eagerCheck bool, extraOpts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	var (
+		opts           []grpc.DialOption
+		credentialsOpt grpc.DialOption
+	)
+
+	if useTLS {
+		credentialsOpt = grpc.WithTransportCredentials(
+			credentials.NewTLS(
+				&tls.Config{
+					MinVersion: tls.VersionTLS12,
+				},
+			),
+		)
+	} else {
+		credentialsOpt = grpc.WithTransportCredentials(insecure.NewCredentials())
+	}
+
+	opts = append(opts, credentialsOpt)
+	opts = append(opts, extraOpts...)
+
+	conn, err := grpc.NewClient(address, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create STS connection for %s: %w", address, err)
+	}
+
+	if eagerCheck {
+		if err := waitForConnectionReady(conn, address, timeout); err != nil {
+			return nil, err
+		}
+	}
+
+	return conn, nil
+}
+
+func waitForConnectionReady(conn *grpc.ClientConn, address string, timeout time.Duration) error {
+	conn.Connect()
+
+	dialCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	for {
+		state := conn.GetState()
+		if state == connectivity.Ready {
+			break
+		}
+
+		if !conn.WaitForStateChange(dialCtx, state) {
+			_ = conn.Close()
+			return fmt.Errorf("timeout waiting for STS connection to %s: %w", address, dialCtx.Err())
+		}
+	}
+
+	return nil
+}
 
 // STSClientWrapper wraps the SecurityTokenServiceClient with tracing and logging
 type STSClientWrapper struct {
@@ -39,7 +100,7 @@ func (w *STSClientWrapper) ExchangeSession(ctx context.Context, in *stsv1.Exchan
 	defer span.End()
 
 	start := time.Now()
-	w.logger.Debug("Calling STS ExchangeSession",
+	w.logger.DebugContext(ctx, "Calling STS ExchangeSession",
 		"session_cookie", in.GetSessionCookie(),
 	)
 
@@ -49,7 +110,7 @@ func (w *STSClientWrapper) ExchangeSession(ctx context.Context, in *stsv1.Exchan
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		w.logger.Error("STS ExchangeSession failed",
+		w.logger.ErrorContext(ctx, "STS ExchangeSession failed",
 			"error", err,
 			"duration_ms", duration.Milliseconds(),
 		)
@@ -62,7 +123,7 @@ func (w *STSClientWrapper) ExchangeSession(ctx context.Context, in *stsv1.Exchan
 	)
 	span.SetStatus(codes.Ok, "Success")
 
-	w.logger.Debug("STS ExchangeSession succeeded",
+	w.logger.DebugContext(ctx, "STS ExchangeSession succeeded",
 		"expires_in", resp.GetExpiresIn(),
 		"duration_ms", duration.Milliseconds(),
 	)
@@ -75,7 +136,7 @@ func (w *STSClientWrapper) ExchangeToken(ctx context.Context, in *stsv1.Exchange
 	defer span.End()
 
 	start := time.Now()
-	w.logger.Debug("Calling STS ExchangeToken")
+	w.logger.DebugContext(ctx, "Calling STS ExchangeToken")
 
 	resp, err := w.delegate.ExchangeToken(ctx, in, opts...)
 	duration := time.Since(start)
@@ -83,7 +144,7 @@ func (w *STSClientWrapper) ExchangeToken(ctx context.Context, in *stsv1.Exchange
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		w.logger.Error("STS ExchangeToken failed",
+		w.logger.ErrorContext(ctx, "STS ExchangeToken failed",
 			"error", err,
 			"duration_ms", duration.Milliseconds(),
 		)
@@ -96,7 +157,7 @@ func (w *STSClientWrapper) ExchangeToken(ctx context.Context, in *stsv1.Exchange
 	)
 	span.SetStatus(codes.Ok, "Success")
 
-	w.logger.Debug("STS ExchangeToken succeeded",
+	w.logger.DebugContext(ctx, "STS ExchangeToken succeeded",
 		"expires_in", resp.GetExpiresIn(),
 		"duration_ms", duration.Milliseconds(),
 	)
@@ -113,7 +174,7 @@ func (w *STSClientWrapper) RevokeUserSessions(ctx context.Context, in *stsv1.Rev
 	defer span.End()
 
 	start := time.Now()
-	w.logger.Debug("Calling STS RevokeUserSessions",
+	w.logger.DebugContext(ctx, "Calling STS RevokeUserSessions",
 		"user_id", in.GetUserId(),
 	)
 
@@ -123,7 +184,7 @@ func (w *STSClientWrapper) RevokeUserSessions(ctx context.Context, in *stsv1.Rev
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		w.logger.Error("STS RevokeUserSessions failed",
+		w.logger.ErrorContext(ctx, "STS RevokeUserSessions failed",
 			"error", err,
 			"user_id", in.GetUserId(),
 			"duration_ms", duration.Milliseconds(),
@@ -136,7 +197,7 @@ func (w *STSClientWrapper) RevokeUserSessions(ctx context.Context, in *stsv1.Rev
 	)
 	span.SetStatus(codes.Ok, "Success")
 
-	w.logger.Info("STS RevokeUserSessions succeeded",
+	w.logger.InfoContext(ctx, "STS RevokeUserSessions succeeded",
 		"user_id", in.GetUserId(),
 		"success", resp.GetSuccess(),
 		"duration_ms", duration.Milliseconds(),

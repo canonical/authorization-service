@@ -1,3 +1,6 @@
+// Copyright 2026 Canonical Ltd.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package kafka
 
 import (
@@ -22,7 +25,7 @@ func NewNoopClient(logger *slog.Logger) *NoopClient {
 
 // Consume blocks until ctx is cancelled, simulating a consumer with no messages.
 func (c *NoopClient) Consume(ctx context.Context, _ func(ctx context.Context, msg kafka.Message) error) error {
-	c.logger.Info("Noop Kafka consumer started")
+	c.logger.InfoContext(ctx, "Noop Kafka consumer started")
 	<-ctx.Done()
 	return nil
 }

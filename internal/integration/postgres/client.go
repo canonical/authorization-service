@@ -18,11 +18,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const (
-	defaultPage     uint64 = 1
-	defaultPageSize uint64 = 100
-)
-
 // DBClientInterface defines the interface for database operations using pgx native types.
 type DBClientInterface interface {
 	// Query executes a query that returns rows
@@ -118,7 +113,7 @@ func NewClient(cfg Config, logger *slog.Logger, tracer trace.Tracer) (*Client, e
 	}
 
 	connectTimeout := 10 * time.Second
-	if cfg.ConnectTimeout == 0 {
+	if cfg.ConnectTimeout > 0 {
 		connectTimeout = cfg.ConnectTimeout
 	}
 	connectCtx, cancel := context.WithTimeout(context.Background(), connectTimeout)
@@ -135,7 +130,7 @@ func NewClient(cfg Config, logger *slog.Logger, tracer trace.Tracer) (*Client, e
 		return nil, fmt.Errorf("failed to ping postgres: %w", err)
 	}
 
-	logger.Info("PostgreSQL client connected",
+	logger.InfoContext(connectCtx, "PostgreSQL client connected",
 		"host", cfg.Host,
 		"port", cfg.Port,
 		"dbname", cfg.DBName,
@@ -150,20 +145,6 @@ func NewClient(cfg Config, logger *slog.Logger, tracer trace.Tracer) (*Client, e
 		tracer:  tracer,
 		logger:  logger,
 	}, nil
-}
-
-func Offset(pageParam int64, pageSize uint64) uint64 {
-	if pageParam <= 0 {
-		return (defaultPage - 1) * pageSize
-	}
-	return uint64(pageParam-1) * pageSize
-}
-
-func PageSize(sizeParam int64) uint64 {
-	if sizeParam <= 0 {
-		return defaultPageSize
-	}
-	return uint64(sizeParam)
 }
 
 // Builder returns a pre-configured squirrel StatementBuilderType for Postgres ($ placeholders)
@@ -186,12 +167,12 @@ func (c *Client) Query(ctx context.Context, query string, args ...interface{}) (
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		c.logger.Error("Failed to execute query", "error", err, "duration_ms", duration.Milliseconds())
+		c.logger.ErrorContext(ctx, "Failed to execute query", "error", err, "duration_ms", duration.Milliseconds())
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
-	c.logger.Debug("Query executed", "duration_ms", duration.Milliseconds())
+	c.logger.DebugContext(ctx, "Query executed", "duration_ms", duration.Milliseconds())
 	return rows, nil
 }
 
@@ -202,7 +183,7 @@ func (c *Client) QueryRow(ctx context.Context, query string, args ...interface{}
 	)
 	defer span.End()
 
-	c.logger.Debug("QueryRow executed")
+	c.logger.DebugContext(ctx, "QueryRow executed")
 	span.SetStatus(codes.Ok, "")
 	return c.pool.QueryRow(ctx, query, args...)
 }
@@ -222,13 +203,13 @@ func (c *Client) Exec(ctx context.Context, query string, args ...interface{}) (p
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		c.logger.Error("Failed to execute statement", "error", err, "duration_ms", duration.Milliseconds())
+		c.logger.ErrorContext(ctx, "Failed to execute statement", "error", err, "duration_ms", duration.Milliseconds())
 		return pgconn.CommandTag{}, fmt.Errorf("failed to execute statement: %w", err)
 	}
 
 	span.SetAttributes(attribute.Int64("db.rows_affected", tag.RowsAffected()))
 	span.SetStatus(codes.Ok, "")
-	c.logger.Debug("Exec executed", "rows_affected", tag.RowsAffected(), "duration_ms", duration.Milliseconds())
+	c.logger.DebugContext(ctx, "Exec executed", "rows_affected", tag.RowsAffected(), "duration_ms", duration.Milliseconds())
 	return tag, nil
 }
 
