@@ -9,6 +9,7 @@ description: >
 license: Apache-2.0
 platforms:
   amd64: null
+  arm64: null
 services:
   authorization-service:
     override: replace
@@ -27,11 +28,12 @@ parts:
     build-packages:
       - make
       - git
-    override-build: >
+    override-build: |
+      export GOOS=linux
+      export GOARCH="${CRAFT_ARCH_BUILD_FOR}"
+      export CGO_ENABLED=0
       make build
-
-      install -D -m755 ./bin/app
-      ${CRAFT_PART_INSTALL}/opt/authorization-service/bin/app
+      install -D -m755 ./bin/app ${CRAFT_PART_INSTALL}/opt/authorization-service/bin/app
     organize:
       opt/authorization-service/bin/app: usr/bin/app
       etc/ssl/certs/ca-certificates.crt: etc/ssl/certs/ca-certificates.crt
