@@ -93,3 +93,22 @@ func TestTraceHandler_WithGroup_PreservesTraceBridge(t *testing.T) {
 	assert.Equal(t, span.SpanContext().TraceID().String(), group["trace_id"])
 	assert.Equal(t, span.SpanContext().SpanID().String(), group["span_id"])
 }
+
+func TestTraceHandler_Handle_WithRequestID(t *testing.T) {
+	ctx := ContextWithRequestID(context.Background(), "req-abc-123")
+	logger, buf := newTestLogger()
+	logger.InfoContext(ctx, "hello")
+
+	entry := decodeLogLine(t, buf)
+	assert.Equal(t, "req-abc-123", entry["request_id"])
+}
+
+func TestTraceHandler_Handle_WithExistingRequestIDAttr(t *testing.T) {
+	ctx := ContextWithRequestID(context.Background(), "req-from-ctx")
+	logger, buf := newTestLogger()
+	logger.InfoContext(ctx, "hello", "other", "val", "request_id", "req-explicit")
+
+	entry := decodeLogLine(t, buf)
+	assert.Equal(t, "req-explicit", entry["request_id"])
+}
+

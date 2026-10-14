@@ -11,13 +11,14 @@ import (
 )
 
 // TraceHandler wraps an slog.Handler, injecting trace_id/span_id attributes
-// from the active OpenTelemetry span (if any) into every log record it
-// handles, so logs can be correlated with traces in Grafana/Tempo.
+// from the active OpenTelemetry span (if any) and request_id from context
+// into every log record it handles, so logs can be correlated with traces and
+// requests in Grafana/Tempo.
 type TraceHandler struct {
 	handler slog.Handler
 }
 
-// NewTraceHandler wraps handler with trace/span correlation.
+// NewTraceHandler wraps handler with trace/span and request_id correlation.
 func NewTraceHandler(handler slog.Handler) *TraceHandler {
 	return &TraceHandler{handler: handler}
 }
@@ -32,6 +33,19 @@ func (h *TraceHandler) Handle(ctx context.Context, r slog.Record) error {
 			slog.String("trace_id", sc.TraceID().String()),
 			slog.String("span_id", sc.SpanID().String()),
 		)
+	}
+	if reqID := RequestIDFromContext(ctx); reqID != "" {
+		hasReqID := false
+		r.Attrs(func(a slog.Attr) bool {
+			if a.Key == "request_id" {
+				hasReqID = true
+				return false
+			}
+			return true
+		})
+		if !hasReqID {
+			r.AddAttrs(slog.String("request_id", reqID))
+		}
 	}
 	return h.handler.Handle(ctx, r)
 }

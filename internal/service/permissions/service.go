@@ -77,7 +77,7 @@ func (s *Service) Register(ctx context.Context, serviceID, serviceName string, p
 		return nil, fmt.Errorf("failed to store permission: %w", err)
 	}
 
-	s.logger.Info("Permission registered", "service_id", serviceID, "version", version)
+	s.logger.InfoContext(ctx, "Permission registered", "service_id", serviceID, "version", version)
 	return perm, nil
 }
 
@@ -110,6 +110,6 @@ func (s *Service) Delete(ctx context.Context, serviceID string) (err error) {
 		return fmt.Errorf("failed to delete permission: %w", err)
 	}
 
-	s.logger.Info("Permission deleted", "service_id", serviceID)
+	s.logger.InfoContext(ctx, "Permission deleted", "service_id", serviceID)
 	return nil
 }

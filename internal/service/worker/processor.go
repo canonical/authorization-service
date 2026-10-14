@@ -98,14 +98,14 @@ func (p *Processor) ProcessRow(ctx context.Context, row permissions.ClaimedRow) 
 	// the row stays retryable WITHOUT counting against the retry limit (spec §201):
 	// a subsequent idempotent re-apply will re-run bookkeeping safely.
 	if err := p.repo.RecordProcessed(ctx, row.ID, row.Service, toModelTuples(writes), toModelDeletes(deletes)); err != nil {
-		p.logger.Error("Bookkeeping failed after successful OpenFGA write; row remains retryable",
+		p.logger.ErrorContext(ctx, "Bookkeeping failed after successful OpenFGA write; row remains retryable",
 			"service", row.Service, "message_id", row.MessageID, "row_id", row.ID,
 			"correlation_id", strOrEmpty(row.CorrelationID), "error", err)
 		p.metrics.IncRetry(row.Service)
 		return p.repo.MarkRetry(ctx, row.ID, "bookkeeping_failed", err.Error(), false)
 	}
 
-	p.logger.Debug("Permission update processed",
+	p.logger.DebugContext(ctx, "Permission update processed",
 		"service", row.Service, "message_id", row.MessageID, "row_id", row.ID,
 		"correlation_id", strOrEmpty(row.CorrelationID), "writes", len(writes), "deletes", len(deletes))
 	p.metrics.IncProcessed(row.Service)
@@ -180,13 +180,13 @@ func (p *Processor) classifyAndRecord(ctx context.Context, row permissions.Claim
 // moves it to 'failed'. This is the standard transient-failure path.
 func (p *Processor) retryOrFail(ctx context.Context, row permissions.ClaimedRow, code string, err error) error {
 	if row.AttemptCount+1 >= p.maxAttempts {
-		p.logger.Warn("Retry limit exhausted; marking row failed",
+		p.logger.WarnContext(ctx, "Retry limit exhausted; marking row failed",
 			"service", row.Service, "message_id", row.MessageID, "row_id", row.ID,
 			"correlation_id", strOrEmpty(row.CorrelationID), "attempts", row.AttemptCount+1, "error", err)
 		p.metrics.IncPermanentFailure(row.Service, row.MessageID, code)
 		return p.repo.MarkFailed(ctx, row.ID, code, err.Error())
 	}
-	p.logger.Info("Transient processing failure; scheduling retry",
+	p.logger.InfoContext(ctx, "Transient processing failure; scheduling retry",
 		"service", row.Service, "message_id", row.MessageID, "row_id", row.ID,
 		"correlation_id", strOrEmpty(row.CorrelationID), "attempt", row.AttemptCount+1, "error", err)
 	p.metrics.IncRetry(row.Service)
@@ -199,7 +199,7 @@ func (p *Processor) fail(ctx context.Context, row permissions.ClaimedRow, err er
 	if perm, ok := permissions.AsPermanent(err); ok {
 		code = perm.Code
 	}
-	p.logger.Error("Permanent processing failure",
+	p.logger.ErrorContext(ctx, "Permanent processing failure",
 		"service", row.Service, "message_id", row.MessageID, "row_id", row.ID,
 		"correlation_id", strOrEmpty(row.CorrelationID), "code", code, "error", err)
 	p.metrics.IncPermanentFailure(row.Service, row.MessageID, code)

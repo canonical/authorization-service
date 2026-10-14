@@ -91,7 +91,7 @@ func (g *Gateway) Start(grpcAddress string) error {
 
 // Shutdown gracefully shuts down the gateway
 func (g *Gateway) Shutdown(ctx context.Context) error {
-	g.logger.Info("Shutting down REST gateway")
+	g.logger.InfoContext(ctx, "Shutting down REST gateway")
 	return g.server.Shutdown(ctx)
 }
 

@@ -44,7 +44,7 @@ func NewReaper(
 // Run starts the reaper ticker loop, which periodically reclaims stale rows.
 // It runs in a background goroutine until the context is cancelled or an error occurs.
 func (r *Reaper) Run(ctx context.Context) error {
-	r.logger.Info("Starting stale-row reaper background loop",
+	r.logger.InfoContext(ctx, "Starting stale-row reaper background loop",
 		"stale_timeout", r.staleTimeout.String(),
 		"interval", r.interval.String())
 
@@ -54,7 +54,7 @@ func (r *Reaper) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			r.logger.Info("Stopping stale-row reaper background loop")
+			r.logger.InfoContext(ctx, "Stopping stale-row reaper background loop")
 			return nil
 		case <-ticker.C:
 			if err := r.reclaim(ctx); err != nil {
@@ -65,18 +65,18 @@ func (r *Reaper) Run(ctx context.Context) error {
 }
 
 func (r *Reaper) reclaim(ctx context.Context) error {
-	r.logger.Debug("Reaper checking for stale rows")
+	r.logger.DebugContext(ctx, "Reaper checking for stale rows")
 	r.metrics.SetLastRunTimestamp()
 
 	start := time.Now()
 	count, err := r.repo.ReclaimStale(ctx, r.staleTimeout)
 	if err != nil {
-		r.logger.Error("Failed to reclaim stale rows", "error", err)
+		r.logger.ErrorContext(ctx, "Failed to reclaim stale rows", "error", err)
 		return err
 	}
 	r.metrics.ObserveReclaim(count, time.Since(start))
 	if count > 0 {
-		r.logger.Info("Reclaimed stale permission-update rows",
+		r.logger.InfoContext(ctx, "Reclaimed stale permission-update rows",
 			"count", count,
 			"stale_timeout", r.staleTimeout.String())
 	}

@@ -157,7 +157,7 @@ func TestWorker_BatchSortingByEventTime(t *testing.T) {
 	}
 
 	cancel()
-	_ = <-errCh
+	<-errCh
 
 	// The order of processing must be:
 	// 1. row-nil-time (nil EventTime is treated as older and comes first)
