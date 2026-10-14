@@ -544,3 +544,138 @@ rules:
 	assert.True(t, foundA)
 	assert.True(t, foundB)
 }
+
+type fakeRuleSeedRepo struct {
+	upsertServiceID string
+	upsertErr       error
+	currentRev      string
+	currentRevFound bool
+	currentRevErr   error
+	replaceErr      error
+	replacedRules   []rules.CompiledRuleWithTuples
+}
+
+func (f *fakeRuleSeedRepo) UpsertFederatedService(_ context.Context, _ pgx.Tx, _, _ string) (string, error) {
+	return f.upsertServiceID, f.upsertErr
+}
+
+func (f *fakeRuleSeedRepo) GetCurrentRevision(_ context.Context, _ pgx.Tx, _ string) (string, bool, error) {
+	return f.currentRev, f.currentRevFound, f.currentRevErr
+}
+
+func (f *fakeRuleSeedRepo) ReplaceServiceRules(_ context.Context, _ pgx.Tx, _, _ string, r []rules.CompiledRuleWithTuples) error {
+	f.replacedRules = r
+	return f.replaceErr
+}
+
+func TestSeedService_WithMockRuleSeedRepository(t *testing.T) {
+	ctx := context.Background()
+	sf := rules.SeedFile{
+		Version:     "1",
+		Service:     "svc-mock",
+		Revision:    "1.2.0",
+		Description: "Mock service",
+		Rules: []rules.SeedRule{
+			{
+				Method:   "GET",
+				Match:    "/api/v1/items/{id}",
+				Priority: 10,
+				Tuples: []rules.SeedTuple{
+					{
+						UserResourceType:   "user",
+						Permission:         "viewer",
+						ObjectResourceType: "item",
+						ObjectResourceId:   "{id}",
+					},
+				},
+			},
+		},
+	}
+
+	t.Run("mock repository insert succeeds", func(t *testing.T) {
+		pool, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer pool.Close()
+
+		pool.ExpectBegin()
+		pool.ExpectCommit()
+
+		mockRepo := &fakeRuleSeedRepo{
+			upsertServiceID: "svc-id-1",
+			currentRev:      "1.1.0",
+			currentRevFound: true,
+		}
+		seeder := NewRuleSeeder(&mockDBClient{pool}, mockRepo)
+
+		inserted, skipped, err := seeder.SeedService(ctx, sf)
+		require.NoError(t, err)
+		assert.True(t, inserted)
+		assert.False(t, skipped)
+		require.Len(t, mockRepo.replacedRules, 1)
+		assert.Equal(t, 4, mockRepo.replacedRules[0].SegmentCount)
+		assert.NoError(t, pool.ExpectationsWereMet())
+	})
+
+	t.Run("mock repository upsert error", func(t *testing.T) {
+		pool, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer pool.Close()
+
+		pool.ExpectBegin()
+		pool.ExpectRollback()
+
+		mockRepo := &fakeRuleSeedRepo{
+			upsertErr: assert.AnError,
+		}
+		seeder := NewRuleSeeder(&mockDBClient{pool}, mockRepo)
+
+		inserted, skipped, err := seeder.SeedService(ctx, sf)
+		require.ErrorIs(t, err, assert.AnError)
+		assert.False(t, inserted)
+		assert.False(t, skipped)
+		assert.NoError(t, pool.ExpectationsWereMet())
+	})
+
+	t.Run("mock repository get revision error", func(t *testing.T) {
+		pool, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer pool.Close()
+
+		pool.ExpectBegin()
+		pool.ExpectRollback()
+
+		mockRepo := &fakeRuleSeedRepo{
+			upsertServiceID: "svc-id-1",
+			currentRevErr:   assert.AnError,
+		}
+		seeder := NewRuleSeeder(&mockDBClient{pool}, mockRepo)
+
+		inserted, skipped, err := seeder.SeedService(ctx, sf)
+		require.ErrorIs(t, err, assert.AnError)
+		assert.False(t, inserted)
+		assert.False(t, skipped)
+		assert.NoError(t, pool.ExpectationsWereMet())
+	})
+
+	t.Run("mock repository replace error", func(t *testing.T) {
+		pool, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer pool.Close()
+
+		pool.ExpectBegin()
+		pool.ExpectRollback()
+
+		mockRepo := &fakeRuleSeedRepo{
+			upsertServiceID: "svc-id-1",
+			replaceErr:      assert.AnError,
+		}
+		seeder := NewRuleSeeder(&mockDBClient{pool}, mockRepo)
+
+		inserted, skipped, err := seeder.SeedService(ctx, sf)
+		require.ErrorIs(t, err, assert.AnError)
+		assert.False(t, inserted)
+		assert.False(t, skipped)
+		assert.NoError(t, pool.ExpectationsWereMet())
+	})
+}
+

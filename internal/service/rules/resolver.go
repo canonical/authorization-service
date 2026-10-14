@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/openfga/go-sdk/client"
 
@@ -20,10 +21,26 @@ var (
 	_ RuleMatcherInterface    = (*RuleMatcher)(nil)
 	_ TupleResolverInterface  = (*TupleResolver)(nil)
 	_ ResourceMapperInterface = (*ResourceMapper)(nil)
+
+	defaultRegexCache sync.Map
 )
 
+func compileRegex(cache *sync.Map, pattern string) (*regexp.Regexp, error) {
+	if cached, ok := cache.Load(pattern); ok {
+		return cached.(*regexp.Regexp), nil
+	}
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return nil, err
+	}
+	cache.Store(pattern, re)
+	return re, nil
+}
+
 // RuleMatcher matches an incoming path against a set of candidate rules.
-type RuleMatcher struct{}
+type RuleMatcher struct {
+	regexCache sync.Map
+}
 
 // NewRuleMatcher creates a new RuleMatcher.
 func NewRuleMatcher() *RuleMatcher {
@@ -34,7 +51,7 @@ func NewRuleMatcher() *RuleMatcher {
 // and returns the first rule whose path_regex matches the given path.
 func (m *RuleMatcher) Match(candidates []*rules.RuleWithTuples, path string) (*rules.RuleWithTuples, error) {
 	for _, candidate := range candidates {
-		re, err := regexp.Compile(candidate.PathRegex)
+		re, err := compileRegex(&m.regexCache, candidate.PathRegex)
 		if err != nil {
 			return nil, fmt.Errorf("invalid path regex %q for rule %s: %w", candidate.PathRegex, candidate.Id, err)
 		}
@@ -168,7 +185,7 @@ func (rm *ResourceMapper) Map(ctx context.Context, userID, method, path string) 
 // extractRegexMatches compiles the path regex and extracts all named capture groups
 // from the path. Returns nil if there are no named groups.
 func extractRegexMatches(pathRegex, path string) (rules.RegexMatches, error) {
-	re, err := regexp.Compile(pathRegex)
+	re, err := compileRegex(&defaultRegexCache, pathRegex)
 	if err != nil {
 		return nil, fmt.Errorf("invalid path regex %q: %w", pathRegex, err)
 	}

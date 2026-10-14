@@ -20,10 +20,10 @@ import (
 
 type RuleSeeder struct {
 	db   postgres.DBClientInterface
-	repo *repository.PostgresRuleRepository
+	repo repository.RuleSeedRepository
 }
 
-func NewRuleSeeder(db postgres.DBClientInterface, repo *repository.PostgresRuleRepository) *RuleSeeder {
+func NewRuleSeeder(db postgres.DBClientInterface, repo repository.RuleSeedRepository) *RuleSeeder {
 	return &RuleSeeder{
 		db:   db,
 		repo: repo,
@@ -241,7 +241,9 @@ func (s *RuleSeeder) SeedService(ctx context.Context, file rules.SeedFile) (inse
 	if err != nil {
 		return false, false, fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
 
 	// 1. Upsert federated_service
 	serviceID, err := s.repo.UpsertFederatedService(ctx, tx, file.Service, file.Description)

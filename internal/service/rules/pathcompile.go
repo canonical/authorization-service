@@ -7,7 +7,11 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/canonical/authorization-service/internal/model/rules"
 )
+
+var reConstruct = regexp.MustCompile(`\{([a-zA-Z0-9_]+)\}|\*\*`)
 
 type CompiledPath struct {
 	SegmentCount int
@@ -25,15 +29,13 @@ func CompileMatch(match string) (CompiledPath, error) {
 	}
 
 	// Calculate segment count
-	segmentCount := len(strings.FieldsFunc(match, func(r rune) bool { return r == '/' }))
+	segmentCount := rules.CountSegments(match)
 
 	// Calculate static prefix ending right before the first dynamic construct ({placeholder} or **)
 	staticPrefix := getStaticPrefix(match)
 
 	// Build path regex
 	// We replace {placeholder} with (?P<placeholder>[^/]+) and wildcard ** with .* and escape regex characters in static parts.
-	reConstruct := regexp.MustCompile(`\{([a-zA-Z0-9_]+)\}|\*\*`)
-
 	// Find all dynamic constructs
 	matches := reConstruct.FindAllStringSubmatchIndex(match, -1)
 

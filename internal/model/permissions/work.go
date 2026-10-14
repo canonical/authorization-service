@@ -76,9 +76,7 @@ type Tuple struct {
 // ParseSubject parses an OpenFGA subject string which can be "type:id" or "type:id#relation".
 // It returns the base subject "type:id" and the user_set_subject_relation if present, or nil.
 func ParseSubject(subj string) (baseSubject string, userSetRelation *string) {
-	if idx := strings.Index(subj, "#"); idx != -1 {
-		base := subj[:idx]
-		rel := subj[idx+1:]
+	if base, rel, ok := strings.Cut(subj, "#"); ok {
 		return base, &rel
 	}
 	return subj, nil
