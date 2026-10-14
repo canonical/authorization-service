@@ -1,4 +1,4 @@
-// Copyright 2025 Canonical Ltd.
+// Copyright 2026 Canonical Ltd.
 // SPDX-License-Identifier: AGPL-3.0-only
 
 package authz
@@ -11,10 +11,9 @@ import (
 	"path/filepath"
 
 	openfga "github.com/openfga/go-sdk"
-	"github.com/openfga/go-sdk/client"
-	"github.com/openfga/go-sdk/credentials"
 	"github.com/openfga/language/pkg/go/transformer"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/otel/trace/noop"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/canonical/authorization-service/authz/model"
@@ -50,7 +49,7 @@ func writeModel(cmd *cobra.Command, args []string) error {
 	logger := cfg.Logging.SetupLogger(cfg.Telemetry.ServiceName, version.Version)
 
 	if err := WriteAuthorizationModel(cmd.Context(), storeID, cfg, logger); err != nil {
-		logger.Error("Failed to write authorization model", "error", err)
+		logger.ErrorContext(cmd.Context(), "Failed to write authorization model", "error", err)
 		return err
 	}
 
@@ -114,12 +113,14 @@ func compileModularModel() (*openfga.WriteAuthorizationModelRequest, error) {
 
 // WriteAuthorizationModel writes the authorization model to OpenFGA
 func WriteAuthorizationModel(ctx context.Context, storeID string, cfg *config.Config, logger *slog.Logger) error {
-
 	if storeID == "" {
 		return fmt.Errorf("store-id is required")
 	}
+	if cfg == nil || cfg.OpenFGA == nil {
+		return fmt.Errorf("openfga configuration is required")
+	}
 
-	logger.Info("Writing authorization model to OpenFGA",
+	logger.InfoContext(ctx, "Writing authorization model to OpenFGA",
 		"store_id", storeID,
 		"address", cfg.OpenFGA.Address,
 	)
@@ -130,42 +131,29 @@ func WriteAuthorizationModel(ctx context.Context, storeID string, cfg *config.Co
 		return fmt.Errorf("failed to compile modular authorization model: %w", err)
 	}
 
-	var creds *credentials.Credentials
-	if cfg.OpenFGA.ApiKey != "" {
-		creds, err = credentials.NewCredentials(credentials.Credentials{
-			Method: credentials.CredentialsMethodApiToken,
-			Config: &credentials.Config{
-				ApiToken: cfg.OpenFGA.ApiKey,
-			},
-		})
-		if err != nil {
-			return fmt.Errorf("failed to create OpenFGA credentials: %w", err)
-		}
-	}
+	cfgCopy := *cfg
+	fgaCopy := *cfg.OpenFGA
+	fgaCopy.StoreID = storeID
+	cfgCopy.OpenFGA = &fgaCopy
 
-	// Create OpenFGA SDK client
-	clientConfig := &client.ClientConfiguration{
-		ApiUrl:      cfg.OpenFGA.Address,
-		StoreId:     storeID,
-		Credentials: creds,
-	}
-
-	fgaClient, err := client.NewSdkClient(clientConfig)
+	integrations, err := config.InitializeIntegrations(
+		&cfgCopy,
+		logger,
+		noop.NewTracerProvider().Tracer("write-model"),
+		config.ComponentOpenFGAModelWriter,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to create OpenFGA client: %w", err)
+		return fmt.Errorf("failed to initialize OpenFGA client: %w", err)
 	}
-
-	if cfg.OpenFGA.Timeout > 0 && fgaClient.GetConfig().HTTPClient != nil {
-		fgaClient.GetConfig().HTTPClient.Timeout = cfg.OpenFGA.Timeout
-	}
+	defer integrations.CleanupIntegrations(logger)
 
 	// Write the authorization model via the SDK
-	resp, err := fgaClient.WriteAuthorizationModel(ctx).Body(*body).Execute()
+	resp, err := integrations.OpenFGA.WriteAuthorizationModel(ctx).Body(*body).Execute()
 	if err != nil {
 		return fmt.Errorf("failed to write authorization model: %w", err)
 	}
 
-	logger.Info("Authorization model written successfully",
+	logger.InfoContext(ctx, "Authorization model written successfully",
 		"store_id", storeID,
 		"model_id", resp.GetAuthorizationModelId(),
 	)

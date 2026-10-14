@@ -26,6 +26,7 @@ This command is suitable for manual execution or external scheduling (e.g. cron)
 
 func runReaperCmd(cmd *cobra.Command, _ []string) error {
 	cfg, err := config.LoadConfigFor(cmd,
+		config.ComponentServer,
 		config.ComponentPostgres,
 		config.ComponentWorker,
 		config.ComponentLogging,
@@ -36,14 +37,14 @@ func runReaperCmd(cmd *cobra.Command, _ []string) error {
 	}
 
 	logger := cfg.Logging.SetupLogger(cfg.Telemetry.ServiceName, version.Version)
-	logger.Info("Starting one-off stale-row reaper run")
+	logger.InfoContext(cmd.Context(), "Starting one-off stale-row reaper run")
 
 	tracer, tracerShutdown, err := cfg.Telemetry.SetupTelemetry(cmd.Context(), logger)
 	if err != nil {
 		return fmt.Errorf("telemetry setup failed: %w", err)
 	}
 
-	integrations, err := config.InitializeIntegrations(cfg, logger, tracer)
+	integrations, err := config.InitializeIntegrations(cfg, logger, tracer, config.ComponentPostgres)
 	if err != nil {
 		return fmt.Errorf("integration initialization failed: %w", err)
 	}
@@ -52,21 +53,19 @@ func runReaperCmd(cmd *cobra.Command, _ []string) error {
 	// This is a one-off batch job, not continuously scraped, so no metrics recorder is wired.
 	workRepo := repository.NewPostgresPermissionWorkRepository(integrations.Postgres, nil)
 
-	logger.Info("Reclaiming stale rows...", "stale_timeout", cfg.Worker.StaleTimeout.String())
-	count, err := workRepo.ReclaimStale(cmd.Context(), cfg.Worker.StaleTimeout)
-	if err != nil {
-		logger.Error("Failed to reclaim stale rows", "error", err)
-		return err
+	runner := ComponentRunner{
+		Name: "reaper",
+		Run: func(ctx context.Context) error {
+			logger.InfoContext(ctx, "Reclaiming stale rows...", "stale_timeout", cfg.Worker.StaleTimeout.String())
+			count, err := workRepo.ReclaimStale(ctx, cfg.Worker.StaleTimeout)
+			if err != nil {
+				logger.ErrorContext(ctx, "Failed to reclaim stale rows", "error", err)
+				return err
+			}
+			logger.InfoContext(ctx, "One-off stale-row reaper completed successfully", "reclaimed_count", count)
+			return nil
+		},
 	}
 
-	logger.Info("One-off stale-row reaper completed successfully", "reclaimed_count", count)
-
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.Server.GracefulShutdownTimeout)
-	defer shutdownCancel()
-
-	if err := tracerShutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("error shutting down tracer: %w", err)
-	}
-
-	return nil
+	return runManagedProcess(cmd.Context(), cfg, logger, nil, tracerShutdown, runner)
 }

@@ -19,6 +19,7 @@ import (
 
 var (
 	checkCookie string
+	checkToken  string
 	checkPath   string
 	checkMethod string
 	checkHost   string
@@ -28,7 +29,7 @@ var (
 var checkCmd = &cobra.Command{
 	Use:   "check",
 	Short: "Test the Envoy authorization Check method",
-	Long: `Test the Envoy authorization Check method by simulating a request with a session cookie.
+	Long: `Test the Envoy authorization Check method by simulating a request with a session cookie or Bearer token.
 
 This command is useful for debugging and verifying the STS integration flow without
 needing a full Envoy proxy setup.`,
@@ -37,17 +38,55 @@ needing a full Envoy proxy setup.`,
 
 func init() {
 	checkCmd.Flags().StringVar(&checkCookie, "cookie", "", "Session cookie value (e.g., 'session=abc123')")
+	checkCmd.Flags().StringVar(&checkToken, "token", "", "Bearer token value for machine-to-machine authentication")
 	checkCmd.Flags().StringVar(&checkPath, "path", "/api/test", "Request path to check")
 	checkCmd.Flags().StringVar(&checkMethod, "method", "GET", "HTTP method")
 	checkCmd.Flags().StringVar(&checkHost, "host", "example.com", "Host header value")
-
-	_ = checkCmd.MarkFlagRequired("cookie")
 }
 
-func runCheck(cmd *cobra.Command, args []string) error {
-	ctx := context.Background()
+func buildCheckRequest(method, path, host, cookie, token string) (*authv3.CheckRequest, error) {
+	if cookie == "" && token == "" {
+		return nil, fmt.Errorf("either --cookie or --token is required")
+	}
+
+	headers := map[string]string{
+		"host": host,
+	}
+	if cookie != "" {
+		headers["cookie"] = cookie
+	}
+	if token != "" {
+		headers["authorization"] = "Bearer " + token
+	}
+
+	return &authv3.CheckRequest{
+		Attributes: &authv3.AttributeContext{
+			Request: &authv3.AttributeContext_Request{
+				Http: &authv3.AttributeContext_HttpRequest{
+					Method:   method,
+					Path:     path,
+					Host:     host,
+					Headers:  headers,
+					Protocol: "HTTP/1.1",
+				},
+			},
+		},
+	}, nil
+}
+
+func runCheck(cmd *cobra.Command, _ []string) error {
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	checkReq, err := buildCheckRequest(checkMethod, checkPath, checkHost, checkCookie, checkToken)
+	if err != nil {
+		return err
+	}
 
 	cfg, err := config.LoadConfigFor(cmd,
+		config.ComponentServer,
 		config.ComponentPostgres,
 		config.ComponentOpenFGA,
 		config.ComponentValkey,
@@ -62,13 +101,32 @@ func runCheck(cmd *cobra.Command, args []string) error {
 
 	logger := cfg.Logging.SetupLogger(cfg.Telemetry.ServiceName, version.Version)
 
-	tracer, _, err := cfg.Telemetry.SetupTelemetry(cmd.Context(), logger)
+	tracer, tracerShutdown, err := cfg.Telemetry.SetupTelemetry(ctx, logger)
 	if err != nil {
 		return fmt.Errorf("failed to setup telemetry: %w", err)
 	}
+	defer func() {
+		shutdownTimeout := 10 * time.Second
+		if cfg.Server != nil && cfg.Server.GracefulShutdownTimeout > 0 {
+			shutdownTimeout = cfg.Server.GracefulShutdownTimeout
+		}
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer shutdownCancel()
+		if err := tracerShutdown(shutdownCtx); err != nil {
+			logger.ErrorContext(ctx, "Failed to shut down tracer", "error", err)
+		}
+	}()
 
 	// Initialize integrations and services
-	integrations, err := config.InitializeIntegrations(cfg, logger, tracer)
+	integrations, err := config.InitializeIntegrations(
+		cfg,
+		logger,
+		tracer,
+		config.ComponentPostgres,
+		config.ComponentOpenFGA,
+		config.ComponentValkey,
+		config.ComponentSTS,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to initialize integrations: %w", err)
 	}
@@ -77,29 +135,12 @@ func runCheck(cmd *cobra.Command, args []string) error {
 	// This is a one-off debugging command, not continuously scraped, so the registry is discarded.
 	services := integrations.InitializeServices(tracer, logger, metrics.NewRegistry())
 
-	// Build a mock CheckRequest
-	checkReq := &authv3.CheckRequest{
-		Attributes: &authv3.AttributeContext{
-			Request: &authv3.AttributeContext_Request{
-				Http: &authv3.AttributeContext_HttpRequest{
-					Method: checkMethod,
-					Path:   checkPath,
-					Host:   checkHost,
-					Headers: map[string]string{
-						"cookie": checkCookie,
-						"host":   checkHost,
-					},
-					Protocol: "HTTP/1.1",
-				},
-			},
-		},
-	}
-
-	logger.Info("Calling Check method",
+	logger.InfoContext(ctx, "Calling Check method",
 		"method", checkMethod,
 		"path", checkPath,
 		"host", checkHost,
-		"cookie", checkCookie,
+		"has_cookie", checkCookie != "",
+		"has_token", checkToken != "",
 	)
 
 	// Call the Check method
