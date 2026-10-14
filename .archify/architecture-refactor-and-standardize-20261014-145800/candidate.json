@@ -1,0 +1,299 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Authorization Service — Removed & Repurposed Objects",
+    "output": "refactor-and-standardize.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "external": { "label": "Removed Legacy" },
+        "frontend": { "label": "CLI & Lifecycle" },
+        "cloud": { "label": "Config & Telemetry" },
+        "security": { "label": "Authz & STS" },
+        "backend": { "label": "Rule Engine" },
+        "database": { "label": "Repository & DB" }
+      }
+    }
+  },
+  "layout": {
+    "mode": "grid",
+    "origin": [70, 110],
+    "cols": 3,
+    "cellW": 220,
+    "cellH": 78,
+    "gapX": 160,
+    "gapY": 120
+  },
+  "components": [
+    {
+      "id": "removed_cli_dup",
+      "type": "external",
+      "icon": "failure",
+      "label": "CLI Signal & Server Setup",
+      "sublabel": "Duplicated in worker, listen, reaper",
+      "tag": "REMOVED",
+      "row": 0,
+      "col": 0,
+      "size": [220, 78]
+    },
+    {
+      "id": "cmd_runner",
+      "type": "frontend",
+      "label": "cmd/runner.go",
+      "sublabel": "runManagedProcess & ComponentServer",
+      "tag": "REPURPOSED",
+      "row": 0,
+      "col": 1,
+      "size": [220, 78]
+    },
+    {
+      "id": "config_init",
+      "type": "cloud",
+      "label": "config.InitializeIntegrations",
+      "sublabel": "Component-scoped startup & Postgres.DSN()",
+      "tag": "REPURPOSED",
+      "row": 0,
+      "col": 2,
+      "size": [220, 78]
+    },
+    {
+      "id": "removed_openfga_stub",
+      "type": "external",
+      "icon": "failure",
+      "label": "openfga/client.go + Raw Init",
+      "sublabel": "Unused stub & inline SDK wiring",
+      "tag": "REMOVED",
+      "row": 1,
+      "col": 0,
+      "size": [220, 78]
+    },
+    {
+      "id": "cli_commands",
+      "type": "frontend",
+      "label": "CLI Commands (cmd/*)",
+      "sublabel": "serve, seed, migrate, check --token",
+      "tag": "STANDARDIZED",
+      "row": 1,
+      "col": 1,
+      "size": [220, 78]
+    },
+    {
+      "id": "sts_client",
+      "type": "security",
+      "label": "integration/sts/client.go",
+      "sublabel": "CreateConnection & readiness probe",
+      "tag": "REPURPOSED",
+      "row": 1,
+      "col": 2,
+      "size": [220, 78]
+    },
+    {
+      "id": "removed_sts_cookies",
+      "type": "external",
+      "icon": "failure",
+      "label": "Inline STS & splitCookies",
+      "sublabel": "config/specs.go dialer & custom parser",
+      "tag": "REMOVED",
+      "row": 2,
+      "col": 0,
+      "size": [220, 78]
+    },
+    {
+      "id": "authz_service",
+      "type": "security",
+      "label": "service/authz + TraceHandler",
+      "sublabel": "net/http cookies, request_id & *Context",
+      "tag": "REPURPOSED",
+      "row": 2,
+      "col": 1,
+      "size": [220, 78]
+    },
+    {
+      "id": "rules_engine",
+      "type": "backend",
+      "label": "rules.CountSegments & Cache",
+      "sublabel": "Shared segment count & sync.Map regex",
+      "tag": "REPURPOSED",
+      "row": 2,
+      "col": 2,
+      "size": [220, 78]
+    },
+    {
+      "id": "removed_rule_dups",
+      "type": "external",
+      "icon": "failure",
+      "label": "Duplicate Rule & Page Code",
+      "sublabel": "countSegments x2, UUIDv4, Offset/PageSize",
+      "tag": "REMOVED",
+      "row": 3,
+      "col": 0,
+      "size": [220, 78]
+    },
+    {
+      "id": "rules_repo",
+      "type": "database",
+      "brand": "postgresql",
+      "label": "repository.RuleSeedRepository",
+      "sublabel": "Narrow interface, UUIDv7 & ObserveQuery",
+      "tag": "REPURPOSED",
+      "row": 3,
+      "col": 1,
+      "size": [220, 78]
+    },
+    {
+      "id": "pg_client",
+      "type": "database",
+      "brand": "postgresql",
+      "label": "integration/postgres/client.go",
+      "sublabel": "ConnectTimeout > 0 fix & slog.*Context",
+      "tag": "REPURPOSED",
+      "row": 3,
+      "col": 2,
+      "size": [220, 78]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Removed Legacy Objects & Duplications",
+      "wraps": [
+        "removed_cli_dup",
+        "removed_openfga_stub",
+        "removed_sts_cookies",
+        "removed_rule_dups"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Repurposed & Standardized Modules",
+      "wraps": [
+        "cmd_runner",
+        "config_init",
+        "cli_commands",
+        "sts_client",
+        "authz_service",
+        "rules_engine",
+        "rules_repo",
+        "pg_client"
+      ]
+    },
+    {
+      "kind": "security-group",
+      "label": "Authz & Rule Evaluation Core",
+      "wraps": [
+        "authz_service",
+        "rules_engine"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "consolidate_cli",
+      "from": "removed_cli_dup",
+      "to": "cmd_runner",
+      "label": "consolidated into",
+      "variant": "dashed"
+    },
+    {
+      "id": "runner_wraps_cmds",
+      "from": "cmd_runner",
+      "to": "cli_commands",
+      "label": "manages lifecycle",
+      "variant": "emphasis"
+    },
+    {
+      "id": "cmds_use_config",
+      "from": "cli_commands",
+      "to": "config_init",
+      "label": "scoped init"
+    },
+    {
+      "id": "replace_openfga_stub",
+      "from": "removed_openfga_stub",
+      "to": "cli_commands",
+      "label": "replaced by",
+      "variant": "dashed"
+    },
+    {
+      "id": "config_dials_sts",
+      "from": "config_init",
+      "to": "sts_client",
+      "label": "delegates gRPC",
+      "variant": "security"
+    },
+    {
+      "id": "replace_sts_cookies",
+      "from": "removed_sts_cookies",
+      "to": "authz_service",
+      "label": "standardized in",
+      "variant": "dashed"
+    },
+    {
+      "id": "authz_calls_sts",
+      "from": "authz_service",
+      "to": "sts_client",
+      "label": "validates token",
+      "variant": "security"
+    },
+    {
+      "id": "authz_matches_rules",
+      "from": "authz_service",
+      "to": "rules_engine",
+      "label": "evaluates path",
+      "variant": "emphasis"
+    },
+    {
+      "id": "replace_rule_dups",
+      "from": "removed_rule_dups",
+      "to": "rules_repo",
+      "label": "refactored into",
+      "variant": "dashed"
+    },
+    {
+      "id": "engine_uses_repo",
+      "from": "rules_engine",
+      "to": "rules_repo",
+      "label": "seeds & queries"
+    },
+    {
+      "id": "repo_uses_pg",
+      "from": "rules_repo",
+      "to": "pg_client",
+      "label": "pgxpool SQL",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "rose",
+      "title": "Removed Dead & Duplicate Code",
+      "items": [
+        "Deleted unused internal/integration/openfga/client.go stub",
+        "Removed unused Offset, PageSize, defaultPage, defaultPageSize in postgres/client.go",
+        "Removed unused envconfig/default struct tags and inline STS gRPC dialer in config/specs.go",
+        "Removed custom splitCookies parser, duplicate countSegments helpers, and CLI signal/metrics boilerplate"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Repurposed Lifecycle & Configuration",
+      "items": [
+        "Extracted cmd/runner.go (runManagedProcess & ComponentRunner) for worker, listen, and reaper",
+        "Scoped config.InitializeIntegrations(components...) so seed, migrate, check, and write-model init only needed clients",
+        "Moved STS gRPC connection & readiness wait into internal/integration/sts/client.go",
+        "Added PostgresConfig.DSN() fallback to migrate and --token + tracerShutdown to authz check"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Standardized Domain, Repo & Telemetry",
+      "items": [
+        "Centralized rules.CountSegments and cached compiled regexes via sync.Map in RuleMatcher",
+        "Narrowed RuleSeeder dependency to repository.RuleSeedRepository with UUIDv7 and ObserveQuery metrics",
+        "Injected request_id in logging.TraceHandler and standardized context-aware slog.*Context calls across packages"
+      ]
+    }
+  ]
+}
