@@ -56,18 +56,32 @@ type Integrations struct {
 	stsConn ClosableClientConnInterface
 }
 
-func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Tracer) (*Integrations, error) {
+func shouldInitComponent(requested []Component, targets ...Component) bool {
+	if len(requested) == 0 {
+		return true
+	}
+	for _, req := range requested {
+		for _, target := range targets {
+			if req == target {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Tracer, components ...Component) (*Integrations, error) {
 	var err error
 	integrations := &Integrations{
 		MultitenancyEnabled: cfg.MultitenancyEnabled,
 	}
 
-	if cfg.ExtAuthzService != nil {
+	if cfg.ExtAuthzService != nil && shouldInitComponent(components, ComponentExtAuthz) {
 		integrations.jwkSetUrl = cfg.ExtAuthzService.JwkSetURL
 	}
 
 	// Initialize OpenFGA
-	if cfg.OpenFGA != nil {
+	if cfg.OpenFGA != nil && shouldInitComponent(components, ComponentOpenFGA, ComponentOpenFGAModelWriter) {
 		var creds *credentials.Credentials
 		if cfg.OpenFGA.ApiKey != "" {
 			creds, err = credentials.NewCredentials(credentials.Credentials{
@@ -103,31 +117,34 @@ func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Trace
 	}
 
 	// Initialize Valkey
-	if cfg.Valkey != nil && cfg.Valkey.Enabled {
-		integrations.Valkey, err = valkey.NewClient(
-			valkey.Config{
-				Address:  cfg.Valkey.Address,
-				Username: cfg.Valkey.Username,
-				Password: cfg.Valkey.Password,
-				DB:       cfg.Valkey.DB,
-				PoolSize: cfg.Valkey.PoolSize,
-				Timeout:  cfg.Valkey.Timeout,
-				UseTLS:   cfg.Valkey.UseTLS,
-			},
-			logger,
-		)
+	if shouldInitComponent(components, ComponentValkey) {
+		if cfg.Valkey != nil && cfg.Valkey.Enabled {
+			integrations.Valkey, err = valkey.NewClient(
+				valkey.Config{
+					Address:  cfg.Valkey.Address,
+					Username: cfg.Valkey.Username,
+					Password: cfg.Valkey.Password,
+					DB:       cfg.Valkey.DB,
+					PoolSize: cfg.Valkey.PoolSize,
+					Timeout:  cfg.Valkey.Timeout,
+					UseTLS:   cfg.Valkey.UseTLS,
+				},
+				logger,
+			)
 
-		if err != nil {
-			return nil, fmt.Errorf("failed to create Valkey client: %w", err)
+			if err != nil {
+				integrations.CleanupIntegrations(logger)
+				return nil, fmt.Errorf("failed to create Valkey client: %w", err)
+			}
+
+		} else {
+			logger.Info("Valkey disabled, using no-op client")
+			integrations.Valkey = valkey.NewNoopClient(logger)
 		}
-
-	} else {
-		logger.Info("Valkey disabled, using no-op client")
-		integrations.Valkey = valkey.NewNoopClient(logger)
 	}
 
 	// Initialize Postgres
-	if cfg.Postgres != nil {
+	if cfg.Postgres != nil && shouldInitComponent(components, ComponentPostgres) {
 		integrations.Postgres, err = postgres.NewClient(
 			postgres.Config{
 				Host:            cfg.Postgres.Host,
@@ -147,14 +164,16 @@ func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Trace
 		)
 
 		if err != nil {
+			integrations.CleanupIntegrations(logger)
 			return nil, fmt.Errorf("failed to create Postgres client: %w", err)
 		}
 	}
 
 	// Initialize STS
-	if cfg.STS != nil {
+	if cfg.STS != nil && shouldInitComponent(components, ComponentSTS) {
 		integrations.stsConn, err = cfg.STS.CreateSTSConnection()
 		if err != nil {
+			integrations.CleanupIntegrations(logger)
 			return nil, fmt.Errorf("failed to create STS connection: %w", err)
 		}
 
@@ -163,6 +182,14 @@ func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Trace
 			logger,
 			tracer,
 		)
+	}
+
+	// Initialize Kafka when explicitly requested in components
+	if len(components) > 0 && shouldInitComponent(components, ComponentKafka) {
+		if err := integrations.InitKafkaConsumer(cfg, logger); err != nil {
+			integrations.CleanupIntegrations(logger)
+			return nil, err
+		}
 	}
 
 	return integrations, nil
@@ -203,6 +230,9 @@ func BuildServiceRegistry(cfg *KafkaConfig) (*listen.ServiceRegistry, error) {
 // It is kept separate from InitializeIntegrations so that non-listening components (worker, serve, reaper)
 // do not join the consumer group and partition-starve active listeners.
 func (i *Integrations) InitKafkaConsumer(cfg *Config, logger *slog.Logger) error {
+	if i.KafkaConsumer != nil && i.ServiceRegistry != nil {
+		return nil
+	}
 	if cfg.Kafka != nil && cfg.Kafka.Enabled {
 		registry, err := BuildServiceRegistry(cfg.Kafka)
 		if err != nil {

@@ -127,3 +127,45 @@ func TestExtAuthzServiceConfig_Validation(t *testing.T) {
 		})
 	}
 }
+
+func TestPostgresConfig_DSN(t *testing.T) {
+	p := &PostgresConfig{
+		Host:           "db.local",
+		Port:           5432,
+		User:           "authz",
+		Password:       "secret",
+		DBName:         "authz_db",
+		SSLMode:        "disable",
+		ConnectTimeout: 10000000000, // 10s
+	}
+	assert.Equal(t, "host=db.local port=5432 user=authz password=secret dbname=authz_db sslmode=disable connect_timeout=10", p.DSN())
+}
+
+func TestSTSConfig_CreateSTSConnection(t *testing.T) {
+	s := &STSConfig{
+		Address:              "localhost:9090",
+		UseTLS:               false,
+		EagerConnectionCheck: false,
+	}
+	conn, err := s.CreateSTSConnection()
+	require.NoError(t, err)
+	require.NotNil(t, conn)
+	_ = conn.Close()
+}
+
+func TestServerAndMetricsAddresses(t *testing.T) {
+	srv := &ServerConfig{Host: "127.0.0.1", GRPCPort: 9091, HTTPPort: 8070}
+	assert.Equal(t, "127.0.0.1:9091", srv.GetGRPCAddress())
+	assert.Equal(t, "127.0.0.1:8070", srv.GetHTTPAddress())
+
+	m := &MetricsConfig{Port: 9100}
+	assert.Equal(t, "127.0.0.1:9100", m.GetAddress("127.0.0.1"))
+}
+
+func TestParseLogLevel(t *testing.T) {
+	assert.Equal(t, slog.LevelDebug, ParseLogLevel("debug"))
+	assert.Equal(t, slog.LevelInfo, ParseLogLevel("info"))
+	assert.Equal(t, slog.LevelWarn, ParseLogLevel("warn"))
+	assert.Equal(t, slog.LevelError, ParseLogLevel("error"))
+	assert.Equal(t, slog.LevelInfo, ParseLogLevel("unknown"))
+}

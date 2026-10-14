@@ -5,7 +5,6 @@ package config
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"os"
@@ -20,10 +19,8 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/connectivity"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/canonical/authorization-service/internal/integration/sts"
 	"github.com/canonical/authorization-service/internal/logging"
 )
 
@@ -60,7 +57,7 @@ var AllComponents = []Component{
 
 // Config represents the application configuration
 type Config struct {
-	MultitenancyEnabled bool                   `validate:"" envconfig:"MULTITENANCY_ENABLED" mapstructure:"multitenancy_enabled" default:"false"`
+	MultitenancyEnabled bool                   `validate:"" mapstructure:"multitenancy_enabled"`
 	Server              *ServerConfig          `validate:"" mapstructure:"server"`
 	ExtAuthzService     *ExtAuthzServiceConfig `validate:"" mapstructure:"ext_authz_service"`
 	OpenFGA             *OpenFGAConfig         `validate:"" mapstructure:"openfga"`
@@ -76,15 +73,15 @@ type Config struct {
 
 // ServerConfig contains server configuration
 type ServerConfig struct {
-	GRPCPort                int           `validate:"required,min=1,max=65535" envconfig:"GRPC_PORT" mapstructure:"grpc_port" default:"9091"`
-	HTTPPort                int           `validate:"required,min=1,max=65535" envconfig:"HTTP_PORT" mapstructure:"http_port" default:"8070"`
-	Host                    string        `validate:"required" envconfig:"SERVER_HOST" mapstructure:"host" default:"0.0.0.0"`
-	GracefulShutdownTimeout time.Duration `validate:"" envconfig:"SERVER_SHUTDOWN_TIMEOUT" mapstructure:"shutdown_timeout" default:"15s"`
-	Development             bool          `validate:"" envconfig:"DEV" mapstructure:"development" default:"false"`
+	GRPCPort                int           `validate:"required,min=1,max=65535" mapstructure:"grpc_port"`
+	HTTPPort                int           `validate:"required,min=1,max=65535" mapstructure:"http_port"`
+	Host                    string        `validate:"required" mapstructure:"host"`
+	GracefulShutdownTimeout time.Duration `validate:"" mapstructure:"shutdown_timeout"`
+	Development             bool          `validate:"" mapstructure:"development"`
 }
 
 type ExtAuthzServiceConfig struct {
-	JwkSetURL string `validate:"required,http_url" envconfig:"EXTAUTHZ_JWK_SET_URL" mapstructure:"jwk_set_url" default:"http://localhost:8080/.well-known/jwks.json"`
+	JwkSetURL string `validate:"required,http_url" mapstructure:"jwk_set_url"`
 }
 
 // GetGRPCAddress returns the full gRPC server address
@@ -99,39 +96,53 @@ func (s *ServerConfig) GetHTTPAddress() string {
 
 // OpenFGAConfig contains OpenFGA configuration
 type OpenFGAConfig struct {
-	Address              string        `validate:"required" envconfig:"OPENFGA_ADDRESS" mapstructure:"address" default:"http://localhost:8081"`
-	StoreID              string        `validate:"required" envconfig:"OPENFGA_STORE_ID" mapstructure:"store_id"`
-	AuthorizationModelID string        `validate:"" envconfig:"OPENFGA_AUTHORIZATION_MODEL_ID" mapstructure:"authorization_model_id"`
-	ApiKey               string        `validate:"required" envconfig:"OPENFGA_API_KEY" mapstructure:"api_key"`
-	Timeout              time.Duration `validate:"" envconfig:"OPENFGA_TIMEOUT" mapstructure:"timeout" default:"10s"`
+	Address              string        `validate:"required" mapstructure:"address"`
+	StoreID              string        `validate:"required" mapstructure:"store_id"`
+	AuthorizationModelID string        `validate:"" mapstructure:"authorization_model_id"`
+	ApiKey               string        `validate:"required" mapstructure:"api_key"`
+	Timeout              time.Duration `validate:"" mapstructure:"timeout"`
 }
 
 // ValkeyConfig contains Valkey (Redis-compatible) configuration
 type ValkeyConfig struct {
-	Enabled  bool          `validate:"" envconfig:"VALKEY_ENABLED" mapstructure:"enabled" default:"false"`
-	Address  string        `validate:"required_if=Enabled true" envconfig:"VALKEY_ADDRESS" mapstructure:"address" default:"localhost:6379"`
-	Username string        `validate:"" envconfig:"VALKEY_USERNAME" mapstructure:"username"`
-	Password string        `validate:"" envconfig:"VALKEY_PASSWORD" mapstructure:"password"`
-	DB       int           `validate:"min=0,max=15" envconfig:"VALKEY_DB" mapstructure:"db" default:"0"`
-	PoolSize int           `validate:"min=1" envconfig:"VALKEY_POOL_SIZE" mapstructure:"pool_size" default:"10"`
-	Timeout  time.Duration `validate:"" envconfig:"VALKEY_TIMEOUT" mapstructure:"timeout" default:"5s"`
-	UseTLS   bool          `validate:"" envconfig:"VALKEY_USE_TLS" mapstructure:"use_tls" default:"false"`
+	Enabled  bool          `validate:"" mapstructure:"enabled"`
+	Address  string        `validate:"required_if=Enabled true" mapstructure:"address"`
+	Username string        `validate:"" mapstructure:"username"`
+	Password string        `validate:"" mapstructure:"password"`
+	DB       int           `validate:"min=0,max=15" mapstructure:"db"`
+	PoolSize int           `validate:"min=1" mapstructure:"pool_size"`
+	Timeout  time.Duration `validate:"" mapstructure:"timeout"`
+	UseTLS   bool          `validate:"" mapstructure:"use_tls"`
 }
 
 // PostgresConfig contains PostgreSQL database configuration.
 // Postgres 14 or later is required.
 type PostgresConfig struct {
-	Host            string        `validate:"required" envconfig:"POSTGRES_HOST" mapstructure:"host" default:"localhost"`
-	Port            int           `validate:"required,min=1,max=65535" envconfig:"POSTGRES_PORT" mapstructure:"port" default:"5432"`
-	User            string        `validate:"required" envconfig:"POSTGRES_USER" mapstructure:"user" default:"authz"`
-	Password        string        `validate:"" envconfig:"POSTGRES_PASSWORD" mapstructure:"password" default:"authz-password"`
-	DBName          string        `validate:"required" envconfig:"POSTGRES_DB" mapstructure:"db_name" default:"authorization-service"`
-	SSLMode         string        `validate:"required,oneof=disable require verify-ca verify-full" envconfig:"POSTGRES_SSL_MODE" mapstructure:"ssl_mode" default:"disable"`
-	MaxOpenConns    int32         `validate:"min=1" envconfig:"POSTGRES_MAX_OPEN_CONNS" mapstructure:"max_open_conns" default:"25"`
-	MaxIdleConns    int32         `validate:"min=1" envconfig:"POSTGRES_MAX_IDLE_CONNS" mapstructure:"max_idle_conns" default:"5"`
-	ConnMaxLifetime time.Duration `validate:"" envconfig:"POSTGRES_CONN_MAX_LIFETIME" mapstructure:"conn_max_lifetime" default:"30m"`
-	ConnMaxIdleTime time.Duration `validate:"" envconfig:"POSTGRES_CONN_MAX_IDLE_TIME" mapstructure:"conn_max_idle_time" default:"5m"`
-	ConnectTimeout  time.Duration `validate:"" envconfig:"POSTGRES_CONNECT_TIMEOUT" mapstructure:"connect_timeout" default:"10s"`
+	Host            string        `validate:"required" mapstructure:"host"`
+	Port            int           `validate:"required,min=1,max=65535" mapstructure:"port"`
+	User            string        `validate:"required" mapstructure:"user"`
+	Password        string        `validate:"" mapstructure:"password"`
+	DBName          string        `validate:"required" mapstructure:"db_name"`
+	SSLMode         string        `validate:"required,oneof=disable require verify-ca verify-full" mapstructure:"ssl_mode"`
+	MaxOpenConns    int32         `validate:"min=1" mapstructure:"max_open_conns"`
+	MaxIdleConns    int32         `validate:"min=1" mapstructure:"max_idle_conns"`
+	ConnMaxLifetime time.Duration `validate:"" mapstructure:"conn_max_lifetime"`
+	ConnMaxIdleTime time.Duration `validate:"" mapstructure:"conn_max_idle_time"`
+	ConnectTimeout  time.Duration `validate:"" mapstructure:"connect_timeout"`
+}
+
+// DSN builds the PostgreSQL connection string (Data Source Name).
+func (p *PostgresConfig) DSN() string {
+	return fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s connect_timeout=%d",
+		p.Host,
+		p.Port,
+		p.User,
+		p.Password,
+		p.DBName,
+		p.SSLMode,
+		int(p.ConnectTimeout.Seconds()),
+	)
 }
 
 // SetupLogger builds the application logger: a JSON or text handler on
@@ -156,67 +167,15 @@ func (c *LoggingConfig) SetupLogger(serviceName, serviceVersion string) *slog.Lo
 
 // STSConfig contains Secure Token Service configuration
 type STSConfig struct {
-	Address              string        `validate:"required" envconfig:"STS_ADDRESS" mapstructure:"address" default:"localhost:9090"`
-	UseTLS               bool          `validate:"" envconfig:"STS_USE_TLS" mapstructure:"use_tls" default:"false"`
-	Timeout              time.Duration `validate:"" envconfig:"STS_TIMEOUT" mapstructure:"timeout" default:"10s"`
-	EagerConnectionCheck bool          `validate:"" envconfig:"STS_EAGER_CONNECTION_CHECK" mapstructure:"eager_connection_check" default:"false"`
+	Address              string        `validate:"required" mapstructure:"address"`
+	UseTLS               bool          `validate:"" mapstructure:"use_tls"`
+	Timeout              time.Duration `validate:"" mapstructure:"timeout"`
+	EagerConnectionCheck bool          `validate:"" mapstructure:"eager_connection_check"`
 }
 
 // CreateSTSConnection creates a gRPC connection to the STS service
 func (s *STSConfig) CreateSTSConnection() (*grpc.ClientConn, error) {
-	var (
-		opts           []grpc.DialOption
-		credentialsOpt grpc.DialOption
-	)
-
-	if s.UseTLS {
-		credentialsOpt = grpc.WithTransportCredentials(
-			credentials.NewTLS(
-				&tls.Config{
-					MinVersion: tls.VersionTLS12,
-				},
-			),
-		)
-	} else {
-		credentialsOpt = grpc.WithTransportCredentials(insecure.NewCredentials())
-	}
-
-	opts = append(opts, credentialsOpt)
-
-	conn, err := grpc.NewClient(s.Address, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create STS connection for %s: %w", s.Address, err)
-	}
-
-	if s.EagerConnectionCheck {
-		err = s.waitForConnectionReady(conn)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return conn, nil
-}
-
-func (s *STSConfig) waitForConnectionReady(conn *grpc.ClientConn) error {
-	conn.Connect()
-
-	dialCtx, cancel := context.WithTimeout(context.Background(), s.Timeout)
-	defer cancel()
-
-	for {
-		state := conn.GetState()
-		if state == connectivity.Ready {
-			break
-		}
-
-		if !conn.WaitForStateChange(dialCtx, state) {
-			_ = conn.Close()
-			return fmt.Errorf("timeout waiting for STS connection to %s: %w", s.Address, dialCtx.Err())
-		}
-	}
-
-	return nil
+	return sts.CreateConnection(s.Address, s.UseTLS, s.Timeout, s.EagerConnectionCheck)
 }
 
 // KafkaConfig contains Kafka consumer configuration for the permission-update
@@ -226,13 +185,13 @@ func (s *STSConfig) waitForConnectionReady(conn *grpc.ClientConn) error {
 // the listener subscribes to the derived "permissions.<slug>" topic within a
 // single consumer group. Topics are never hardcoded.
 type KafkaConfig struct {
-	Enabled                   bool     `validate:"" envconfig:"KAFKA_ENABLED" mapstructure:"enabled" default:"false"`
-	Brokers                   []string `validate:"required_if=Enabled true" envconfig:"KAFKA_BROKERS" mapstructure:"brokers" default:"localhost:9092"`
-	FederatedServices         []string `validate:"" envconfig:"FEDERATED_SERVICES" mapstructure:"federated_services"`
-	FederatedServicesStrategy string   `validate:"omitempty,oneof=auto fs config" envconfig:"FEDERATED_SERVICES_STRATEGY" mapstructure:"federated_services_strategy" default:"auto"`
-	ConsumerGroup             string   `validate:"required_if=Enabled true" envconfig:"KAFKA_CONSUMER_GROUP" mapstructure:"consumer_group" default:"authz-listener"`
-	TopicPartitions           int      `validate:"min=1" envconfig:"KAFKA_TOPIC_PARTITIONS" mapstructure:"topic_partitions" default:"1"`
-	TopicReplicationFactor    int      `validate:"min=1" envconfig:"KAFKA_TOPIC_REPLICATION_FACTOR" mapstructure:"topic_replication_factor" default:"1"`
+	Enabled                   bool     `validate:"" mapstructure:"enabled"`
+	Brokers                   []string `validate:"required_if=Enabled true" mapstructure:"brokers"`
+	FederatedServices         []string `validate:"" mapstructure:"federated_services"`
+	FederatedServicesStrategy string   `validate:"omitempty,oneof=auto fs config" mapstructure:"federated_services_strategy"`
+	ConsumerGroup             string   `validate:"required_if=Enabled true" mapstructure:"consumer_group"`
+	TopicPartitions           int      `validate:"min=1" mapstructure:"topic_partitions"`
+	TopicReplicationFactor    int      `validate:"min=1" mapstructure:"topic_replication_factor"`
 }
 
 // WorkerConfig contains configuration for the async permission-update worker
@@ -242,22 +201,22 @@ type KafkaConfig struct {
 // instances (FOR UPDATE SKIP LOCKED assigns disjoint rows), mirroring how the
 // listener scales.
 type WorkerConfig struct {
-	Enabled        bool          `validate:"" envconfig:"WORKER_ENABLED" mapstructure:"enabled" default:"false"`
-	BatchSize      int           `validate:"min=1" envconfig:"WORKER_BATCH_SIZE" mapstructure:"batch_size" default:"100"`
-	PollInterval   time.Duration `validate:"" envconfig:"WORKER_POLL_INTERVAL" mapstructure:"poll_interval" default:"1s"`
-	MaxAttempts    int           `validate:"min=1" envconfig:"WORKER_MAX_ATTEMPTS" mapstructure:"max_attempts" default:"5"`
-	RetryBackoff   time.Duration `validate:"" envconfig:"WORKER_RETRY_BACKOFF" mapstructure:"retry_backoff" default:"5m"`
-	StaleTimeout   time.Duration `validate:"" envconfig:"WORKER_STALE_TIMEOUT" mapstructure:"stale_timeout" default:"15m"`
-	ReaperInterval time.Duration `validate:"" envconfig:"WORKER_REAPER_INTERVAL" mapstructure:"reaper_interval" default:"1m"`
+	Enabled        bool          `validate:"" mapstructure:"enabled"`
+	BatchSize      int           `validate:"min=1" mapstructure:"batch_size"`
+	PollInterval   time.Duration `validate:"" mapstructure:"poll_interval"`
+	MaxAttempts    int           `validate:"min=1" mapstructure:"max_attempts"`
+	RetryBackoff   time.Duration `validate:"" mapstructure:"retry_backoff"`
+	StaleTimeout   time.Duration `validate:"" mapstructure:"stale_timeout"`
+	ReaperInterval time.Duration `validate:"" mapstructure:"reaper_interval"`
 }
 
 // MetricsConfig contains configuration for the Prometheus metrics HTTP
 // endpoint exposed by each long-running binary (serve, worker, listen) on its
 // own dedicated port, as expected by the Istio mesh's Prometheus scrape config.
 type MetricsConfig struct {
-	Enabled bool   `validate:"" envconfig:"METRICS_ENABLED" mapstructure:"enabled" default:"true"`
-	Port    int    `validate:"required,min=1,max=65535" envconfig:"METRICS_PORT" mapstructure:"port" default:"9100"`
-	Path    string `validate:"required" envconfig:"METRICS_PATH" mapstructure:"path" default:"/metrics"`
+	Enabled bool   `validate:"" mapstructure:"enabled"`
+	Port    int    `validate:"required,min=1,max=65535" mapstructure:"port"`
+	Path    string `validate:"required" mapstructure:"path"`
 }
 
 // GetAddress returns the full metrics server address for the given host.
@@ -267,22 +226,22 @@ func (m *MetricsConfig) GetAddress(host string) string {
 
 // LoggingConfig contains logging configuration
 type LoggingConfig struct {
-	Level     string `validate:"required,oneof=debug info warn error" envconfig:"LOG_LEVEL" mapstructure:"level" default:"info"`
-	Format    string `validate:"required,oneof=json text" envconfig:"LOG_FORMAT" mapstructure:"format" default:"json"`
-	AddSource bool   `validate:"" envconfig:"LOG_ADD_SOURCE" mapstructure:"add_source" default:"false"`
+	Level     string `validate:"required,oneof=debug info warn error" mapstructure:"level"`
+	Format    string `validate:"required,oneof=json text" mapstructure:"format"`
+	AddSource bool   `validate:"" mapstructure:"add_source"`
 }
 
 // TelemetryConfig contains telemetry configuration
 type TelemetryConfig struct {
-	Enabled        bool   `validate:"" envconfig:"TELEMETRY_ENABLED" mapstructure:"enabled" default:"false"`
-	OTLPEndpoint   string `validate:"" envconfig:"OTEL_EXPORTER_OTLP_ENDPOINT" mapstructure:"otlp_endpoint"`
-	ServiceName    string `validate:"required_if=Enabled true" envconfig:"OTEL_SERVICE_NAME" mapstructure:"service_name" default:"authorization-service"`
-	ServiceVersion string `validate:"required_if=Enabled true" envconfig:"OTEL_SERVICE_VERSION" mapstructure:"service_version" default:"v1.0.0"`
+	Enabled        bool   `validate:"" mapstructure:"enabled"`
+	OTLPEndpoint   string `validate:"" mapstructure:"otlp_endpoint"`
+	ServiceName    string `validate:"required_if=Enabled true" mapstructure:"service_name"`
+	ServiceVersion string `validate:"required_if=Enabled true" mapstructure:"service_version"`
 }
 
 func (t *TelemetryConfig) SetupTelemetry(ctx context.Context, logger *slog.Logger) (trace.Tracer, func(context.Context) error, error) {
 	if !t.Enabled {
-		logger.Info("Telemetry is disabled")
+		logger.InfoContext(ctx, "Telemetry is disabled")
 		return otel.Tracer(t.ServiceName), func(context.Context) error { return nil }, nil
 	}
 
