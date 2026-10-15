@@ -16,6 +16,18 @@ jobs:
       - name: Run vulnerability check
         run: make govulncheck
 
+      - name: Build binaries for all supported architectures
+        run: make build-all
+
+      - name: Verify binary architectures
+        run: |
+          file bin/app-linux-amd64 | grep -q 'x86-64'
+          file bin/app-linux-arm64 | grep -q 'aarch64'
+          file bin/app-linux-riscv64 | grep -q 'RISC-V'
+          for b in bin/app-linux-*; do
+            file "$b" | grep -Eq 'x86-64|aarch64|RISC-V' || exit 1
+          done
+
       - name: Build Go code
         run: make test
 
