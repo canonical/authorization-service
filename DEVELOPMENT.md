@@ -97,11 +97,22 @@ if err != nil {
 ```bash
 # Install dependencies
 go mod download
-# Build binary
+# Build binary for host OS/architecture
 make build
+# Build binaries for all supported architectures (linux/amd64, linux/arm64, linux/riscv64)
+make build-all
+# Pack Rock image for a supported container architecture (amd64 or arm64)
+IMAGE=authorization-service:dev ARCH=amd64 ./build.sh
 # Start dependencies
 make start-deps
 ```
+
+> **Multi-Architecture Notes**:
+> - `riscv64` is supported at the Go binary level (`make build-all`, `GOOS=linux GOARCH=riscv64 make build`), whereas Rock container images are built and published only for `amd64` and `arm64`.
+> - Multi-architecture release candidate promotion (`<version>-candidate` $\rightarrow$ `<version>` and `stable`) requires `skopeo copy --all` in the centralized workflow ([`canonical/identity-team#156`](https://github.com/canonical/identity-team/pull/156)). Verify published or promoted multi-architecture manifest lists with:
+>   ```bash
+>   docker manifest inspect ghcr.io/canonical/authorization-service:<tag>
+>   ```
 
 ### Start istio infra for external authorization
 Refer to [the doc](k8s/dev-setup/development.md).
