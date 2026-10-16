@@ -1285,6 +1285,11 @@ func TestExtractSessionCookie(t *testing.T) {
 			cookieHeader:  "session-id=wrong; session_id=correct",
 			expectedValue: "correct",
 		},
+		{
+			name:          "quoted session cookie value",
+			cookieHeader:  `session_id="quoted-value"`,
+			expectedValue: "quoted-value",
+		},
 	}
 
 	for _, tt := range tests {
@@ -1292,58 +1297,6 @@ func TestExtractSessionCookie(t *testing.T) {
 			result := extractSessionCookie(tt.cookieHeader)
 			if result != tt.expectedValue {
 				t.Errorf("expected %q, got %q", tt.expectedValue, result)
-			}
-		})
-	}
-}
-
-func TestSplitCookies(t *testing.T) {
-	tests := []struct {
-		name          string
-		cookieHeader  string
-		expectedCount int
-		expectedFirst string
-	}{
-		{
-			name:          "single cookie",
-			cookieHeader:  "session_id=abc123",
-			expectedCount: 1,
-			expectedFirst: "session_id=abc123",
-		},
-		{
-			name:          "multiple cookies",
-			cookieHeader:  "foo=bar; baz=qux; session_id=xyz",
-			expectedCount: 3,
-			expectedFirst: "foo=bar",
-		},
-		{
-			name:          "empty string",
-			cookieHeader:  "",
-			expectedCount: 0,
-			expectedFirst: "",
-		},
-		{
-			name:          "cookies with spaces",
-			cookieHeader:  "  foo=bar  ;  baz=qux  ",
-			expectedCount: 2,
-			expectedFirst: "foo=bar",
-		},
-		{
-			name:          "trailing semicolon",
-			cookieHeader:  "foo=bar;",
-			expectedCount: 1,
-			expectedFirst: "foo=bar",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := splitCookies(tt.cookieHeader)
-			if len(result) != tt.expectedCount {
-				t.Errorf("expected %d cookies, got %d", tt.expectedCount, len(result))
-			}
-			if len(result) > 0 && tt.expectedFirst != "" && result[0] != tt.expectedFirst {
-				t.Errorf("expected first cookie %q, got %q", tt.expectedFirst, result[0])
 			}
 		})
 	}

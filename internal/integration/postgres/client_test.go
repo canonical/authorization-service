@@ -75,51 +75,45 @@ func TestConfig_DSN_ZeroTimeout(t *testing.T) {
 	}
 }
 
-// ── Offset & PageSize ─────────────────────────────────────────────────────────
+// ── NewClient ─────────────────────────────────────────────────────────────────
 
-func TestOffset(t *testing.T) {
-	tests := []struct {
-		name     string
-		page     int64
-		pageSize uint64
-		expected uint64
-	}{
-		{"first page", 1, 10, 0},
-		{"second page", 2, 10, 10},
-		{"third page", 3, 25, 50},
-		{"zero page falls back to page 1", 0, 10, 0},
-		{"negative page falls back to page 1", -5, 10, 0},
+func TestNewClient_InvalidDSN(t *testing.T) {
+	cfg := Config{
+		Host:    "localhost",
+		Port:    -1,
+		User:    "user",
+		SSLMode: "invalid-ssl-mode='unclosed",
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := Offset(tt.page, tt.pageSize)
-			if got != tt.expected {
-				t.Errorf("Offset(%d, %d) = %d, want %d", tt.page, tt.pageSize, got, tt.expected)
-			}
-		})
+	_, err := NewClient(cfg, testutil.TestLogger(t), testutil.TestTracer(t))
+	if err == nil {
+		t.Fatal("expected error for invalid DSN config, got nil")
 	}
 }
 
-func TestPageSize(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    int64
-		expected uint64
-	}{
-		{"positive value", 50, 50},
-		{"one", 1, 1},
-		{"zero falls back to default", 0, defaultPageSize},
-		{"negative falls back to default", -1, defaultPageSize},
+func TestNewClient_ConnectTimeoutHonored(t *testing.T) {
+	cfg := Config{
+		Host:            "127.0.0.1",
+		Port:            1, // unreachable port
+		User:            "user",
+		Password:        "pass",
+		DBName:          "authz",
+		SSLMode:         "disable",
+		MaxOpenConns:    10,
+		MaxIdleConns:    2,
+		ConnMaxLifetime: 5 * time.Minute,
+		ConnMaxIdleTime: 1 * time.Minute,
+		ConnectTimeout:  20 * time.Millisecond,
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := PageSize(tt.input)
-			if got != tt.expected {
-				t.Errorf("PageSize(%d) = %d, want %d", tt.input, got, tt.expected)
-			}
-		})
+	start := time.Now()
+	_, err := NewClient(cfg, testutil.TestLogger(t), testutil.TestTracer(t))
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Fatal("expected ping error for unreachable port, got nil")
+	}
+	if elapsed > 2*time.Second {
+		t.Errorf("expected fast failure honoring ConnectTimeout, took %v", elapsed)
 	}
 }
 

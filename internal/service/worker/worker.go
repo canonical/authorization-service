@@ -60,7 +60,7 @@ func NewWorker(
 // Run polls the work table on pollInterval and processes one batch per tick,
 // blocking until ctx is cancelled or an error occurs.
 func (w *Worker) Run(ctx context.Context) error {
-	w.logger.Info("Starting permission-update worker",
+	w.logger.InfoContext(ctx, "Starting permission-update worker",
 		"batch_size", w.batchSize, "poll_interval", w.pollInterval.String())
 
 	ticker := time.NewTicker(w.pollInterval)
@@ -82,7 +82,7 @@ func (w *Worker) Run(ctx context.Context) error {
 func (w *Worker) processBatch(ctx context.Context) error {
 	rows, err := w.repo.ClaimBatch(ctx, w.batchSize, w.retryBackoff)
 	if err != nil {
-		w.logger.Error("Failed to claim work batch", "error", err)
+		w.logger.ErrorContext(ctx, "Failed to claim work batch", "error", err)
 		return err
 	}
 	w.metrics.ObserveBatchClaimed(len(rows))
@@ -90,7 +90,7 @@ func (w *Worker) processBatch(ctx context.Context) error {
 		return nil
 	}
 
-	w.logger.Debug("Claimed work batch", "rows", len(rows))
+	w.logger.DebugContext(ctx, "Claimed work batch", "rows", len(rows))
 
 	// Sort the batch by event_timestamp (EventTime) as a best-effort local ordering step.
 	sort.Slice(rows, func(i, j int) bool {
@@ -119,7 +119,7 @@ func (w *Worker) processBatch(ctx context.Context) error {
 			// ProcessRow only returns an error if it could not record the outcome
 			// (e.g. DB unavailable). The row stays claimed and will be reclaimed by
 			// the stale-row reaper once its processing timeout elapses.
-			w.logger.Error("Failed to record processing outcome",
+			w.logger.ErrorContext(ctx, "Failed to record processing outcome",
 				"service", row.Service, "message_id", row.MessageID, "row_id", row.ID,
 				"correlation_id", strOrEmpty(row.CorrelationID), "error", err)
 			return err

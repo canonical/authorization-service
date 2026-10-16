@@ -375,3 +375,44 @@ func TestExtractRegexMatches(t *testing.T) {
 		})
 	}
 }
+
+func TestRuleMatcher_RegexCacheHit(t *testing.T) {
+	matcher := NewRuleMatcher()
+	pattern := `^/groups/(?P<groupId>[^/]+)$`
+	candidates := []*rules.RuleWithTuples{
+		{Id: "rule1", PathRegex: pattern},
+	}
+
+	matched1, err := matcher.Match(candidates, "/groups/g1")
+	require.NoError(t, err)
+	require.Equal(t, candidates[0], matched1)
+
+	cached1, ok := matcher.regexCache.Load(pattern)
+	require.True(t, ok)
+
+	matched2, err := matcher.Match(candidates, "/groups/g2")
+	require.NoError(t, err)
+	require.Equal(t, candidates[0], matched2)
+
+	cached2, ok := matcher.regexCache.Load(pattern)
+	require.True(t, ok)
+	assert.Same(t, cached1, cached2)
+}
+
+func BenchmarkRuleMatcher_Match(b *testing.B) {
+	matcher := NewRuleMatcher()
+	candidates := []*rules.RuleWithTuples{
+		{Id: "rule1", PathRegex: `^/api/v1/users/(?P<userId>[^/]+)$`},
+		{Id: "rule2", PathRegex: `^/api/v1/groups/(?P<groupId>[^/]+)/members/(?P<memberId>[^/]+)$`},
+	}
+	path := "/api/v1/groups/grp-1/members/mem-2"
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := matcher.Match(candidates, path)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+

@@ -19,7 +19,7 @@ var ensureTopicsCmd = &cobra.Command{
 	Use:     "ensure",
 	Aliases: []string{"ensure-topics"},
 	Short:   "Idempotently create the permission-update topics for federated services",
-    Long: `Create the "permissions.<slug>" Kafka topic for all federated services discovered or configured according to FEDERATED_SERVICES_STRATEGY. Existing topics are left untouched, so this command is safe to run repeatedly.
+	Long: `Create the "permissions.<slug>" Kafka topic for all federated services discovered or configured according to FEDERATED_SERVICES_STRATEGY. Existing topics are left untouched, so this command is safe to run repeatedly.
 Configuration is loaded from environment variables.`,
 	RunE: runEnsureTopics,
 }
@@ -46,8 +46,9 @@ func ensureTopics(ctx context.Context, cfg *config.Config, logger *slog.Logger) 
 		return fmt.Errorf("failed to build federated service registry: %w", err)
 	}
 
-	specs := make([]kafkaintegration.TopicSpec, 0, len(registry.Topics()))
-	for _, topic := range registry.Topics() {
+	topics := registry.Topics()
+	specs := make([]kafkaintegration.TopicSpec, 0, len(topics))
+	for _, topic := range topics {
 		specs = append(specs, kafkaintegration.TopicSpec{
 			Name:              topic,
 			NumPartitions:     cfg.Kafka.TopicPartitions,

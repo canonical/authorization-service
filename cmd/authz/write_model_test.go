@@ -77,3 +77,16 @@ func TestWriteAuthorizationModel_WithoutApiKey(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, receivedAuthHeader)
 }
+
+func TestWriteAuthorizationModel_ValidationErrors(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	err := WriteAuthorizationModel(context.Background(), "", &config.Config{}, logger)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "store-id is required")
+
+	err = WriteAuthorizationModel(context.Background(), "01GP1254CHWJC1MNGVB0WDG1T0", &config.Config{}, logger)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "openfga configuration is required")
+}
+

@@ -1,4 +1,4 @@
-// Copyright 2025 Canonical Ltd.
+// Copyright 2026 Canonical Ltd.
 // SPDX-License-Identifier: AGPL-3.0-only
 
 package cmd
@@ -13,6 +13,7 @@ import (
 	"github.com/pressly/goose/v3"
 	"github.com/spf13/cobra"
 
+	"github.com/canonical/authorization-service/config"
 	"github.com/canonical/authorization-service/migrations"
 )
 
@@ -20,7 +21,7 @@ import (
 var migrateCmd = &cobra.Command{
 	Use:   "migrate",
 	Short: "Run database migrations",
-	Long:  `Run database migrations`,
+	Long:  `Run database migrations using the --dsn flag or PostgreSQL configuration environment variables.`,
 	Args:  customValidArgs(),
 	RunE:  runMigrate(),
 }
@@ -58,6 +59,20 @@ func customValidArgs() func(cmd *cobra.Command, args []string) error {
 	}
 }
 
+func resolveMigrateDSN(cmd *cobra.Command) (string, error) {
+	dsn, _ := cmd.Flags().GetString("dsn")
+	if dsn != "" {
+		return dsn, nil
+	}
+
+	cfg, err := config.LoadConfigFor(cmd, config.ComponentPostgres)
+	if err != nil {
+		return "", err
+	}
+
+	return cfg.Postgres.DSN(), nil
+}
+
 func runMigrate() func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		command := "up"
@@ -70,7 +85,10 @@ func runMigrate() func(cmd *cobra.Command, args []string) error {
 			version, _ = strconv.Atoi(args[1])
 		}
 
-		dsn, _ := cmd.Flags().GetString("dsn")
+		dsn, err := resolveMigrateDSN(cmd)
+		if err != nil {
+			return err
+		}
 
 		if err := migrate(cmd.Context(), dsn, command, version); err != nil {
 			return err
@@ -81,8 +99,7 @@ func runMigrate() func(cmd *cobra.Command, args []string) error {
 }
 
 func init() {
-	migrateCmd.Flags().String("dsn", "", "PostgreSQL DSN connection string")
-	_ = migrateCmd.MarkFlagRequired("dsn")
+	migrateCmd.Flags().String("dsn", "", "PostgreSQL DSN connection string (optional; falls back to POSTGRES_* config)")
 }
 
 func migrate(ctx context.Context, dsn, command string, version int) error {

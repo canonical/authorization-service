@@ -6,6 +6,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -15,9 +16,11 @@ import (
 
 // GetCurrentRevision retrieves the current revision from the DB for a service.
 // Returns (revision, found, error).
-func (r *PostgresRuleRepository) GetCurrentRevision(ctx context.Context, tx pgx.Tx, serviceID string) (string, bool, error) {
-	var revision string
-	err := tx.QueryRow(ctx, "SELECT revision FROM authorization_rule WHERE service_id = $1 LIMIT 1", serviceID).Scan(&revision)
+func (r *PostgresRuleRepository) GetCurrentRevision(ctx context.Context, tx pgx.Tx, serviceID string) (revision string, found bool, err error) {
+	start := time.Now()
+	defer func() { r.metrics.ObserveQuery("get_current_revision", err, time.Since(start)) }()
+
+	err = tx.QueryRow(ctx, "SELECT revision FROM authorization_rule WHERE service_id = $1 LIMIT 1", serviceID).Scan(&revision)
 	if err == pgx.ErrNoRows {
 		return "", false, nil
 	}
@@ -29,11 +32,17 @@ func (r *PostgresRuleRepository) GetCurrentRevision(ctx context.Context, tx pgx.
 
 // UpsertFederatedService upserts the federated service by its slug.
 // If it already exists, its description is updated. Returns the service ID.
-func (r *PostgresRuleRepository) UpsertFederatedService(ctx context.Context, tx pgx.Tx, slug, description string) (string, error) {
-	var id string
-	newID := uuid.New().String()
+func (r *PostgresRuleRepository) UpsertFederatedService(ctx context.Context, tx pgx.Tx, slug, description string) (id string, err error) {
+	start := time.Now()
+	defer func() { r.metrics.ObserveQuery("upsert_federated_service", err, time.Since(start)) }()
 
-	err := tx.QueryRow(ctx, `
+	newUUID, err := uuid.NewV7()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate UUIDv7: %w", err)
+	}
+	newID := newUUID.String()
+
+	err = tx.QueryRow(ctx, `
 		INSERT INTO federated_service (id, slug, description, tenant)
 		VALUES ($1, $2, $3, NULL)
 		ON CONFLICT (slug) DO UPDATE
@@ -47,9 +56,12 @@ func (r *PostgresRuleRepository) UpsertFederatedService(ctx context.Context, tx 
 }
 
 // ReplaceServiceRules atomically replaces all route rules for a service.
-func (r *PostgresRuleRepository) ReplaceServiceRules(ctx context.Context, tx pgx.Tx, serviceID, revision string, compiledRules []rules.CompiledRuleWithTuples) error {
+func (r *PostgresRuleRepository) ReplaceServiceRules(ctx context.Context, tx pgx.Tx, serviceID, revision string, compiledRules []rules.CompiledRuleWithTuples) (err error) {
+	start := time.Now()
+	defer func() { r.metrics.ObserveQuery("replace_service_rules", err, time.Since(start)) }()
+
 	// 1. Delete existing tuples explicitly (not strictly required due to cascade, but requested and safer)
-	_, err := tx.Exec(ctx, `
+	_, err = tx.Exec(ctx, `
 		DELETE FROM authorization_rule_tuple 
 		WHERE rule_id IN (SELECT id FROM authorization_rule WHERE service_id = $1)
 	`, serviceID)
@@ -65,8 +77,13 @@ func (r *PostgresRuleRepository) ReplaceServiceRules(ctx context.Context, tx pgx
 
 	// 3. Insert new rules and tuples
 	for _, cr := range compiledRules {
-		ruleID := uuid.New().String()
-		_, err := tx.Exec(ctx, `
+		ruleUUID, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("failed to generate rule UUIDv7: %w", err)
+		}
+		ruleID := ruleUUID.String()
+
+		_, err = tx.Exec(ctx, `
 			INSERT INTO authorization_rule (id, revision, service_id, method, segment_count, static_prefix, path_regex, priority)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		`, ruleID, revision, serviceID, cr.Method, cr.SegmentCount, cr.StaticPrefix, cr.PathRegex, cr.Priority)
@@ -75,8 +92,13 @@ func (r *PostgresRuleRepository) ReplaceServiceRules(ctx context.Context, tx pgx
 		}
 
 		for _, ct := range cr.Tuples {
-			tupleID := uuid.New().String()
-			_, err := tx.Exec(ctx, `
+			tupleUUID, err := uuid.NewV7()
+			if err != nil {
+				return fmt.Errorf("failed to generate rule tuple UUIDv7: %w", err)
+			}
+			tupleID := tupleUUID.String()
+
+			_, err = tx.Exec(ctx, `
 				INSERT INTO authorization_rule_tuple (id, rule_id, user_resource_type, permission, object_resource_type, object_resource_id)
 				VALUES ($1, $2, $3, $4, $5, $6)
 			`, tupleID, ruleID, ct.UserResourceType, ct.Permission, ct.ObjectResourceType, ct.ObjectResourceId)

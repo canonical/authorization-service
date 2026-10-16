@@ -38,7 +38,7 @@ func NewListener(
 
 // Run starts the consumer and blocks until ctx is cancelled.
 func (l *Listener) Run(ctx context.Context) error {
-	l.logger.Info("Starting Kafka permission-update listener")
+	l.logger.InfoContext(ctx, "Starting Kafka permission-update listener")
 	err := l.consumer.Consume(ctx, l.handleMessage)
 	if ctx.Err() != nil {
 		return nil

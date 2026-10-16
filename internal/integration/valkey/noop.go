@@ -33,7 +33,7 @@ func NewNoopClient(logger *slog.Logger) *NoopClient {
 
 // Get retrieves a value from in-memory storage
 func (c *NoopClient) Get(ctx context.Context, key string) (string, error) {
-	c.logger.Debug("Noop cache get", "key", key)
+	c.logger.DebugContext(ctx, "Noop cache get", "key", key)
 
 	val, exists := c.data[key]
 	if !exists {
@@ -49,14 +49,14 @@ func (c *NoopClient) Get(ctx context.Context, key string) (string, error) {
 
 // Set stores a value in in-memory storage (expiration is ignored)
 func (c *NoopClient) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
-	c.logger.Debug("Noop cache set", "key", key, "expiration", expiration)
+	c.logger.DebugContext(ctx, "Noop cache set", "key", key, "expiration", expiration)
 	c.data[key] = value
 	return nil
 }
 
 // Delete removes values from in-memory storage
 func (c *NoopClient) Delete(ctx context.Context, keys ...string) error {
-	c.logger.Debug("Noop cache delete", "keys", keys)
+	c.logger.DebugContext(ctx, "Noop cache delete", "keys", keys)
 	for _, key := range keys {
 		delete(c.data, key)
 	}
@@ -65,14 +65,14 @@ func (c *NoopClient) Delete(ctx context.Context, keys ...string) error {
 
 // Exists checks if a key exists in in-memory storage
 func (c *NoopClient) Exists(ctx context.Context, key string) (bool, error) {
-	c.logger.Debug("Noop cache exists", "key", key)
+	c.logger.DebugContext(ctx, "Noop cache exists", "key", key)
 	_, exists := c.data[key]
 	return exists, nil
 }
 
 // SetNX sets a value only if the key doesn't exist
 func (c *NoopClient) SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (bool, error) {
-	c.logger.Debug("Noop cache setnx", "key", key, "expiration", expiration)
+	c.logger.DebugContext(ctx, "Noop cache setnx", "key", key, "expiration", expiration)
 
 	if _, exists := c.data[key]; exists {
 		return false, nil
@@ -84,14 +84,14 @@ func (c *NoopClient) SetNX(ctx context.Context, key string, value interface{}, e
 
 // Expire is a no-op (expiration not tracked in memory)
 func (c *NoopClient) Expire(ctx context.Context, key string, expiration time.Duration) error {
-	c.logger.Debug("Noop cache expire", "key", key, "expiration", expiration)
+	c.logger.DebugContext(ctx, "Noop cache expire", "key", key, "expiration", expiration)
 	// No-op: we don't track expiration in the noop client
 	return nil
 }
 
 // HSet sets a field in a hash
 func (c *NoopClient) HSet(ctx context.Context, key string, field string, value interface{}) error {
-	c.logger.Debug("Noop cache hset", "key", key, "field", field)
+	c.logger.DebugContext(ctx, "Noop cache hset", "key", key, "field", field)
 
 	if c.hashes[key] == nil {
 		c.hashes[key] = make(map[string]string)
@@ -103,7 +103,7 @@ func (c *NoopClient) HSet(ctx context.Context, key string, field string, value i
 
 // HGet retrieves a field from a hash
 func (c *NoopClient) HGet(ctx context.Context, key string, field string) (string, error) {
-	c.logger.Debug("Noop cache hget", "key", key, "field", field)
+	c.logger.DebugContext(ctx, "Noop cache hget", "key", key, "field", field)
 
 	hash, exists := c.hashes[key]
 	if !exists {
@@ -120,7 +120,7 @@ func (c *NoopClient) HGet(ctx context.Context, key string, field string) (string
 
 // HGetAll retrieves all fields from a hash
 func (c *NoopClient) HGetAll(ctx context.Context, key string) (map[string]string, error) {
-	c.logger.Debug("Noop cache hgetall", "key", key)
+	c.logger.DebugContext(ctx, "Noop cache hgetall", "key", key)
 
 	hash, exists := c.hashes[key]
 	if !exists {
@@ -132,7 +132,7 @@ func (c *NoopClient) HGetAll(ctx context.Context, key string) (map[string]string
 
 // Ping always returns nil (no actual connection to check)
 func (c *NoopClient) Ping(ctx context.Context) error {
-	c.logger.Debug("Noop cache ping")
+	c.logger.DebugContext(ctx, "Noop cache ping")
 	return nil
 }
 

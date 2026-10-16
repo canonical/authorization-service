@@ -50,18 +50,26 @@ func serve(cmd *cobra.Command, args []string) error {
 
 	// Setup logger
 	logger := cfg.Logging.SetupLogger(cfg.Telemetry.ServiceName, version.Version)
-	logger.Info("Starting Authorization Service", "version", version.Version)
+	logger.InfoContext(cmd.Context(), "Starting Authorization Service", "version", version.Version)
 
 	tracer, tracerShutdown, err := cfg.Telemetry.SetupTelemetry(cmd.Context(), logger)
 	if err != nil {
-		logger.Error("Failed to setup telemetry", "error", err)
+		logger.ErrorContext(cmd.Context(), "Failed to setup telemetry", "error", err)
 		return fmt.Errorf("telemetry setup failed: %w", err)
 	}
 
 	// Initialize integrations
-	integrations, err := config.InitializeIntegrations(cfg, logger, tracer)
+	integrations, err := config.InitializeIntegrations(
+		cfg,
+		logger,
+		tracer,
+		config.ComponentOpenFGA,
+		config.ComponentValkey,
+		config.ComponentSTS,
+		config.ComponentPostgres,
+	)
 	if err != nil {
-		logger.Error("Failed to initialize integrations", "error", err)
+		logger.ErrorContext(cmd.Context(), "Failed to initialize integrations", "error", err)
 		return fmt.Errorf("integration initialization failed: %w", err)
 	}
 
@@ -80,14 +88,14 @@ func serve(cmd *cobra.Command, args []string) error {
 		grpc.WithExternalAuthz(services.ExternalAuthz),
 	)
 	if err != nil {
-		logger.Error("Failed to create gRPC server", "error", err)
+		logger.ErrorContext(cmd.Context(), "Failed to create gRPC server", "error", err)
 		return fmt.Errorf("gRPC server creation failed: %w", err)
 	}
 
 	// Start REST gateway
 	restGateway, err := rest.NewGateway(cfg.Server, reg, logger)
 	if err != nil {
-		logger.Error("Failed to create REST gateway", "error", err)
+		logger.ErrorContext(cmd.Context(), "Failed to create REST gateway", "error", err)
 		return fmt.Errorf("REST gateway creation failed: %w", err)
 	}
 
@@ -99,26 +107,26 @@ func serve(cmd *cobra.Command, args []string) error {
 	// Start servers in goroutines
 	errChan := make(chan error, 3)
 	go func() {
-		logger.Info("Starting gRPC server", "address", cfg.Server.GetGRPCAddress())
+		logger.InfoContext(cmd.Context(), "Starting gRPC server", "address", cfg.Server.GetGRPCAddress())
 		if err := grpcServer.Start(); err != nil {
-			logger.Error("gRPC server failed", "error", err)
+			logger.ErrorContext(cmd.Context(), "gRPC server failed", "error", err)
 			errChan <- fmt.Errorf("gRPC server error: %w", err)
 		}
 	}()
 
 	go func() {
-		logger.Info("Starting REST gateway", "address", cfg.Server.GetHTTPAddress())
+		logger.InfoContext(cmd.Context(), "Starting REST gateway", "address", cfg.Server.GetHTTPAddress())
 		if err := restGateway.Start(cfg.Server.GetGRPCAddress()); err != nil {
-			logger.Error("REST gateway failed", "error", err)
+			logger.ErrorContext(cmd.Context(), "REST gateway failed", "error", err)
 			errChan <- fmt.Errorf("REST gateway error: %w", err)
 		}
 	}()
 
 	if metricsServer != nil {
 		go func() {
-			logger.Info("Starting metrics server", "address", metricsServer.Addr)
+			logger.InfoContext(cmd.Context(), "Starting metrics server", "address", metricsServer.Addr)
 			if err := metricsServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				logger.Error("Metrics server failed", "error", err)
+				logger.ErrorContext(cmd.Context(), "Metrics server failed", "error", err)
 				errChan <- fmt.Errorf("metrics server error: %w", err)
 			}
 		}()
@@ -131,10 +139,10 @@ func serve(cmd *cobra.Command, args []string) error {
 	case err := <-errChan:
 		return err
 	case sig := <-sigChan:
-		logger.Info("Received signal, shutting down", "signal", sig)
+		logger.InfoContext(cmd.Context(), "Received signal, shutting down", "signal", sig)
 	}
 
-	logger.Info("Shutting down servers...")
+	logger.InfoContext(cmd.Context(), "Shutting down servers...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.Server.GracefulShutdownTimeout)
 	defer cancel()
@@ -145,15 +153,15 @@ func serve(cmd *cobra.Command, args []string) error {
 
 	grpcServer.GracefulStop()
 	if err := restGateway.Shutdown(ctx); err != nil {
-		logger.Error("Error during REST gateway shutdown", "error", err)
+		logger.ErrorContext(ctx, "Error during REST gateway shutdown", "error", err)
 		return fmt.Errorf("shutdown error: %w", err)
 	}
 	if metricsServer != nil {
 		if err := metricsServer.Shutdown(ctx); err != nil {
-			logger.Error("Error during metrics server shutdown", "error", err)
+			logger.ErrorContext(ctx, "Error during metrics server shutdown", "error", err)
 		}
 	}
 
-	logger.Info("Authorization Service stopped")
+	logger.InfoContext(ctx, "Authorization Service stopped")
 	return nil
 }

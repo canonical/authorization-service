@@ -6,7 +6,6 @@ package repository
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -20,8 +19,17 @@ type RuleRepository interface {
 	FindCandidates(ctx context.Context, method, path string) ([]*rules.RuleWithTuples, error)
 }
 
-// Compile-time check to ensure PostgresRuleRepository implements RuleRepository
-var _ RuleRepository = (*PostgresRuleRepository)(nil)
+type RuleSeedRepository interface {
+	GetCurrentRevision(ctx context.Context, tx pgx.Tx, serviceID string) (string, bool, error)
+	UpsertFederatedService(ctx context.Context, tx pgx.Tx, slug, description string) (string, error)
+	ReplaceServiceRules(ctx context.Context, tx pgx.Tx, serviceID, revision string, compiledRules []rules.CompiledRuleWithTuples) error
+}
+
+// Compile-time checks to ensure PostgresRuleRepository implements RuleRepository and RuleSeedRepository
+var (
+	_ RuleRepository     = (*PostgresRuleRepository)(nil)
+	_ RuleSeedRepository = (*PostgresRuleRepository)(nil)
+)
 
 // PostgresRuleRepository implements RuleRepository using PostgreSQL.
 type PostgresRuleRepository struct {
@@ -68,7 +76,7 @@ func (r *PostgresRuleRepository) FindCandidates(ctx context.Context, method, pat
 		return nil, fmt.Errorf("method and path cannot be empty")
 	}
 
-	segmentCount := countSegments(path)
+	segmentCount := rules.CountSegments(path)
 	pathPrefixes := buildPrefixes(path, segmentCount)
 
 	query, args, err := r.buildFindCandidatesQuery(method, pathPrefixes, segmentCount)
@@ -123,12 +131,6 @@ func buildPrefixes(path string, segments int) []string {
 	}
 
 	return prefixes
-}
-
-// countSegments counts the number of non-empty path segments in a URL path.
-// e.g. "/api/v1/groups/123" → 4
-func countSegments(path string) int {
-	return len(strings.FieldsFunc(path, func(r rune) bool { return r == '/' }))
 }
 
 // scanRulesWithTuples scans rows from the candidates query and groups tuples

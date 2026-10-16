@@ -4,13 +4,7 @@
 package cmd
 
 import (
-	"context"
-	"errors"
 	"fmt"
-	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/spf13/cobra"
 
@@ -35,6 +29,7 @@ Configuration is loaded from environment variables.`,
 
 func runWorker(cmd *cobra.Command, _ []string) error {
 	cfg, err := config.LoadConfigFor(cmd,
+		config.ComponentServer,
 		config.ComponentWorker,
 		config.ComponentOpenFGA,
 		config.ComponentPostgres,
@@ -47,14 +42,20 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 	}
 
 	logger := cfg.Logging.SetupLogger(cfg.Telemetry.ServiceName, version.Version)
-	logger.Info("Starting permission-update worker", "version", version.Version)
+	logger.InfoContext(cmd.Context(), "Starting permission-update worker", "version", version.Version)
 
 	tracer, tracerShutdown, err := cfg.Telemetry.SetupTelemetry(cmd.Context(), logger)
 	if err != nil {
 		return fmt.Errorf("telemetry setup failed: %w", err)
 	}
 
-	integrations, err := config.InitializeIntegrations(cfg, logger, tracer)
+	integrations, err := config.InitializeIntegrations(
+		cfg,
+		logger,
+		tracer,
+		config.ComponentOpenFGA,
+		config.ComponentPostgres,
+	)
 	if err != nil {
 		return fmt.Errorf("integration initialization failed: %w", err)
 	}
@@ -83,107 +84,25 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 		logger,
 	)
 
-	runReaper := !noReaper
-	var r *worker.Reaper
-	if runReaper {
-		r = worker.NewReaper(
+	runners := []ComponentRunner{
+		{Name: "worker", Run: w.Run},
+	}
+	if !noReaper {
+		r := worker.NewReaper(
 			workRepo,
 			cfg.Worker.StaleTimeout,
 			cfg.Worker.ReaperInterval,
 			metrics.NewReaperRecorder(reg),
 			logger,
 		)
+		runners = append(runners, ComponentRunner{Name: "reaper", Run: r.Run})
 	}
 
-	runMetrics := cfg.Metrics.Enabled
-	var metricsServer *http.Server
-	if runMetrics {
-		metricsServer = metrics.NewServer(cfg.Metrics.GetAddress(cfg.Server.Host), cfg.Metrics.Path, reg)
+	if err := runManagedProcess(cmd.Context(), cfg, logger, reg, tracerShutdown, runners...); err != nil {
+		return err
 	}
 
-	ctx, cancel := context.WithCancel(cmd.Context())
-	defer cancel()
-
-	numComponents := 1
-	if runReaper {
-		numComponents++
-	}
-	if runMetrics {
-		numComponents++
-	}
-
-	type componentResult struct {
-		name string
-		err  error
-	}
-
-	errChan := make(chan componentResult, numComponents)
-	go func() {
-		errChan <- componentResult{name: "worker", err: w.Run(ctx)}
-	}()
-	if runReaper {
-		go func() {
-			errChan <- componentResult{name: "reaper", err: r.Run(ctx)}
-		}()
-	}
-	if runMetrics {
-		go func() {
-			logger.Info("Starting metrics server", "address", metricsServer.Addr)
-			err := metricsServer.ListenAndServe()
-			if errors.Is(err, http.ErrServerClosed) {
-				err = nil
-			} else if err != nil {
-				logger.Error("Metrics server failed", "error", err)
-			}
-			errChan <- componentResult{name: "metrics", err: err}
-		}()
-	}
-
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
-	select {
-	case res := <-errChan:
-		logger.Info("Component stopped", "component", res.name)
-		if res.err != nil {
-			cancel()
-			return fmt.Errorf("%s component failed: %w", res.name, res.err)
-		}
-		cancel()
-	case sig := <-sigChan:
-		logger.Info("Received signal, shutting down", "signal", sig)
-		cancel()
-	}
-
-	if metricsServer != nil {
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.Server.GracefulShutdownTimeout)
-		if err := metricsServer.Shutdown(shutdownCtx); err != nil {
-			logger.Error("Error during metrics server shutdown", "error", err)
-		}
-		shutdownCancel()
-	}
-
-	// Wait for all started components to exit
-	var firstErr error
-	for i := 0; i < numComponents; i++ {
-		res := <-errChan
-		logger.Info("Component stopped", "component", res.name)
-		if res.err != nil && firstErr == nil {
-			firstErr = fmt.Errorf("%s component failed: %w", res.name, res.err)
-		}
-	}
-	if firstErr != nil {
-		return firstErr
-	}
-
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.Server.GracefulShutdownTimeout)
-	defer shutdownCancel()
-
-	if err := tracerShutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("error shutting down tracer: %w", err)
-	}
-
-	logger.Info("Worker stopped")
+	logger.InfoContext(cmd.Context(), "Worker stopped")
 	return nil
 }
 

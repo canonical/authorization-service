@@ -77,7 +77,7 @@ func NewClient(cfg Config, logger *slog.Logger) (*Client, error) {
 		return nil, fmt.Errorf("failed to connect to Valkey: %w", err)
 	}
 
-	logger.Info("Valkey client connected", "address", cfg.Address, "db", cfg.DB)
+	logger.InfoContext(ctx, "Valkey client connected", "address", cfg.Address, "db", cfg.DB)
 
 	return &Client{
 		client: client,
@@ -91,7 +91,7 @@ func (c *Client) Get(ctx context.Context, key string) (string, error) {
 	if err == redis.Nil {
 		return "", fmt.Errorf("key not found: %s", key)
 	} else if err != nil {
-		c.logger.Error("Failed to get value", "key", key, "error", err)
+		c.logger.ErrorContext(ctx, "Failed to get value", "key", key, "error", err)
 		return "", fmt.Errorf("failed to get value: %w", err)
 	}
 	return val, nil
@@ -101,7 +101,7 @@ func (c *Client) Get(ctx context.Context, key string) (string, error) {
 func (c *Client) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
 	err := c.client.Set(ctx, key, value, expiration).Err()
 	if err != nil {
-		c.logger.Error("Failed to set value", "key", key, "error", err)
+		c.logger.ErrorContext(ctx, "Failed to set value", "key", key, "error", err)
 		return fmt.Errorf("failed to set value: %w", err)
 	}
 	return nil
@@ -111,7 +111,7 @@ func (c *Client) Set(ctx context.Context, key string, value interface{}, expirat
 func (c *Client) Delete(ctx context.Context, keys ...string) error {
 	err := c.client.Del(ctx, keys...).Err()
 	if err != nil {
-		c.logger.Error("Failed to delete keys", "keys", keys, "error", err)
+		c.logger.ErrorContext(ctx, "Failed to delete keys", "keys", keys, "error", err)
 		return fmt.Errorf("failed to delete keys: %w", err)
 	}
 	return nil
@@ -121,7 +121,7 @@ func (c *Client) Delete(ctx context.Context, keys ...string) error {
 func (c *Client) Exists(ctx context.Context, key string) (bool, error) {
 	val, err := c.client.Exists(ctx, key).Result()
 	if err != nil {
-		c.logger.Error("Failed to check key existence", "key", key, "error", err)
+		c.logger.ErrorContext(ctx, "Failed to check key existence", "key", key, "error", err)
 		return false, fmt.Errorf("failed to check key existence: %w", err)
 	}
 	return val > 0, nil
@@ -131,7 +131,7 @@ func (c *Client) Exists(ctx context.Context, key string) (bool, error) {
 func (c *Client) SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (bool, error) {
 	val, err := c.client.SetNX(ctx, key, value, expiration).Result()
 	if err != nil {
-		c.logger.Error("Failed to set value with SetNX", "key", key, "error", err)
+		c.logger.ErrorContext(ctx, "Failed to set value with SetNX", "key", key, "error", err)
 		return false, fmt.Errorf("failed to set value with SetNX: %w", err)
 	}
 	return val, nil
@@ -141,7 +141,7 @@ func (c *Client) SetNX(ctx context.Context, key string, value interface{}, expir
 func (c *Client) Expire(ctx context.Context, key string, expiration time.Duration) error {
 	err := c.client.Expire(ctx, key, expiration).Err()
 	if err != nil {
-		c.logger.Error("Failed to set expiration", "key", key, "error", err)
+		c.logger.ErrorContext(ctx, "Failed to set expiration", "key", key, "error", err)
 		return fmt.Errorf("failed to set expiration: %w", err)
 	}
 	return nil
@@ -151,7 +151,7 @@ func (c *Client) Expire(ctx context.Context, key string, expiration time.Duratio
 func (c *Client) HSet(ctx context.Context, key string, field string, value interface{}) error {
 	err := c.client.HSet(ctx, key, field, value).Err()
 	if err != nil {
-		c.logger.Error("Failed to set hash field", "key", key, "field", field, "error", err)
+		c.logger.ErrorContext(ctx, "Failed to set hash field", "key", key, "field", field, "error", err)
 		return fmt.Errorf("failed to set hash field: %w", err)
 	}
 	return nil
@@ -163,7 +163,7 @@ func (c *Client) HGet(ctx context.Context, key string, field string) (string, er
 	if err == redis.Nil {
 		return "", fmt.Errorf("field not found: %s", field)
 	} else if err != nil {
-		c.logger.Error("Failed to get hash field", "key", key, "field", field, "error", err)
+		c.logger.ErrorContext(ctx, "Failed to get hash field", "key", key, "field", field, "error", err)
 		return "", fmt.Errorf("failed to get hash field: %w", err)
 	}
 	return val, nil
@@ -173,7 +173,7 @@ func (c *Client) HGet(ctx context.Context, key string, field string) (string, er
 func (c *Client) HGetAll(ctx context.Context, key string) (map[string]string, error) {
 	val, err := c.client.HGetAll(ctx, key).Result()
 	if err != nil {
-		c.logger.Error("Failed to get all hash fields", "key", key, "error", err)
+		c.logger.ErrorContext(ctx, "Failed to get all hash fields", "key", key, "error", err)
 		return nil, fmt.Errorf("failed to get all hash fields: %w", err)
 	}
 	return val, nil
@@ -186,7 +186,7 @@ func (c *Client) Close() error {
 		if err != nil {
 			return fmt.Errorf("failed to close Valkey client: %w", err)
 		}
-		c.logger.Info("Valkey connection closed")
+		c.logger.InfoContext(context.Background(), "Valkey connection closed")
 	}
 	return nil
 }

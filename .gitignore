@@ -44,5 +44,7 @@ k8s/dev-setup/k8s-bridge.env
 .archify/**/*.browser-check.json
 .archify/**/*.delivery.json
 .archify/**/*.finalize*.json
-.archify/**/visual-check/*.json
-.archify/**/visual-check/*1440x900*.png
+.archify/**/*.visual-check.json
+.archify/**/*1440x900*.png
+.archify/**/*light.png
+

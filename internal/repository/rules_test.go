@@ -12,9 +12,12 @@ import (
 	"testing"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/pashagolub/pgxmock/v5"
 	"go.uber.org/mock/gomock"
 
+	"github.com/canonical/authorization-service/internal/model/rules"
 	repository "github.com/canonical/authorization-service/internal/repository/mocks"
 )
 
@@ -36,7 +39,7 @@ func setupMocks(t *testing.T) (*repository.MockDBClientInterface, pgxmock.PgxPoo
 	return mockDB, pool
 }
 
-// ── countSegments ─────────────────────────────────────────────────────────────
+// ── rules.CountSegments ──────────────────────────────────────────────────────
 
 func TestCountSegments(t *testing.T) {
 	tests := []struct {
@@ -56,9 +59,9 @@ func TestCountSegments(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := countSegments(tt.path)
+			got := rules.CountSegments(tt.path)
 			if got != tt.expected {
-				t.Errorf("countSegments(%q) = %d, want %d", tt.path, got, tt.expected)
+				t.Errorf("CountSegments(%q) = %d, want %d", tt.path, got, tt.expected)
 			}
 		})
 	}
@@ -126,7 +129,7 @@ func TestBuildPrefixes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := buildPrefixes(tt.path, countSegments(tt.path))
+			got := buildPrefixes(tt.path, rules.CountSegments(tt.path))
 
 			if len(got) != len(tt.expected) {
 				t.Fatalf("buildPrefixes(%q) returned %d prefixes, want %d\ngot:  %v\nwant: %v",
@@ -559,3 +562,292 @@ func TestScanRulesWithTuples_PreservesRuleOrder(t *testing.T) {
 		}
 	}
 }
+
+// ── RuleSeedRepository methods ───────────────────────────────────────────────
+
+type uuidV7Matcher struct{}
+
+func (uuidV7Matcher) Match(v any) bool {
+	s, ok := v.(string)
+	if !ok {
+		return false
+	}
+	u, err := uuid.Parse(s)
+	return err == nil && u.Version() == 7
+}
+
+func TestGetCurrentRevision(t *testing.T) {
+	t.Run("found", func(t *testing.T) {
+		mockDB, pool := setupMocks(t)
+		metrics := &fakeQueryMetrics{}
+		repo := NewPostgresRuleRepository(mockDB, metrics)
+
+		pool.ExpectBegin()
+		pool.ExpectQuery("SELECT revision FROM authorization_rule").
+			WithArgs("svc-1").
+			WillReturnRows(pool.NewRows([]string{"revision"}).AddRow("rev-42"))
+
+		tx, err := pool.Begin(context.Background())
+		if err != nil {
+			t.Fatalf("Begin failed: %v", err)
+		}
+
+		rev, found, err := repo.GetCurrentRevision(context.Background(), tx, "svc-1")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !found || rev != "rev-42" {
+			t.Fatalf("got (%q, %v), want (\"rev-42\", true)", rev, found)
+		}
+		assertObserveQuery(t, metrics, "get_current_revision", false)
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		mockDB, pool := setupMocks(t)
+		metrics := &fakeQueryMetrics{}
+		repo := NewPostgresRuleRepository(mockDB, metrics)
+
+		pool.ExpectBegin()
+		pool.ExpectQuery("SELECT revision FROM authorization_rule").
+			WithArgs("svc-1").
+			WillReturnError(pgx.ErrNoRows)
+
+		tx, err := pool.Begin(context.Background())
+		if err != nil {
+			t.Fatalf("Begin failed: %v", err)
+		}
+
+		rev, found, err := repo.GetCurrentRevision(context.Background(), tx, "svc-1")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if found || rev != "" {
+			t.Fatalf("got (%q, %v), want (\"\", false)", rev, found)
+		}
+		assertObserveQuery(t, metrics, "get_current_revision", false)
+	})
+
+	t.Run("db error", func(t *testing.T) {
+		mockDB, pool := setupMocks(t)
+		metrics := &fakeQueryMetrics{}
+		repo := NewPostgresRuleRepository(mockDB, metrics)
+
+		pool.ExpectBegin()
+		pool.ExpectQuery("SELECT revision FROM authorization_rule").
+			WithArgs("svc-1").
+			WillReturnError(errors.New("db error"))
+
+		tx, err := pool.Begin(context.Background())
+		if err != nil {
+			t.Fatalf("Begin failed: %v", err)
+		}
+
+		_, _, err = repo.GetCurrentRevision(context.Background(), tx, "svc-1")
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		assertObserveQuery(t, metrics, "get_current_revision", true)
+	})
+}
+
+func TestUpsertFederatedService(t *testing.T) {
+	t.Run("success with UUIDv7", func(t *testing.T) {
+		mockDB, pool := setupMocks(t)
+		metrics := &fakeQueryMetrics{}
+		repo := NewPostgresRuleRepository(mockDB, metrics)
+
+		pool.ExpectBegin()
+		pool.ExpectQuery("INSERT INTO federated_service").
+			WithArgs(uuidV7Matcher{}, "payments", "Payments Service").
+			WillReturnRows(pool.NewRows([]string{"id"}).AddRow("svc-123"))
+
+		tx, err := pool.Begin(context.Background())
+		if err != nil {
+			t.Fatalf("Begin failed: %v", err)
+		}
+
+		id, err := repo.UpsertFederatedService(context.Background(), tx, "payments", "Payments Service")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if id != "svc-123" {
+			t.Fatalf("got id = %q, want \"svc-123\"", id)
+		}
+		assertObserveQuery(t, metrics, "upsert_federated_service", false)
+	})
+
+	t.Run("db error", func(t *testing.T) {
+		mockDB, pool := setupMocks(t)
+		metrics := &fakeQueryMetrics{}
+		repo := NewPostgresRuleRepository(mockDB, metrics)
+
+		pool.ExpectBegin()
+		pool.ExpectQuery("INSERT INTO federated_service").
+			WithArgs(uuidV7Matcher{}, "payments", "Payments Service").
+			WillReturnError(errors.New("upsert failed"))
+
+		tx, err := pool.Begin(context.Background())
+		if err != nil {
+			t.Fatalf("Begin failed: %v", err)
+		}
+
+		_, err = repo.UpsertFederatedService(context.Background(), tx, "payments", "Payments Service")
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		assertObserveQuery(t, metrics, "upsert_federated_service", true)
+	})
+}
+
+func TestReplaceServiceRules(t *testing.T) {
+	compiled := []rules.CompiledRuleWithTuples{
+		{
+			Method:       "GET",
+			SegmentCount: 3,
+			StaticPrefix: "/api/v1/items",
+			PathRegex:    `^/api/v1/items$`,
+			Priority:     1,
+			Tuples: []rules.CompiledRuleTuple{
+				{
+					UserResourceType:   "user",
+					Permission:         "read",
+					ObjectResourceType: "item",
+					ObjectResourceId:   "all",
+				},
+			},
+		},
+	}
+
+	t.Run("success", func(t *testing.T) {
+		mockDB, pool := setupMocks(t)
+		metrics := &fakeQueryMetrics{}
+		repo := NewPostgresRuleRepository(mockDB, metrics)
+
+		pool.ExpectBegin()
+		pool.ExpectExec("DELETE FROM authorization_rule_tuple").
+			WithArgs("svc-1").
+			WillReturnResult(pgxmock.NewResult("DELETE", 1))
+		pool.ExpectExec("DELETE FROM authorization_rule WHERE service_id").
+			WithArgs("svc-1").
+			WillReturnResult(pgxmock.NewResult("DELETE", 1))
+		pool.ExpectExec("INSERT INTO authorization_rule").
+			WithArgs(uuidV7Matcher{}, "rev-2", "svc-1", "GET", 3, "/api/v1/items", `^/api/v1/items$`, 1).
+			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+		pool.ExpectExec("INSERT INTO authorization_rule_tuple").
+			WithArgs(uuidV7Matcher{}, uuidV7Matcher{}, "user", "read", "item", "all").
+			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+
+		tx, err := pool.Begin(context.Background())
+		if err != nil {
+			t.Fatalf("Begin failed: %v", err)
+		}
+
+		if err := repo.ReplaceServiceRules(context.Background(), tx, "svc-1", "rev-2", compiled); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertObserveQuery(t, metrics, "replace_service_rules", false)
+	})
+
+	t.Run("delete tuples error", func(t *testing.T) {
+		mockDB, pool := setupMocks(t)
+		metrics := &fakeQueryMetrics{}
+		repo := NewPostgresRuleRepository(mockDB, metrics)
+
+		pool.ExpectBegin()
+		pool.ExpectExec("DELETE FROM authorization_rule_tuple").
+			WithArgs("svc-1").
+			WillReturnError(errors.New("delete tuples failed"))
+
+		tx, err := pool.Begin(context.Background())
+		if err != nil {
+			t.Fatalf("Begin failed: %v", err)
+		}
+
+		if err := repo.ReplaceServiceRules(context.Background(), tx, "svc-1", "rev-2", compiled); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		assertObserveQuery(t, metrics, "replace_service_rules", true)
+	})
+
+	t.Run("delete rules error", func(t *testing.T) {
+		mockDB, pool := setupMocks(t)
+		metrics := &fakeQueryMetrics{}
+		repo := NewPostgresRuleRepository(mockDB, metrics)
+
+		pool.ExpectBegin()
+		pool.ExpectExec("DELETE FROM authorization_rule_tuple").
+			WithArgs("svc-1").
+			WillReturnResult(pgxmock.NewResult("DELETE", 1))
+		pool.ExpectExec("DELETE FROM authorization_rule WHERE service_id").
+			WithArgs("svc-1").
+			WillReturnError(errors.New("delete rules failed"))
+
+		tx, err := pool.Begin(context.Background())
+		if err != nil {
+			t.Fatalf("Begin failed: %v", err)
+		}
+
+		if err := repo.ReplaceServiceRules(context.Background(), tx, "svc-1", "rev-2", compiled); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		assertObserveQuery(t, metrics, "replace_service_rules", true)
+	})
+
+	t.Run("insert rule error", func(t *testing.T) {
+		mockDB, pool := setupMocks(t)
+		metrics := &fakeQueryMetrics{}
+		repo := NewPostgresRuleRepository(mockDB, metrics)
+
+		pool.ExpectBegin()
+		pool.ExpectExec("DELETE FROM authorization_rule_tuple").
+			WithArgs("svc-1").
+			WillReturnResult(pgxmock.NewResult("DELETE", 1))
+		pool.ExpectExec("DELETE FROM authorization_rule WHERE service_id").
+			WithArgs("svc-1").
+			WillReturnResult(pgxmock.NewResult("DELETE", 1))
+		pool.ExpectExec("INSERT INTO authorization_rule").
+			WithArgs(uuidV7Matcher{}, "rev-2", "svc-1", "GET", 3, "/api/v1/items", `^/api/v1/items$`, 1).
+			WillReturnError(errors.New("insert rule failed"))
+
+		tx, err := pool.Begin(context.Background())
+		if err != nil {
+			t.Fatalf("Begin failed: %v", err)
+		}
+
+		if err := repo.ReplaceServiceRules(context.Background(), tx, "svc-1", "rev-2", compiled); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		assertObserveQuery(t, metrics, "replace_service_rules", true)
+	})
+
+	t.Run("insert tuple error", func(t *testing.T) {
+		mockDB, pool := setupMocks(t)
+		metrics := &fakeQueryMetrics{}
+		repo := NewPostgresRuleRepository(mockDB, metrics)
+
+		pool.ExpectBegin()
+		pool.ExpectExec("DELETE FROM authorization_rule_tuple").
+			WithArgs("svc-1").
+			WillReturnResult(pgxmock.NewResult("DELETE", 1))
+		pool.ExpectExec("DELETE FROM authorization_rule WHERE service_id").
+			WithArgs("svc-1").
+			WillReturnResult(pgxmock.NewResult("DELETE", 1))
+		pool.ExpectExec("INSERT INTO authorization_rule").
+			WithArgs(uuidV7Matcher{}, "rev-2", "svc-1", "GET", 3, "/api/v1/items", `^/api/v1/items$`, 1).
+			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+		pool.ExpectExec("INSERT INTO authorization_rule_tuple").
+			WithArgs(uuidV7Matcher{}, uuidV7Matcher{}, "user", "read", "item", "all").
+			WillReturnError(errors.New("insert tuple failed"))
+
+		tx, err := pool.Begin(context.Background())
+		if err != nil {
+			t.Fatalf("Begin failed: %v", err)
+		}
+
+		if err := repo.ReplaceServiceRules(context.Background(), tx, "svc-1", "rev-2", compiled); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		assertObserveQuery(t, metrics, "replace_service_rules", true)
+	})
+}
+

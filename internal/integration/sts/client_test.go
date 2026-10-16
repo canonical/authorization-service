@@ -7,13 +7,68 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"testing"
+	"time"
 
 	"go.opentelemetry.io/otel/trace/noop"
 	"google.golang.org/grpc"
 
 	stsv1 "github.com/canonical/authorization-service/client/v1/sts"
 )
+
+func TestCreateConnection_InsecureAndTLS(t *testing.T) {
+	conn, err := CreateConnection("localhost:9090", false, time.Second, false)
+	if err != nil {
+		t.Fatalf("unexpected error creating insecure connection: %v", err)
+	}
+	_ = conn.Close()
+
+	tlsConn, err := CreateConnection("localhost:9090", true, time.Second, false)
+	if err != nil {
+		t.Fatalf("unexpected error creating TLS connection: %v", err)
+	}
+	_ = tlsConn.Close()
+}
+
+func TestCreateConnection_DialError(t *testing.T) {
+	_, err := CreateConnection("localhost:9090", false, time.Second, false, grpc.WithDefaultServiceConfig("{invalid-json"))
+	if err == nil {
+		t.Fatal("expected error for invalid service config dial option, got nil")
+	}
+}
+
+func TestCreateConnection_EagerCheckSuccess(t *testing.T) {
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to listen: %v", err)
+	}
+	srv := grpc.NewServer()
+	go func() {
+		_ = srv.Serve(lis)
+	}()
+	defer srv.Stop()
+
+	conn, err := CreateConnection(lis.Addr().String(), false, 2*time.Second, true)
+	if err != nil {
+		t.Fatalf("expected eager connection to succeed, got: %v", err)
+	}
+	_ = conn.Close()
+}
+
+func TestCreateConnection_EagerCheckTimeout(t *testing.T) {
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to listen: %v", err)
+	}
+	addr := lis.Addr().String()
+	_ = lis.Close() // closed port so connection never reaches Ready
+
+	_, err = CreateConnection(addr, false, 50*time.Millisecond, true)
+	if err == nil {
+		t.Fatal("expected timeout error on closed port with eagerCheck=true, got nil")
+	}
+}
 
 // mockSTSClient is a hand-written mock for stsv1.SecurityTokenServiceClient.
 type mockSTSClient struct {

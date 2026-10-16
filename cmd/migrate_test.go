@@ -1,4 +1,4 @@
-// Copyright 2025 Canonical Ltd.
+// Copyright 2026 Canonical Ltd.
 // SPDX-License-Identifier: AGPL-3.0-only
 
 package cmd
@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCustomValidArgs(t *testing.T) {
@@ -92,3 +94,30 @@ func TestCustomValidArgs(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveMigrateDSN_ExplicitFlag(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.Flags().String("dsn", "", "")
+	require.NoError(t, cmd.Flags().Set("dsn", "postgres://custom:secret@db.internal:5432/customdb?sslmode=disable"))
+
+	dsn, err := resolveMigrateDSN(cmd)
+	require.NoError(t, err)
+	assert.Equal(t, "postgres://custom:secret@db.internal:5432/customdb?sslmode=disable", dsn)
+}
+
+func TestResolveMigrateDSN_FallbackToConfig(t *testing.T) {
+	t.Setenv("POSTGRES_HOST", "pg-fallback.internal")
+	t.Setenv("POSTGRES_PORT", "5433")
+	t.Setenv("POSTGRES_USER", "migrator")
+	t.Setenv("POSTGRES_PASSWORD", "s3cr3t")
+	t.Setenv("POSTGRES_DB_NAME", "authz_db")
+	t.Setenv("POSTGRES_SSL_MODE", "require")
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("dsn", "", "")
+
+	dsn, err := resolveMigrateDSN(cmd)
+	require.NoError(t, err)
+	assert.Equal(t, "host=pg-fallback.internal port=5433 user=migrator password=s3cr3t dbname=authz_db sslmode=require connect_timeout=10", dsn)
+}
+

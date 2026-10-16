@@ -3,6 +3,8 @@
 
 package rules
 
+import "strings"
+
 type Tuple struct {
 	User         string
 	Relation     string
@@ -34,3 +36,10 @@ type RuleWithTuples struct {
 
 // RegexMatches maps named capture group identifiers to their captured values.
 type RegexMatches map[string]string
+
+// CountSegments counts the number of non-empty path segments in a URL path.
+// e.g. "/api/v1/groups/123" -> 4
+func CountSegments(path string) int {
+	return len(strings.FieldsFunc(path, func(r rune) bool { return r == '/' }))
+}
+

@@ -26,7 +26,7 @@ func EnsureTopics(ctx context.Context, brokers []string, specs []TopicSpec, logg
 		return fmt.Errorf("kafka brokers must not be empty")
 	}
 	if len(specs) == 0 {
-		logger.Info("No Kafka topics to ensure")
+		logger.InfoContext(ctx, "No Kafka topics to ensure")
 		return nil
 	}
 
@@ -70,6 +70,6 @@ func EnsureTopics(ctx context.Context, brokers []string, specs []TopicSpec, logg
 		return fmt.Errorf("creating kafka topics: %w", err)
 	}
 
-	logger.Info("Ensured Kafka topics", "topics", names)
+	logger.InfoContext(ctx, "Ensured Kafka topics", "topics", names)
 	return nil
 }

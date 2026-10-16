@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
 	"time"
 
@@ -26,11 +27,7 @@ import (
 	"github.com/canonical/authorization-service/internal/service/rules"
 )
 
-const (
-	sessionCookieName             = "session_id"
-	sessionCookieNamePrefix       = sessionCookieName + "="
-	sessionCookieNamePrefixLength = len(sessionCookieNamePrefix)
-)
+const sessionCookieName = "session_id"
 
 type ExternalAuthzServiceInterface interface {
 	Register(grpcServer *grpc.Server)
@@ -99,13 +96,10 @@ func (s *ExternalAuthzService) Check(ctx context.Context, req *envoyAuth.CheckRe
 
 	httpReq := req.GetAttributes().GetRequest().GetHttp()
 	method := httpReq.GetMethod()
-	path := httpReq.GetPath()
-	if idx := strings.Index(path, "?"); idx != -1 {
-		path = path[:idx]
-	}
+	path, _, _ := strings.Cut(httpReq.GetPath(), "?")
 
 	start := time.Now()
-	resp, outcome, err := s.check(ctx, req)
+	resp, outcome, err := s.check(ctx, method, path, httpReq.GetHeaders())
 	duration := time.Since(start)
 	s.metrics.RecordCheck(outcome.result, outcome.reason, outcome.authType, duration)
 
@@ -141,19 +135,9 @@ type checkOutcome struct {
 }
 
 // check performs the actual authorization decision.
-func (s *ExternalAuthzService) check(ctx context.Context, req *envoyAuth.CheckRequest) (*envoyAuth.CheckResponse, checkOutcome, error) {
-	httpReq := req.GetAttributes().GetRequest().GetHttp()
-	method := httpReq.GetMethod()
-	path := httpReq.GetPath()
+func (s *ExternalAuthzService) check(ctx context.Context, method, path string, headers map[string]string) (*envoyAuth.CheckResponse, checkOutcome, error) {
+	s.logger.DebugContext(ctx, "Check request received", "method", method, "path", path)
 
-	// Strip query string if present.
-	if idx := strings.Index(path, "?"); idx != -1 {
-		path = path[:idx]
-	}
-
-	s.logger.Debug("Check request received", "method", method, "path", path)
-
-	headers := httpReq.GetHeaders()
 	cookieHeader := getHeader(headers, "cookie")
 	sessionValue := extractSessionCookie(cookieHeader)
 
@@ -161,12 +145,12 @@ func (s *ExternalAuthzService) check(ctx context.Context, req *envoyAuth.CheckRe
 	bearerToken := extractBearerToken(authHeader)
 
 	if sessionValue != "" && bearerToken != "" {
-		s.logger.Debug("Conflicting credentials provided")
+		s.logger.DebugContext(ctx, "Conflicting credentials provided")
 		return badRequest("conflicting credentials provided"), checkOutcome{result: "deny", reason: "conflicting_credentials", authType: "none"}, nil
 	}
 
 	if sessionValue == "" && bearerToken == "" {
-		s.logger.Debug("No credentials provided")
+		s.logger.DebugContext(ctx, "No credentials provided")
 		return unauthorized("no credentials provided"), checkOutcome{result: "deny", reason: "no_credentials", authType: "none"}, nil
 	}
 
@@ -182,7 +166,7 @@ func (s *ExternalAuthzService) check(ctx context.Context, req *envoyAuth.CheckRe
 		})
 		s.metrics.ObserveSTSExchange("token", time.Since(stsStart))
 		if errSTS != nil {
-			s.logger.Debug("Failed to exchange token with STS", "error", errSTS)
+			s.logger.DebugContext(ctx, "Failed to exchange token with STS", "error", errSTS)
 			return forbidden(errSTS.Error()), checkOutcome{result: "deny", reason: "sts_exchange_failed", authType: authType}, nil
 		}
 	} else {
@@ -194,14 +178,14 @@ func (s *ExternalAuthzService) check(ctx context.Context, req *envoyAuth.CheckRe
 		})
 		s.metrics.ObserveSTSExchange("session", time.Since(stsStart))
 		if errSTS != nil {
-			s.logger.Debug("Failed to exchange session with STS", "error", errSTS)
+			s.logger.DebugContext(ctx, "Failed to exchange session with STS", "error", errSTS)
 			return forbidden(errSTS.Error()), checkOutcome{result: "deny", reason: "sts_exchange_failed", authType: authType}, nil
 		}
 	}
 
 	claims, err := s.extractJWTClaims(ctx, exchangeResp.GetAccessToken())
 	if err != nil || claims.Sub == "" {
-		s.logger.Debug("Failed to extract claims from JWT", "error", err)
+		s.logger.DebugContext(ctx, "Failed to extract claims from JWT", "error", err)
 		// If there is no explicit subject, we can't perform an authz check.
 		return unauthorized("issue with STS JWT"), checkOutcome{result: "deny", reason: "jwt_invalid", authType: authType}, nil
 	}
@@ -216,26 +200,26 @@ func (s *ExternalAuthzService) check(ctx context.Context, req *envoyAuth.CheckRe
 	tuples, matchedRule, err := s.resourceMapper.Map(ctx, userIdentity, method, path)
 	s.metrics.ObserveResourceMap(time.Since(mapStart))
 	if err != nil {
-		s.logger.Error("Failed to map resource", "method", method, "path", path, "error", err)
+		s.logger.ErrorContext(ctx, "Failed to map resource", "method", method, "path", path, "error", err)
 		return forbidden("internal error during authorization"), checkOutcome{result: "error", reason: "internal_error", authType: authType, subject: userIdentity, tenant: tenant}, nil
 	}
 
 	// No matching rule found — forbidden (if istio invoked the extAuthz then rules must be present, or something is wrong)
 	if len(tuples) == 0 {
-		s.logger.Debug("No authorization rule matched", "method", method, "path", path)
+		s.logger.DebugContext(ctx, "No authorization rule matched", "method", method, "path", path)
 		return forbidden(fmt.Sprintf("No authorization rule matched method %s path %s", method, path)), checkOutcome{result: "deny", reason: "no_rule_matched", authType: authType, subject: userIdentity, tenant: tenant}, nil
 	}
 
 	// if no matched rule then return an error, if it's going through Authorization-service then it needs a rule.
 	// Public endpoints must be ALLOWed via AuthorizationPolicy
 	if matchedRule == nil {
-		s.logger.Error("No matching rule was returned found")
+		s.logger.ErrorContext(ctx, "No matching rule was returned found")
 		return nil, checkOutcome{result: "error", reason: "internal_error", authType: authType, subject: userIdentity, tenant: tenant}, fmt.Errorf("no matching rule found")
 	}
 
 	if s.multitenancyEnabled {
 		if matchedRule.Tenant == nil || *matchedRule.Tenant == "" {
-			s.logger.Error("Rule does not have an associated tenant, but multitenancy is enabled", "rule_id", matchedRule.Id)
+			s.logger.ErrorContext(ctx, "Rule does not have an associated tenant, but multitenancy is enabled", "rule_id", matchedRule.Id)
 			return nil, checkOutcome{result: "error", reason: "internal_error", authType: authType, subject: userIdentity, tenant: tenant}, fmt.Errorf("rule %s has no tenant but multitenancy is enabled", matchedRule.Id)
 		}
 	}
@@ -259,30 +243,30 @@ func (s *ExternalAuthzService) check(ctx context.Context, req *envoyAuth.CheckRe
 		Execute()
 	s.metrics.ObserveOpenFGACheck(time.Since(fgaStart))
 	if err != nil {
-		s.logger.Error("OpenFGA check failed", "error", err)
+		s.logger.ErrorContext(ctx, "OpenFGA check failed", "error", err)
 		return forbidden("authorization check failed"), checkOutcome{result: "error", reason: "openfga_error", authType: authType, subject: userIdentity, tenant: tenant}, nil
 	}
 
 	results, ok := batchCheckResp.GetResultOk()
 	if !ok {
-		s.logger.Error("OpenFGA check failed, batch check result is not OK")
+		s.logger.ErrorContext(ctx, "OpenFGA check failed, batch check result is not OK")
 		return forbidden("access denied"), checkOutcome{result: "error", reason: "openfga_error", authType: authType, subject: userIdentity, tenant: tenant}, nil
 	}
 
 	for _, result := range *results {
 		if result.HasError() {
-			s.logger.Error("OpenFGA check failed", "error", result.GetError())
+			s.logger.ErrorContext(ctx, "OpenFGA check failed", "error", result.GetError())
 			return forbidden(fmt.Sprintf("access denied for user %s", userIdentity)), checkOutcome{result: "error", reason: "openfga_error", authType: authType, subject: userIdentity, tenant: tenant}, nil
 		}
 
 		allowed, ok := result.GetAllowedOk()
 		if !ok {
-			s.logger.Debug("Access denied for user", "user", userIdentity, "error", result.GetError())
+			s.logger.DebugContext(ctx, "Access denied for user", "user", userIdentity, "error", result.GetError())
 			return forbidden(fmt.Sprintf("access denied for user %s", userIdentity)), checkOutcome{result: "error", reason: "openfga_error", authType: authType, subject: userIdentity, tenant: tenant}, nil
 		}
 
 		if !*allowed {
-			s.logger.Debug("Access denied for user", "user", userIdentity)
+			s.logger.DebugContext(ctx, "Access denied for user", "user", userIdentity)
 			return forbidden(fmt.Sprintf("access denied for user %s", userIdentity)), checkOutcome{result: "deny", reason: "openfga_denied", authType: authType, subject: userIdentity, tenant: tenant}, nil
 		}
 	}
@@ -358,46 +342,16 @@ func extractBearerToken(authHeader string) string {
 	return ""
 }
 
-// extractSessionCookie parses the Cookie header string and extracts the "session" cookie value
+// extractSessionCookie parses the Cookie header string and extracts the "session_id" cookie value.
 func extractSessionCookie(cookieHeader string) string {
-	// Cookie header format: "cookie1=value1; cookie2=value2; session=sessionvalue"
-	cookies := splitCookies(cookieHeader)
-	for _, cookie := range cookies {
-		if len(cookie) >= sessionCookieNamePrefixLength && cookie[:sessionCookieNamePrefixLength] == sessionCookieNamePrefix {
-			return cookie[sessionCookieNamePrefixLength:]
-		}
-	}
-
-	return ""
-}
-
-// splitCookies splits a cookie header into individual cookie strings
-func splitCookies(cookieHeader string) []string {
 	if cookieHeader == "" {
-		return []string{}
+		return ""
 	}
-
-	var cookies []string
-	start := 0
-
-	for i := 0; i < len(cookieHeader); i++ {
-		if cookieHeader[i] == ';' {
-			trimmed := strings.TrimSpace(cookieHeader[start:i])
-			if trimmed != "" {
-				cookies = append(cookies, trimmed)
-			}
-			start = i + 1
-		}
+	c, err := (&http.Request{Header: http.Header{"Cookie": {cookieHeader}}}).Cookie(sessionCookieName)
+	if err != nil {
+		return ""
 	}
-
-	if start < len(cookieHeader) {
-		trimmed := strings.TrimSpace(cookieHeader[start:])
-		if trimmed != "" {
-			cookies = append(cookies, trimmed)
-		}
-	}
-
-	return cookies
+	return c.Value
 }
 
 func badRequest(body string) *envoyAuth.CheckResponse {

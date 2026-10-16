@@ -1,13 +1,11 @@
+// Copyright 2026 Canonical Ltd.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -35,6 +33,7 @@ Configuration is loaded from environment variables.`,
 
 func runListen(cmd *cobra.Command, _ []string) error {
 	cfg, err := config.LoadConfigFor(cmd,
+		config.ComponentServer,
 		config.ComponentPostgres,
 		config.ComponentKafka,
 		config.ComponentLogging,
@@ -46,7 +45,7 @@ func runListen(cmd *cobra.Command, _ []string) error {
 	}
 
 	logger := cfg.Logging.SetupLogger(cfg.Telemetry.ServiceName, version.Version)
-	logger.Info("Starting Kafka listener", "version", version.Version)
+	logger.InfoContext(cmd.Context(), "Starting Kafka listener", "version", version.Version)
 
 	// Automatically ensure topics exist before starting listener unless --no-topics is set.
 	if !noTopics {
@@ -60,15 +59,17 @@ func runListen(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("telemetry setup failed: %w", err)
 	}
 
-	integrations, err := config.InitializeIntegrations(cfg, logger, tracer)
+	integrations, err := config.InitializeIntegrations(
+		cfg,
+		logger,
+		tracer,
+		config.ComponentPostgres,
+		config.ComponentKafka,
+	)
 	if err != nil {
 		return fmt.Errorf("integration initialization failed: %w", err)
 	}
 	defer integrations.CleanupIntegrations(logger)
-
-	if err := integrations.InitKafkaConsumer(cfg, logger); err != nil {
-		return fmt.Errorf("kafka consumer initialization failed: %w", err)
-	}
 
 	reg := metrics.NewRegistry()
 
@@ -90,89 +91,21 @@ func runListen(cmd *cobra.Command, _ []string) error {
 
 	kafkaStatsRecorder := metrics.NewKafkaStatsRecorder(reg)
 
-	runMetrics := cfg.Metrics.Enabled
-	var metricsServer *http.Server
-	if runMetrics {
-		metricsServer = metrics.NewServer(cfg.Metrics.GetAddress(cfg.Server.Host), cfg.Metrics.Path, reg)
+	runners := []ComponentRunner{
+		{Name: "listener", Run: listener.Run},
+		{
+			Name: "kafka_stats",
+			Run: func(ctx context.Context) error {
+				return metrics.PollKafkaStats(ctx, integrations.KafkaConsumer, kafkaStatsRecorder, kafkaStatsPollInterval)
+			},
+		},
 	}
 
-	ctx, cancel := context.WithCancel(cmd.Context())
-	defer cancel()
-
-	numComponents := 2 // listener + kafka stats poller
-	if runMetrics {
-		numComponents++
+	if err := runManagedProcess(cmd.Context(), cfg, logger, reg, tracerShutdown, runners...); err != nil {
+		return err
 	}
 
-	type componentResult struct {
-		name string
-		err  error
-	}
-
-	errChan := make(chan componentResult, numComponents)
-	go func() {
-		errChan <- componentResult{name: "listener", err: listener.Run(ctx)}
-	}()
-	go func() {
-		errChan <- componentResult{name: "kafka_stats", err: metrics.PollKafkaStats(ctx, integrations.KafkaConsumer, kafkaStatsRecorder, kafkaStatsPollInterval)}
-	}()
-	if runMetrics {
-		go func() {
-			logger.Info("Starting metrics server", "address", metricsServer.Addr)
-			err := metricsServer.ListenAndServe()
-			if errors.Is(err, http.ErrServerClosed) {
-				err = nil
-			} else if err != nil {
-				logger.Error("Metrics server failed", "error", err)
-			}
-			errChan <- componentResult{name: "metrics", err: err}
-		}()
-	}
-
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
-	select {
-	case res := <-errChan:
-		logger.Info("Component stopped", "component", res.name)
-		if res.err != nil {
-			cancel()
-			return fmt.Errorf("%s component failed: %w", res.name, res.err)
-		}
-		cancel()
-	case sig := <-sigChan:
-		logger.Info("Received signal, shutting down", "signal", sig)
-		cancel()
-	}
-
-	if metricsServer != nil {
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.Server.GracefulShutdownTimeout)
-		if err := metricsServer.Shutdown(shutdownCtx); err != nil {
-			logger.Error("Error during metrics server shutdown", "error", err)
-		}
-		shutdownCancel()
-	}
-
-	var firstErr error
-	for i := 0; i < numComponents; i++ {
-		res := <-errChan
-		logger.Info("Component stopped", "component", res.name)
-		if res.err != nil && firstErr == nil {
-			firstErr = fmt.Errorf("%s component failed: %w", res.name, res.err)
-		}
-	}
-	if firstErr != nil {
-		return firstErr
-	}
-
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.Server.GracefulShutdownTimeout)
-	defer shutdownCancel()
-
-	if err := tracerShutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("error shutting down tracer: %w", err)
-	}
-
-	logger.Info("Listener stopped")
+	logger.InfoContext(cmd.Context(), "Listener stopped")
 	return nil
 }
 
