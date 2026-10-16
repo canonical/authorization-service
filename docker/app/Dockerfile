@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git make protobuf protobuf-dev
@@ -15,8 +15,14 @@ RUN go mod download
 # Copy source code
 COPY . .
 
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o authz-service ./cmd/server
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+    -a -installsuffix cgo \
+    -ldflags "-s -w" \
+    -o authz-service .
 
 # Runtime stage
 FROM alpine:latest

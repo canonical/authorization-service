@@ -1,11 +1,13 @@
 # Variables
+GO?=go
 GO_BIN?=app
-BINARY_PATH=bin/$(GO_BIN)
+BINARY_PATH?=bin/$(GO_BIN)
+BINARY_ARCHS?=amd64 arm64 riscv64
 CMD_PATH=./
 PROTO_PATH=api/proto/v1
-GOFLAGS?=-ldflags=-w -ldflags=-s -a -buildvcs
 CGO_ENABLED?=0
-GO?=go
+GOOS?=$(shell $(GO) env GOOS)
+GOARCH?=$(shell $(GO) env GOARCH)
 GO_TEST_PARALLEL?=10
 BUF=./bin/buf
 
@@ -17,6 +19,7 @@ help:
 	@echo "Authorization Service - Available targets:"
 	@echo ""
 	@echo "  make build        - Build the binary"
+	@echo "  make build-all    - Build binaries for all supported architectures (amd64, arm64, riscv64)"
 	@echo "  make test         - Run unit tests"
 	@echo "  make test-int     - Run integration tests"
 	@echo "  make coverage     - Generate coverage report"
@@ -38,7 +41,15 @@ release-manifest:
 
 # Build the binary
 build: release-manifest
-	@./scripts/build-app.sh
+	@CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) APP_BINARY_PATH=$(BINARY_PATH) ./scripts/build-app.sh
+
+BUILD_ARCH_TARGETS := $(addprefix build-,$(BINARY_ARCHS))
+
+# Build binaries for all supported architectures (amd64, arm64, riscv64)
+build-all: $(BUILD_ARCH_TARGETS)
+
+$(BUILD_ARCH_TARGETS): build-%: release-manifest
+	@CGO_ENABLED=$(CGO_ENABLED) GOOS=linux GOARCH=$* APP_BINARY_PATH=bin/$(GO_BIN)-linux-$* ./scripts/build-app.sh
 
 mocks:
 	@command -v mockgen > /dev/null || ( \

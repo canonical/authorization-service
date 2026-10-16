@@ -71,7 +71,25 @@ If you prefer to run each component manually:
 ```bash
 make build
 ```
-This compiles the project binary into `bin/app`.
+This compiles the project binary into `bin/app` for the host OS and architecture (`go env GOOS` / `go env GOARCH`).
+
+To build the binary for all supported binary architectures (`linux/amd64`, `linux/arm64`, and `linux/riscv64`), run:
+```bash
+make build-all
+```
+This writes `bin/app-linux-amd64`, `bin/app-linux-arm64`, and `bin/app-linux-riscv64`. To compile `bin/app` for one specific architecture, set `GOARCH` (`GOARCH=amd64 make build`, `GOARCH=arm64 make build`, or `GOARCH=riscv64 make build`).
+
+To pack and load a Rock image for a supported container architecture (`amd64` or `arm64`), run:
+```bash
+IMAGE=authorization-service:dev ARCH=amd64 ./build.sh
+```
+
+> **Multi-Architecture Notes**:
+> - `riscv64` is supported at the Go binary level (`make build-all`, `GOOS=linux GOARCH=riscv64 make build`), whereas Rock container images are built and published only for `amd64` and `arm64`.
+> - Multi-architecture release candidate promotion (`<version>-candidate` $\rightarrow$ `<version>` and `stable`) requires `skopeo copy --all` in the centralized workflow ([`canonical/identity-team#156`](https://github.com/canonical/identity-team/pull/156)). Verify published or promoted multi-architecture manifest lists with:
+>   ```bash
+>   docker manifest inspect ghcr.io/canonical/authorization-service:<tag>
+>   ```
 
 #### Step 2: Start Infrastructure Dependencies
 ```bash
