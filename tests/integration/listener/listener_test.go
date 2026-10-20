@@ -4,13 +4,19 @@ package listener
 
 import (
 	"context"
+	"io"
+	"net"
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/canonical/authorization-service/internal/health"
 	kafkaintegration "github.com/canonical/authorization-service/internal/integration/kafka"
 	"github.com/canonical/authorization-service/internal/integration/postgres"
+	"github.com/canonical/authorization-service/internal/metrics"
 	"github.com/canonical/authorization-service/internal/repository"
 	"github.com/canonical/authorization-service/internal/service/listen"
 	"github.com/canonical/authorization-service/tests/integration/suite"
@@ -159,3 +165,120 @@ func TestListener_ServiceMismatchNotPersisted(t *testing.T) {
 	cancel()
 	<-errCh
 }
+
+// TestListener_HealthzEndpoint verifies that the health check HTTP server serves
+// GET /healthz with 200 OK (`{"status":"SERVING"}`) while the listener is actively
+// consuming from Kafka and persisting to Postgres, both with and without the
+// metrics server running alongside it, and stops accepting connections after
+// graceful shutdown.
+func TestListener_HealthzEndpoint(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		metricsEnabled bool
+	}{
+		{name: "with_metrics_enabled", metricsEnabled: true},
+		{name: "with_metrics_disabled", metricsEnabled: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			suffix := suite.UniqueSuffix()
+			idem := "idem-healthz-" + tc.name + "-" + suffix
+
+			client, pool := newTestPostgres(t)
+			suite.PublishEnvelope(t, kafkaBroker, "payments", suite.SampleEnvelope("payments", idem))
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			listenerErrCh := startListener(ctx, newTestListener(t, "healthz-"+tc.name+"-"+suffix, client))
+
+			healthLn, err := net.Listen("tcp", "127.0.0.1:0")
+			if err != nil {
+				t.Fatalf("listen health: %v", err)
+			}
+			healthSrv := health.NewServer(healthLn.Addr().String())
+			healthErrCh := make(chan error, 1)
+			go func() {
+				healthErrCh <- healthSrv.Serve(healthLn)
+			}()
+
+			var metricsSrv *http.Server
+			var metricsErrCh chan error
+			var metricsURL string
+			if tc.metricsEnabled {
+				metricsLn, err := net.Listen("tcp", "127.0.0.1:0")
+				if err != nil {
+					t.Fatalf("listen metrics: %v", err)
+				}
+				metricsURL = "http://" + metricsLn.Addr().String() + "/metrics"
+				reg := prometheus.NewRegistry()
+				metricsSrv = metrics.NewServer(metricsLn.Addr().String(), "/metrics", reg)
+				metricsErrCh = make(chan error, 1)
+				go func() {
+					metricsErrCh <- metricsSrv.Serve(metricsLn)
+				}()
+			}
+
+			waitForWorkRow(t, pool, "payments", idem)
+
+			healthURL := "http://" + healthLn.Addr().String() + "/healthz"
+			resp, err := http.Get(healthURL)
+			if err != nil {
+				t.Fatalf("GET /healthz failed: %v", err)
+			}
+			body, err := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			if err != nil {
+				t.Fatalf("read /healthz body: %v", err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+			}
+			if got := resp.Header.Get("Content-Type"); got != "application/json" {
+				t.Fatalf("Content-Type = %q, want %q", got, "application/json")
+			}
+			if string(body) != `{"status":"SERVING"}` {
+				t.Fatalf("body = %q, want %q", string(body), `{"status":"SERVING"}`)
+			}
+
+			if tc.metricsEnabled {
+				mResp, err := http.Get(metricsURL)
+				if err != nil {
+					t.Fatalf("GET /metrics failed: %v", err)
+				}
+				_ = mResp.Body.Close()
+				if mResp.StatusCode != http.StatusOK {
+					t.Fatalf("metrics status = %d, want %d", mResp.StatusCode, http.StatusOK)
+				}
+			}
+
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer shutdownCancel()
+			if err := healthSrv.Shutdown(shutdownCtx); err != nil {
+				t.Fatalf("healthSrv.Shutdown: %v", err)
+			}
+			if err := <-healthErrCh; err != nil && err != http.ErrServerClosed {
+				t.Fatalf("healthSrv.Serve returned unexpected error: %v", err)
+			}
+
+			if metricsSrv != nil {
+				if err := metricsSrv.Shutdown(shutdownCtx); err != nil {
+					t.Fatalf("metricsSrv.Shutdown: %v", err)
+				}
+				if err := <-metricsErrCh; err != nil && err != http.ErrServerClosed {
+					t.Fatalf("metricsSrv.Serve returned unexpected error: %v", err)
+				}
+			}
+
+			cancel()
+			if err := <-listenerErrCh; err != nil {
+				t.Fatalf("listener shutdown error: %v", err)
+			}
+
+			// Verify /healthz refuses connections after shutdown.
+			if resp, err := http.Get(healthURL); err == nil {
+				_ = resp.Body.Close()
+				t.Fatalf("expected GET /healthz to fail after shutdown, got status %d", resp.StatusCode)
+			}
+		})
+	}
+}
+

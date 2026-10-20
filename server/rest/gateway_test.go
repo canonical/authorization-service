@@ -13,8 +13,32 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/canonical/authorization-service/internal/logging"
+	"github.com/canonical/authorization-service/internal/metrics"
 	"github.com/canonical/authorization-service/internal/testutil"
 )
+
+type stubServerConfig struct {
+	addr string
+}
+
+func (s stubServerConfig) GetHTTPAddress() string {
+	return s.addr
+}
+
+func TestNewGateway_HealthzEndpoint(t *testing.T) {
+	logger, _ := testutil.CapturingLogger(t)
+	gw, err := NewGateway(stubServerConfig{addr: "127.0.0.1:0"}, metrics.NewRegistry(), logger)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	rec := httptest.NewRecorder()
+
+	gw.server.Handler.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+	assert.Equal(t, `{"status":"SERVING"}`, rec.Body.String())
+}
 
 func decodeLogLine(t *testing.T, raw []byte) map[string]any {
 	t.Helper()
