@@ -141,7 +141,7 @@ Runs schema migrations against the PostgreSQL database. Supports `up`, `down [ve
 ```bash
 ./bin/app listen
 ```
-Starts the Kafka permission-update listener which consumes permission events from federated services' `permissions.<slug>` topics and persists them into the PostgreSQL work queue.
+Starts the Kafka permission-update listener which consumes permission events from federated services' `permissions.<slug>` topics and persists them into the PostgreSQL work queue. Also exposes a health check HTTP endpoint (`GET /healthz` returning `200 OK` with JSON body `{"status":"SERVING"}`) on the configured HTTP server address (`<SERVER_HOST>:<HTTP_PORT>`, default `0.0.0.0:8070`).
 
 By default, executing `listen` automatically runs topic creation (`ensure-topics`) before starting the listener. To disable automatic topic creation (for instance, if topics are pre-created or managed externally), pass the `--no-topics` flag:
 ```bash
@@ -152,7 +152,7 @@ By default, executing `listen` automatically runs topic creation (`ensure-topics
 ```bash
 ./bin/app worker
 ```
-Starts the background worker that polls the PostgreSQL work queue and applies the pending permission changes to OpenFGA.
+Starts the background worker that polls the PostgreSQL work queue and applies the pending permission changes to OpenFGA. Also exposes a health check HTTP endpoint (`GET /healthz` returning `200 OK` with JSON body `{"status":"SERVING"}`) on the configured HTTP server address (`<SERVER_HOST>:<HTTP_PORT>`, default `0.0.0.0:8070`).
 
 ### `reaper` - One-off Stale-Row Reaper
 ```bash
@@ -235,7 +235,7 @@ To view or start with a baseline YAML configuration, refer to the provided [auth
 The following flags are available globally across all CLI commands to quickly override settings:
 * `-c, --config <path>`: Path to a custom YAML configuration file.
 * `--grpc-port <int>`: Overrides the gRPC server port.
-* `--http-port <int>`: Overrides the HTTP API Gateway port.
+* `--http-port <int>`: Overrides the HTTP port (used for the REST API Gateway on `serve` and the `/healthz` HTTP server on `listen` and `worker`).
 * `--server-host <string>`: Overrides the server bind host address.
 * `--db-host <string>`: Overrides the PostgreSQL database host.
 * `--db-port <int>`: Overrides the PostgreSQL database port.
@@ -254,8 +254,8 @@ The following flags are available globally across all CLI commands to quickly ov
 #### Server Configuration
 | YAML Path | Environment Variable | Type | Default | Description |
 |-----------|----------------------|------|---------|-------------|
-| `server.grpc_port` | `SERVER_GRPC_PORT` | int | `9091` | gRPC server port |
-| `server.http_port` | `SERVER_HTTP_PORT` | int | `8070` | REST gateway port |
+| `server.grpc_port` | `SERVER_GRPC_PORT` / `GRPC_PORT` | int | `9091` | gRPC server port |
+| `server.http_port` | `SERVER_HTTP_PORT` / `HTTP_PORT` | int | `8070` | REST gateway port (`serve`) and health check HTTP port (`listen`, `worker`) |
 | `server.host` | `SERVER_HOST` | string | `0.0.0.0` | Server bind address |
 | `server.shutdown_timeout` | `SERVER_SHUTDOWN_TIMEOUT` | duration | `15s` | Graceful shutdown timeout |
 | `server.development` | `SERVER_DEVELOPMENT` | bool | `false` | Enable development mode (e.g. gRPC reflection) |
@@ -380,8 +380,8 @@ View the results by opening `coverage.html` in your browser.
 - **Envoy External Authorization**: `envoy.service.auth.v3.Authorization`
   - `Check`
 
-### REST Gateway Endpoints (Port `8070`)
-- `GET /healthz` - Liveness/readiness health check
+### HTTP & Health Check Endpoints (Default Port `8070`)
+- `GET /healthz` - Liveness/readiness health check exposed across `serve`, `listen`, and `worker` via `internal/health` (returning `200 OK` with `Content-Type: application/json` and body `{"status":"SERVING"}`).
 *Note: The `/v1/permissions` routes are defined in proto definitions but are currently comment-disabled in `gateway.go` and require direct gRPC client calls.*
 
 ---

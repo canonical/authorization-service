@@ -4,7 +4,7 @@
 server:
   # The port on which the gRPC server will run.
   grpc_port: 9091
-  # The port on which the HTTP REST API Gateway will run.
+  # The port on which the HTTP REST API Gateway (serve) or health check server (listen, worker) will run.
   http_port: 8070
   # The IP address/host on which the server binds.
   host: "0.0.0.0"

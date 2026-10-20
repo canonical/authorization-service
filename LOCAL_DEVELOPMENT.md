@@ -20,13 +20,13 @@ Ensure the following tools are installed on your host machine before starting:
 The Authorization Service is composed of three decoupled logical components, all built into the same binary (`bin/app`) and controllable via CLI subcommands:
 
 1. **Authorization Server (`serve`)**:
-   The primary API server running the gRPC server (port `9091`) and REST gateway (port `8070`). It manages service permissions, handles authorization decisions via OpenFGA/Valkey, and integrates with Envoy / Istio external authorization.
+   The primary API server running the gRPC server (port `9091`) and REST gateway (port `8070`, including `GET /healthz`). It manages service permissions, handles authorization decisions via OpenFGA/Valkey, and integrates with Envoy / Istio external authorization.
    
 2. **Kafka Event Listener (`listen`)**:
-   A background consumer process that subscribes to Kafka topics (`permissions.<service-slug>`). It listens for asynchronous permission update events emitted by federated services and persists them into the PostgreSQL work queue for durable processing.
+   A background consumer process that subscribes to Kafka topics (`permissions.<service-slug>`). It listens for asynchronous permission update events emitted by federated services and persists them into the PostgreSQL work queue for durable processing. It also exposes `GET /healthz` on the configured HTTP server address (`<SERVER_HOST>:<HTTP_PORT>`, default `0.0.0.0:8070`).
 
 3. **Async Permission Worker & Reaper (`worker`)**:
-   A background processing worker that continuously polls pending permission updates from the PostgreSQL work queue and applies them to OpenFGA. It includes an embedded, in-process **reaper** process that scans for stale or timed-out processing items and reclaims them for retry.
+   A background processing worker that continuously polls pending permission updates from the PostgreSQL work queue and applies them to OpenFGA. It includes an embedded, in-process **reaper** process that scans for stale or timed-out processing items and reclaims them for retry. It also exposes `GET /healthz` on the configured HTTP server address (`<SERVER_HOST>:<HTTP_PORT>`, default `0.0.0.0:8070`).
 
 ---
 
@@ -127,23 +127,23 @@ Before starting the `serve` process, you **must** run the following setup CLI se
    Parses embedded route YAML specifications and seeds route authorization rules into PostgreSQL.
 
 #### Step 4: Launching Service Components
-Once bootstrapping is complete, you can launch the logical components:
+Once bootstrapping is complete, you can launch the logical components. Because `serve`, `listen`, and `worker` all bind their HTTP / `/healthz` listener to `HTTP_PORT` (default `8070`), pass distinct `--http-port` values (and `METRICS_PORT` if `METRICS_ENABLED=true`) when running multiple components concurrently on the same host:
 
-* **Start Main Authorization Server:**
+* **Start Main Authorization Server (default HTTP port `8070`):**
   ```bash
   ./bin/app serve
   ```
   *(Or with explicit YAML config: `./bin/app serve --config authorization-service.yaml`)*
 
-* **Start Kafka Ingestion Listener (in a separate terminal):**
+* **Start Kafka Ingestion Listener (in a separate terminal, e.g. HTTP port `8071`):**
   ```bash
-  ./bin/app listen
+  ./bin/app listen --http-port 8071
   ```
   *(Note: `listen` automatically runs topic creation on startup. Pass `--no-topics` if you want to skip topic creation.)*
 
-* **Start Async Permission Worker & Reaper (in a separate terminal):**
+* **Start Async Permission Worker & Reaper (in a separate terminal, e.g. HTTP port `8072`):**
   ```bash
-  ./bin/app worker
+  ./bin/app worker --http-port 8072
   ```
 
 ---
@@ -323,10 +323,13 @@ Once running, the following local services and endpoints are available:
 
 ### Verify Service Health
 
-Test that the REST gateway health endpoint returns `200 OK`:
+Test that the health check endpoint (`GET /healthz`) returns `200 OK` on `serve`, `listen`, and `worker`:
 
 ```bash
 curl -i http://localhost:8070/healthz
+# If running listen and worker locally on custom HTTP ports:
+curl -i http://localhost:8071/healthz
+curl -i http://localhost:8072/healthz
 ```
 
 ---

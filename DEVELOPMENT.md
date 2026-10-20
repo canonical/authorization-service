@@ -257,7 +257,9 @@ This allows testable services without touching real external services.
 ### Packages
 - `cmd/`: CLI commands only
 - `internal/`: All internal code (not importable from outside)
+  - `health/`: Health check handler and HTTP server exposing `GET /healthz` across runtime components (`serve`, `worker`, `listen`)
   - `integrations/`: External service wrappers
+  - `metrics/`: Prometheus metrics registry and `/metrics` HTTP server
   - `server/`: API servers (gRPC, REST)
   - `service/`: Business logic
   - `testutil/`: Testing helpers
@@ -291,10 +293,10 @@ dlv debug ./cmd/server
 ```
 ### Checking Service Health
 ```bash
-# gRPC health
-grpcurl -plaintext localhost:9090 grpc.health.v1.Health/Check
-# REST health
-curl http://localhost:8888/healthz
+# gRPC health (serve)
+grpcurl -plaintext localhost:9091 grpc.health.v1.Health/Check
+# HTTP health check (serve, listen, or worker — default port 8070)
+curl http://localhost:8070/healthz
 # Container logs
 docker logs <container-name>
 ```
