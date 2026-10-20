@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/canonical/authorization-service/config"
+	"github.com/canonical/authorization-service/internal/health"
 	"github.com/canonical/authorization-service/internal/metrics"
 	"github.com/canonical/authorization-service/internal/repository"
 	"github.com/canonical/authorization-service/internal/service/listen"
@@ -35,6 +36,7 @@ Configuration is loaded from environment variables.`,
 
 func runWorker(cmd *cobra.Command, _ []string) error {
 	cfg, err := config.LoadConfigFor(cmd,
+		config.ComponentServer,
 		config.ComponentWorker,
 		config.ComponentOpenFGA,
 		config.ComponentPostgres,
@@ -95,6 +97,8 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 		)
 	}
 
+	healthServer := health.NewServer(cfg.Server.GetHTTPAddress())
+
 	runMetrics := cfg.Metrics.Enabled
 	var metricsServer *http.Server
 	if runMetrics {
@@ -104,7 +108,7 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 	ctx, cancel := context.WithCancel(cmd.Context())
 	defer cancel()
 
-	numComponents := 1
+	numComponents := 2 // worker + health server
 	if runReaper {
 		numComponents++
 	}
@@ -120,6 +124,16 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 	errChan := make(chan componentResult, numComponents)
 	go func() {
 		errChan <- componentResult{name: "worker", err: w.Run(ctx)}
+	}()
+	go func() {
+		logger.Info("Starting health server", "address", healthServer.Addr)
+		err := healthServer.ListenAndServe()
+		if errors.Is(err, http.ErrServerClosed) {
+			err = nil
+		} else if err != nil {
+			logger.Error("Health server failed", "error", err)
+		}
+		errChan <- componentResult{name: "health", err: err}
 	}()
 	if runReaper {
 		go func() {
@@ -142,12 +156,15 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
+	var firstErr error
+	remaining := numComponents
+
 	select {
 	case res := <-errChan:
+		remaining--
 		logger.Info("Component stopped", "component", res.name)
 		if res.err != nil {
-			cancel()
-			return fmt.Errorf("%s component failed: %w", res.name, res.err)
+			firstErr = fmt.Errorf("%s component failed: %w", res.name, res.err)
 		}
 		cancel()
 	case sig := <-sigChan:
@@ -155,17 +172,22 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 		cancel()
 	}
 
+	healthShutdownCtx, healthShutdownCancel := context.WithTimeout(context.Background(), cfg.Server.GracefulShutdownTimeout)
+	if err := healthServer.Shutdown(healthShutdownCtx); err != nil {
+		logger.Error("Error during health server shutdown", "error", err)
+	}
+	healthShutdownCancel()
+
 	if metricsServer != nil {
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.Server.GracefulShutdownTimeout)
-		if err := metricsServer.Shutdown(shutdownCtx); err != nil {
+		metricsShutdownCtx, metricsShutdownCancel := context.WithTimeout(context.Background(), cfg.Server.GracefulShutdownTimeout)
+		if err := metricsServer.Shutdown(metricsShutdownCtx); err != nil {
 			logger.Error("Error during metrics server shutdown", "error", err)
 		}
-		shutdownCancel()
+		metricsShutdownCancel()
 	}
 
-	// Wait for all started components to exit
-	var firstErr error
-	for i := 0; i < numComponents; i++ {
+	// Wait for all remaining started components to exit
+	for i := 0; i < remaining; i++ {
 		res := <-errChan
 		logger.Info("Component stopped", "component", res.name)
 		if res.err != nil && firstErr == nil {
