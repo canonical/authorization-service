@@ -1,3 +1,6 @@
+// Copyright 2026 Canonical Ltd.
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package cmd
 
 import (
@@ -13,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/canonical/authorization-service/config"
+	"github.com/canonical/authorization-service/internal/health"
 	"github.com/canonical/authorization-service/internal/metrics"
 	"github.com/canonical/authorization-service/internal/repository"
 	"github.com/canonical/authorization-service/internal/service/listen"
@@ -35,6 +39,7 @@ Configuration is loaded from environment variables.`,
 
 func runListen(cmd *cobra.Command, _ []string) error {
 	cfg, err := config.LoadConfigFor(cmd,
+		config.ComponentServer,
 		config.ComponentPostgres,
 		config.ComponentKafka,
 		config.ComponentLogging,
@@ -90,6 +95,8 @@ func runListen(cmd *cobra.Command, _ []string) error {
 
 	kafkaStatsRecorder := metrics.NewKafkaStatsRecorder(reg)
 
+	healthServer := health.NewServer(cfg.Server.GetHTTPAddress())
+
 	runMetrics := cfg.Metrics.Enabled
 	var metricsServer *http.Server
 	if runMetrics {
@@ -99,7 +106,7 @@ func runListen(cmd *cobra.Command, _ []string) error {
 	ctx, cancel := context.WithCancel(cmd.Context())
 	defer cancel()
 
-	numComponents := 2 // listener + kafka stats poller
+	numComponents := 3 // listener + kafka stats poller + health server
 	if runMetrics {
 		numComponents++
 	}
@@ -115,6 +122,16 @@ func runListen(cmd *cobra.Command, _ []string) error {
 	}()
 	go func() {
 		errChan <- componentResult{name: "kafka_stats", err: metrics.PollKafkaStats(ctx, integrations.KafkaConsumer, kafkaStatsRecorder, kafkaStatsPollInterval)}
+	}()
+	go func() {
+		logger.Info("Starting health server", "address", healthServer.Addr)
+		err := healthServer.ListenAndServe()
+		if errors.Is(err, http.ErrServerClosed) {
+			err = nil
+		} else if err != nil {
+			logger.Error("Health server failed", "error", err)
+		}
+		errChan <- componentResult{name: "health", err: err}
 	}()
 	if runMetrics {
 		go func() {
@@ -132,12 +149,15 @@ func runListen(cmd *cobra.Command, _ []string) error {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
+	var firstErr error
+	remaining := numComponents
+
 	select {
 	case res := <-errChan:
+		remaining--
 		logger.Info("Component stopped", "component", res.name)
 		if res.err != nil {
-			cancel()
-			return fmt.Errorf("%s component failed: %w", res.name, res.err)
+			firstErr = fmt.Errorf("%s component failed: %w", res.name, res.err)
 		}
 		cancel()
 	case sig := <-sigChan:
@@ -145,16 +165,21 @@ func runListen(cmd *cobra.Command, _ []string) error {
 		cancel()
 	}
 
+	healthShutdownCtx, healthShutdownCancel := context.WithTimeout(context.Background(), cfg.Server.GracefulShutdownTimeout)
+	if err := healthServer.Shutdown(healthShutdownCtx); err != nil {
+		logger.Error("Error during health server shutdown", "error", err)
+	}
+	healthShutdownCancel()
+
 	if metricsServer != nil {
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.Server.GracefulShutdownTimeout)
-		if err := metricsServer.Shutdown(shutdownCtx); err != nil {
+		metricsShutdownCtx, metricsShutdownCancel := context.WithTimeout(context.Background(), cfg.Server.GracefulShutdownTimeout)
+		if err := metricsServer.Shutdown(metricsShutdownCtx); err != nil {
 			logger.Error("Error during metrics server shutdown", "error", err)
 		}
-		shutdownCancel()
+		metricsShutdownCancel()
 	}
 
-	var firstErr error
-	for i := 0; i < numComponents; i++ {
+	for i := 0; i < remaining; i++ {
 		res := <-errChan
 		logger.Info("Component stopped", "component", res.name)
 		if res.err != nil && firstErr == nil {

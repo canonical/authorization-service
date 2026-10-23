@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/canonical/authorization-service/internal/health"
 	"github.com/canonical/authorization-service/internal/logging"
 	"github.com/canonical/authorization-service/internal/metrics"
 )
@@ -47,9 +48,13 @@ type Gateway struct {
 // and latency collectors; pass a fresh internal/metrics.NewRegistry() per process.
 func NewGateway(cfg ServerConfig, reg *prometheus.Registry, logger *slog.Logger) (*Gateway, error) {
 	mux := runtime.NewServeMux(
-		runtime.WithHealthEndpointAt(nil, "/healthz"),
 		runtime.WithMetadata(requestIDAnnotator),
 	)
+	if err := mux.HandlePath(http.MethodGet, "/healthz", func(w http.ResponseWriter, r *http.Request, _ map[string]string) {
+		health.HandleHealthz(w, r)
+	}); err != nil {
+		return nil, fmt.Errorf("failed to register healthz handler: %w", err)
+	}
 
 	gateway := &Gateway{
 		mux:    mux,

@@ -26,3 +26,11 @@ func TestListenCmd_NoTopicsFlag(t *testing.T) {
 	// Reset flag state after test execution
 	_ = listenCmd.Flags().Set("no-topics", "false")
 }
+
+func TestRunListen_InvalidHTTPPortFailsValidation(t *testing.T) {
+	t.Setenv("HTTP_PORT", "0")
+
+	err := runListen(listenCmd, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "server configuration validation failed")
+}

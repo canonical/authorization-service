@@ -8,7 +8,7 @@ Previously, monolithic configuration loading forced every CLI command to validat
 The configuration subsystem SHALL support command-scoped validation, allowing each CLI command (`serve`, `listen`, `worker`, `migrate`, `seed`, `reaper`, `ensure_topics`, `authz write-model`, `authz check`) to validate only its required configuration sections without requiring configuration sections for unused components.
 
 #### Scenario: Running listener command without OpenFGA configuration
-- **WHEN** the `listen` CLI command is executed with valid Postgres, Kafka, Logging, Telemetry, and Metrics configuration but no OpenFGA configuration
+- **WHEN** the `listen` CLI command is executed with valid Server, Postgres, Kafka, Logging, Telemetry, and Metrics configuration but no OpenFGA configuration
 - **THEN** configuration validation succeeds and the listener process starts without OpenFGA configuration errors
 
 #### Scenario: Running serve command without Kafka configuration
@@ -16,7 +16,7 @@ The configuration subsystem SHALL support command-scoped validation, allowing ea
 - **THEN** configuration validation succeeds and the server process starts without Kafka configuration errors
 
 #### Scenario: Running worker command without Kafka configuration
-- **WHEN** the `worker` CLI command is executed with valid Worker, OpenFGA, Postgres, Logging, Telemetry, and Metrics configuration but no Kafka configuration
+- **WHEN** the `worker` CLI command is executed with valid Server, Worker, OpenFGA, Postgres, Logging, Telemetry, and Metrics configuration but no Kafka configuration
 - **THEN** configuration validation succeeds and the worker process starts without Kafka configuration errors
 
 #### Scenario: Running migrate command with minimal required configuration
