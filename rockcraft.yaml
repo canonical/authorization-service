@@ -1,7 +1,7 @@
 name: authorization-service
 base: bare
 build-base: ubuntu@24.04
-version: 2.0.3
+version: 2.1.0
 summary: Canonical Identity Platform Authorization Service
 description: >
   This is the Canonical Identity Platform Authorization Service used
@@ -24,16 +24,21 @@ parts:
       - go/1.26/stable
     build-environment:
       - CGO_ENABLED: '0'
-      - GOTOOLCHAIN: 'local'
+      - GOTOOLCHAIN: local
     build-packages:
       - make
       - git
-    override-build: |
+    override-build: >
       export GOOS=linux
+
       export GOARCH="${CRAFT_ARCH_BUILD_FOR}"
+
       export CGO_ENABLED=0
+
       make build
-      install -D -m755 ./bin/app ${CRAFT_PART_INSTALL}/opt/authorization-service/bin/app
+
+      install -D -m755 ./bin/app
+      ${CRAFT_PART_INSTALL}/opt/authorization-service/bin/app
     organize:
       opt/authorization-service/bin/app: usr/bin/app
       etc/ssl/certs/ca-certificates.crt: etc/ssl/certs/ca-certificates.crt
