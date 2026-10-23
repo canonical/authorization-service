@@ -1,6 +1,6 @@
 version: "1"
 service: tenant-service
-revision: "2026.09.28.1"
+revision: "2026.10.09.1"
 description: |
   Route protection rules for the tenant service.
 
@@ -59,6 +59,33 @@ rules:
         object_resource_type: tenant
         object_resource_id: '{tenant_id}'
 
+
+  - method: DELETE
+    match: '/api/v0/tenants/{tenant_id}/users/{user_id}'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_edit
+        object_resource_type: tenant
+        object_resource_id: '{tenant_id}'
+
+  - method: GET
+    match: '/api/v0/tenants/{tenant_id}/mfa-policy'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_view
+        object_resource_type: tenant
+        object_resource_id: '{tenant_id}'
+
+  - method: PUT
+    match: '/api/v0/tenants/{tenant_id}/mfa-policy'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_edit
+        object_resource_type: tenant
+        object_resource_id: '{tenant_id}'
 
   - method: POST
     match: '/api/v0/tenants/{tenant_id}/invites'
