@@ -13,7 +13,7 @@ bin
 # Mocks, test binary, built with `go test -c`
 mock_*.go
 *.test
-http-tests
+#http-tests
 
 # Code coverage profiles and other test artifacts
 *.out

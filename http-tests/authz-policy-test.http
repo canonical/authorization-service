@@ -1,0 +1,30 @@
+# Test 1: Expected to SUCCEED (200 OK) for marco.basile@canonical.com and alessandro.cabbia@canonical.com (both have 'read' and 'member' on group:developers),
+#         and FAIL (403 Forbidden) for non-marco.basile@canonical.com (missing 'member' on group:developers).
+GET {{GATEWAY_IP}}/api/v1/groups/developers
+Host: localhost
+Cookie: session_id={{SESSION_ID}}
+
+###
+
+# Test 2: Expected to FAIL (403 Forbidden - no authorization rule matched) because the path ends with '/member' (singular)
+#         instead of '/members' (plural, as defined in Rule 2). If changed to '/members', it succeeds (200 OK) for both users.
+POST {{GATEWAY_IP}}/api/v1/groups/developers/member
+Host: localhost
+Cookie: session_id={{SESSION_ID}}
+
+###
+
+# Test 3: Expected to SUCCEED (200 OK) for marco.basile@canonical.com, alessandro.cabbia@canonical.com, and non-marco.basile@canonical.com
+#         (all have 'admin' relation on platform:default).
+GET {{GATEWAY_IP}}/api/v1/admin/anything/can/be/here
+Host: localhost
+Cookie: session_id={{SESSION_ID}}
+
+###
+
+# Test 4: Expected to SUCCEED (200 OK) for marco.basile@canonical.com and alessandro.cabbia@canonical.com (both have 'read' on group:directors and 'read' on membership:12345),
+#         and FAIL (403 Forbidden) for non-marco.basile@canonical.com (missing both tuples).
+POST {{GATEWAY_IP}}/api/v1/groups/directors/members/12345
+Host: localhost
+Cookie: session_id={{SESSION_ID}}
+
