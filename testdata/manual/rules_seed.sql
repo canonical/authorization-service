@@ -10,6 +10,14 @@ WHERE rule_id IN (
 DELETE FROM authorization_rule
 WHERE service_id = '00000000-0000-0000-0000-000000000001';
 
+
+INSERT INTO federated_service (id, slug, description)
+VALUES (
+           '00000000-0000-0000-0000-000000000001',
+           'echoserver',
+           'Manual test echoserver / fake-webserver service'
+       )
+ON CONFLICT (id) DO NOTHING;
 -- +-----------------------------------------------+
 -- | Rule 1: GET /api/v1/groups/{groupId}           |
 -- | Checks: user can "read" a specific group       |

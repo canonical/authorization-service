@@ -1,6 +1,10 @@
 - object: group:developers
   user: user:marco.basile@canonical.com
   relation: member
+  condition:
+    name: tenant_match
+    context:
+      tenant: ""
 - object: group:developers
   user: user:marco.basile@canonical.com
   relation: read
@@ -15,6 +19,29 @@
   relation: read
 - object: platform:default
   user: user:marco.basile@canonical.com
+  relation: admin
+
+- object: group:developers
+  user: user:alessandro.cabbia@canonical.com
+  relation: member
+  condition:
+    name: tenant_match
+    context:
+      tenant: ""
+- object: group:developers
+  user: user:alessandro.cabbia@canonical.com
+  relation: read
+- object: group:developers
+  user: user:alessandro.cabbia@canonical.com
+  relation: write
+- object: group:directors
+  user: user:alessandro.cabbia@canonical.com
+  relation: read
+- object: membership:12345
+  user: user:alessandro.cabbia@canonical.com
+  relation: read
+- object: platform:default
+  user: user:alessandro.cabbia@canonical.com
   relation: admin
 
 - object: group:developers
