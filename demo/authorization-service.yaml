@@ -1,0 +1,96 @@
+# Authorization Service - Local Demo Configuration
+# Compatible with docker/dependencies/docker-compose.yml and Skaffold profiles (istio, dev-setup, fake-webserver)
+
+multitenancy_enabled: false
+
+server:
+  # Must bind 0.0.0.0:9091 so the K8s cluster can reach it via the ServiceEntry in k8s/dev-setup/serviceentry.yaml
+  grpc_port: 9091
+  # HTTP REST Gateway & /healthz endpoint
+  http_port: 8070
+  host: "0.0.0.0"
+  shutdown_timeout: 15s
+  development: true
+
+ext_authz_service:
+  # URL to fetch JWKs for M2M Bearer JWT signature validation (STS / Hydra)
+  jwk_set_url: "http://localhost:8080/.well-known/jwks.json"
+
+openfga:
+  # OpenFGA HTTP API exposed on host port 8082 by docker/dependencies/docker-compose.yml
+  address: "http://localhost:8082"
+  # Hardcoded store created by the insert-hardcoded-store init container
+  store_id: "01GP1254CHWJC1MNGVB0WDG1T0"
+  # Populated automatically by ./demo/prepare-demo.sh via './bin/app authz write-model'
+  authorization_model_id: "01M654V2RJSYJF5BAM05ZNAKK0"
+  # Preshared key configured in authz-openfga container (OPENFGA_AUTHN_PRESHARED_KEYS=42)
+  api_key: "42"
+  timeout: 10s
+
+valkey:
+  # Valkey exposed on host port 6379 by docker/dependencies/docker-compose.yml
+  enabled: false
+  address: "localhost:6379"
+  username: ""
+  password: ""
+  db: 0
+  pool_size: 10
+  timeout: 5s
+  use_tls: false
+
+postgres:
+  # PostgreSQL exposed on host port 5433 by docker/dependencies/docker-compose.yml
+  host: "localhost"
+  port: 5433
+  user: "authorization-service"
+  password: "password"
+  db_name: "authorization-service"
+  ssl_mode: "disable"
+  max_open_conns: 25
+  max_idle_conns: 5
+  conn_max_lifetime: 30m
+  conn_max_idle_time: 5m
+  connect_timeout: 10s
+
+sts:
+  # Secure Token Service gRPC endpoint (for session cookie exchange)
+  address: "localhost:9090"
+  use_tls: false
+  timeout: 10s
+  eager_connection_check: false
+
+kafka:
+  # Kafka exposed on host port 9092 by docker/dependencies/docker-compose.yml
+  enabled: false
+  brokers:
+    - "localhost:9092"
+  federated_services_strategy: "auto"
+  federated_services: []
+  consumer_group: "authz-listener"
+  topic_partitions: 1
+  topic_replication_factor: 1
+
+worker:
+  enabled: false
+  batch_size: 100
+  poll_interval: 1s
+  max_attempts: 5
+  retry_backoff: 5m
+  stale_timeout: 15m
+  reaper_interval: 1m
+
+metrics:
+  enabled: true
+  port: 9100
+  path: "/metrics"
+
+logging:
+  level: "debug"
+  format: "text"
+  add_source: false
+
+telemetry:
+  enabled: false
+  otlp_endpoint: ""
+  service_name: "authorization-service"
+  service_version: "v1.0.0"
