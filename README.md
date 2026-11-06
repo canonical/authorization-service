@@ -312,18 +312,21 @@ The following flags are available globally across all CLI commands to quickly ov
 #### Kafka Configuration
 | YAML Path | Environment Variable | Type | Default | Description |
 |-----------|----------------------|------|---------|-------------|
-| `kafka.enabled` | `KAFKA_ENABLED` | bool | `false` | Enable Kafka listener |
-| `kafka.brokers` | `KAFKA_BROKERS` | []string | `localhost:9092` | Kafka broker addresses (Required if enabled) |
-| `kafka.federated_services_strategy` | `KAFKA_FEDERATED_SERVICES_STRATEGY` | string | `auto` | Discovery strategy: `auto` (uses list if set, else scans `authz/model`), `fs` (scans embedded model folders excluding `dummy`/`core`), `config` (requires explicit list) |
-| `kafka.federated_services` | `KAFKA_FEDERATED_SERVICES` | []string | `[]` | Service slugs whose permission topics are to be federated (required if strategy is `config`) |
+| `kafka.brokers` | `KAFKA_BROKERS` | []string | `localhost:9092` | Kafka broker addresses |
 | `kafka.consumer_group` | `KAFKA_CONSUMER_GROUP` | string | `authz-listener` | Kafka consumer group ID |
 | `kafka.topic_partitions` | `KAFKA_TOPIC_PARTITIONS` | int | `1` | Default partition count for auto-created topics |
 | `kafka.topic_replication_factor` | `KAFKA_TOPIC_REPLICATION_FACTOR` | int | `1` | Default replication factor for auto-created topics |
 
+#### Listener Configuration
+| YAML Path | Environment Variable | Type | Default | Description |
+|-----------|----------------------|------|---------|-------------|
+| `listener.mode` | `LISTENER_MODE` | string | `platform` | Ingestion operating mode: `platform` (Kafka), `standalone` (gRPC), or `hybrid` (Kafka + gRPC) |
+| `listener.federated_services_strategy` | `LISTENER_FEDERATED_SERVICES_STRATEGY` | string | `auto` | Discovery strategy: `auto` (uses list if set, else scans `authz/model`), `fs` (scans embedded model folders excluding `dummy`/`core`), `config` (requires explicit list) |
+| `listener.federated_services` | `LISTENER_FEDERATED_SERVICES` | []string | `[]` | Federated service slugs (required if strategy is `config`) |
+
 #### Worker Configuration
 | YAML Path | Environment Variable | Type | Default | Description |
 |-----------|----------------------|------|---------|-------------|
-| `worker.enabled` | `WORKER_ENABLED` | bool | `false` | Enable the permission update background worker |
 | `worker.batch_size` | `WORKER_BATCH_SIZE` | int | `100` | Processing batch size from work table |
 | `worker.poll_interval` | `WORKER_POLL_INTERVAL` | duration | `1s` | Ingestion poll interval |
 | `worker.max_attempts` | `WORKER_MAX_ATTEMPTS` | int | `5` | Maximum retries before a row is marked failed |

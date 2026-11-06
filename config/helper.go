@@ -62,12 +62,12 @@ func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Trace
 		MultitenancyEnabled: cfg.MultitenancyEnabled,
 	}
 
-	if cfg.ExtAuthzService != nil {
+	if cfg.ExtAuthzService != nil && (cfg.HasComponent(ComponentExtAuthz) || cfg.HasComponent(ComponentListener)) {
 		integrations.jwkSetUrl = cfg.ExtAuthzService.JwkSetURL
 	}
 
 	// Initialize OpenFGA
-	if cfg.OpenFGA != nil {
+	if cfg.OpenFGA != nil && (cfg.HasComponent(ComponentOpenFGA) || cfg.HasComponent(ComponentOpenFGAModelWriter)) {
 		var creds *credentials.Credentials
 		if cfg.OpenFGA.ApiKey != "" {
 			creds, err = credentials.NewCredentials(credentials.Credentials{
@@ -103,31 +103,32 @@ func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Trace
 	}
 
 	// Initialize Valkey
-	if cfg.Valkey != nil && cfg.Valkey.Enabled {
-		integrations.Valkey, err = valkey.NewClient(
-			valkey.Config{
-				Address:  cfg.Valkey.Address,
-				Username: cfg.Valkey.Username,
-				Password: cfg.Valkey.Password,
-				DB:       cfg.Valkey.DB,
-				PoolSize: cfg.Valkey.PoolSize,
-				Timeout:  cfg.Valkey.Timeout,
-				UseTLS:   cfg.Valkey.UseTLS,
-			},
-			logger,
-		)
+	if cfg.HasComponent(ComponentValkey) {
+		if cfg.Valkey != nil && cfg.Valkey.Enabled {
+			integrations.Valkey, err = valkey.NewClient(
+				valkey.Config{
+					Address:  cfg.Valkey.Address,
+					Username: cfg.Valkey.Username,
+					Password: cfg.Valkey.Password,
+					DB:       cfg.Valkey.DB,
+					PoolSize: cfg.Valkey.PoolSize,
+					Timeout:  cfg.Valkey.Timeout,
+					UseTLS:   cfg.Valkey.UseTLS,
+				},
+				logger,
+			)
 
-		if err != nil {
-			return nil, fmt.Errorf("failed to create Valkey client: %w", err)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create Valkey client: %w", err)
+			}
+		} else {
+			logger.Info("Valkey disabled, using no-op client")
+			integrations.Valkey = valkey.NewNoopClient(logger)
 		}
-
-	} else {
-		logger.Info("Valkey disabled, using no-op client")
-		integrations.Valkey = valkey.NewNoopClient(logger)
 	}
 
 	// Initialize Postgres
-	if cfg.Postgres != nil {
+	if cfg.Postgres != nil && cfg.HasComponent(ComponentPostgres) {
 		integrations.Postgres, err = postgres.NewClient(
 			postgres.Config{
 				Host:            cfg.Postgres.Host,
@@ -152,7 +153,7 @@ func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Trace
 	}
 
 	// Initialize STS
-	if cfg.STS != nil {
+	if cfg.STS != nil && cfg.HasComponent(ComponentSTS) {
 		integrations.stsConn, err = cfg.STS.CreateSTSConnection()
 		if err != nil {
 			return nil, fmt.Errorf("failed to create STS connection: %w", err)
@@ -168,9 +169,9 @@ func InitializeIntegrations(cfg *Config, logger *slog.Logger, tracer trace.Trace
 	return integrations, nil
 }
 
-// BuildServiceRegistry constructs a listen.ServiceRegistry based on KafkaConfig
+// BuildServiceRegistry constructs a listen.ServiceRegistry based on ListenerConfig
 // strategy settings (auto, fs, config) and model.ModelFS.
-func BuildServiceRegistry(cfg *KafkaConfig) (*listen.ServiceRegistry, error) {
+func BuildServiceRegistry(cfg *ListenerConfig) (*listen.ServiceRegistry, error) {
 	if cfg == nil {
 		return listen.NewServiceRegistry(nil)
 	}
@@ -199,22 +200,51 @@ func BuildServiceRegistry(cfg *KafkaConfig) (*listen.ServiceRegistry, error) {
 	return listen.NewServiceRegistry(cfg.FederatedServices)
 }
 
+// InitServiceRegistry initializes the federated service registry on Integrations.
+func (i *Integrations) InitServiceRegistry(cfg *Config) error {
+	var listenerCfg *ListenerConfig
+	if cfg != nil {
+		listenerCfg = cfg.Listener
+	}
+	registry, err := BuildServiceRegistry(listenerCfg)
+	if err != nil {
+		return fmt.Errorf("failed to build federated service registry: %w", err)
+	}
+	i.ServiceRegistry = registry
+	return nil
+}
+
+// NewOIDCVerifier constructs an OIDC token verifier backed by the remote JWKS URL.
+func NewOIDCVerifier(ctx context.Context, jwkSetURL string) authz.OidcVerifier {
+	keySet := oidc.NewRemoteKeySet(ctx, jwkSetURL)
+	return oidc.NewVerifier("", keySet, &oidc.Config{
+		SkipClientIDCheck:    true,
+		SkipIssuerCheck:      true,
+		SupportedSigningAlgs: []string{oidc.RS256, oidc.ES256},
+	})
+}
+
 // InitKafkaConsumer initializes the Kafka consumer and service registry for the listener component.
 // It is kept separate from InitializeIntegrations so that non-listening components (worker, serve, reaper)
 // do not join the consumer group and partition-starve active listeners.
 func (i *Integrations) InitKafkaConsumer(cfg *Config, logger *slog.Logger) error {
-	if cfg.Kafka != nil && cfg.Kafka.Enabled {
-		registry, err := BuildServiceRegistry(cfg.Kafka)
-		if err != nil {
-			return fmt.Errorf("failed to build federated service registry: %w", err)
+	mode := ListenModePlatform
+	if cfg != nil && cfg.Listener != nil {
+		mode = cfg.Listener.GetMode()
+	}
+	kafkaActive := cfg != nil && cfg.Kafka != nil && (mode == ListenModePlatform || mode == ListenModeHybrid)
+	if kafkaActive && len(cfg.Kafka.Brokers) > 0 && cfg.Kafka.ConsumerGroup != "" {
+		if i.ServiceRegistry == nil {
+			if err := i.InitServiceRegistry(cfg); err != nil {
+				return err
+			}
 		}
-		i.ServiceRegistry = registry
 
 		kafkaClient, err := kafkaintegration.NewClient(
 			kafkaintegration.Config{
 				Brokers:       cfg.Kafka.Brokers,
 				ConsumerGroup: cfg.Kafka.ConsumerGroup,
-				Topics:        registry.Topics(),
+				Topics:        i.ServiceRegistry.Topics(),
 			},
 			logger,
 		)
@@ -225,8 +255,10 @@ func (i *Integrations) InitKafkaConsumer(cfg *Config, logger *slog.Logger) error
 	} else {
 		logger.Info("Kafka disabled, using no-op client")
 		i.KafkaConsumer = kafkaintegration.NewNoopClient(logger)
-		emptyRegistry, _ := listen.NewServiceRegistry(nil)
-		i.ServiceRegistry = emptyRegistry
+		if i.ServiceRegistry == nil {
+			emptyRegistry, _ := listen.NewServiceRegistry(nil)
+			i.ServiceRegistry = emptyRegistry
+		}
 	}
 
 	return nil
@@ -242,12 +274,7 @@ func (i *Integrations) InitializeServices(tracer trace.Tracer, serviceLogger *sl
 	resolver := rules.NewTupleResolver()
 	resourceMapper := rules.NewResourceMapper(ruleRepo, matcher, resolver)
 
-	keySet := oidc.NewRemoteKeySet(context.Background(), i.jwkSetUrl)
-	verifier := oidc.NewVerifier("", keySet, &oidc.Config{
-		SkipClientIDCheck:    true,
-		SkipIssuerCheck:      true,
-		SupportedSigningAlgs: []string{oidc.RS256, oidc.ES256},
-	})
+	verifier := NewOIDCVerifier(context.Background(), i.jwkSetUrl)
 
 	extAuthz := authz.NewExternalAuthzService(verifier, i.STS, resourceMapper, i.OpenFGA, i.MultitenancyEnabled, metrics.NewCheckRecorder(reg), serviceLogger, tracer)
 
