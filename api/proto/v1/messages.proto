@@ -7,6 +7,18 @@ option go_package = "github.com/canonical/authorization-service/api/proto/v1";
 
 import "google/protobuf/timestamp.proto";
 
+// PermissionIngestionService exposes direct permission-update ingestion over gRPC
+// for standalone and hybrid listener modes.
+service PermissionIngestionService {
+  // IngestPermissionUpdate validates and durably persists a permission-update
+  // envelope into the work table for asynchronous application.
+  rpc IngestPermissionUpdate(PermissionUpdateEnvelope) returns (IngestPermissionUpdateResponse);
+}
+
+// IngestPermissionUpdateResponse is returned when a permission-update envelope
+// has been durably persisted or recognized as a duplicate.
+message IngestPermissionUpdateResponse {}
+
 // Permission update event published by federated services to permissions.<service>
 message PermissionUpdateEnvelope {
   string version = 1; // payload schema version
