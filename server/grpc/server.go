@@ -17,6 +17,7 @@ import (
 	"github.com/canonical/authorization-service/config"
 	"github.com/canonical/authorization-service/internal/metrics"
 	"github.com/canonical/authorization-service/internal/service/authz"
+	"github.com/canonical/authorization-service/internal/service/listen"
 	"github.com/canonical/authorization-service/internal/service/permissions"
 )
 
@@ -26,6 +27,7 @@ type Server struct {
 	listener           net.Listener
 	permissionsService *permissions.Service
 	externalAuthz      *authz.ExternalAuthzService
+	permissionIngestion *listen.GRPCIngestionServer
 
 	logger *slog.Logger
 }
@@ -44,6 +46,13 @@ func WithPermissionsService(svc *permissions.Service) ServerOption {
 func WithExternalAuthz(svc *authz.ExternalAuthzService) ServerOption {
 	return func(s *Server) {
 		s.externalAuthz = svc
+	}
+}
+
+// WithPermissionIngestionService sets the permission ingestion service
+func WithPermissionIngestionService(svc *listen.GRPCIngestionServer) ServerOption {
+	return func(s *Server) {
+		s.permissionIngestion = svc
 	}
 }
 
@@ -89,7 +98,20 @@ func NewServer(cfg *config.ServerConfig, logger *slog.Logger, reg *prometheus.Re
 		logger.Info("Registered Envoy External Authorization service")
 	}
 
+	if server.permissionIngestion != nil {
+		server.permissionIngestion.Register(grpcServer)
+		logger.Info("Registered Permission Ingestion service")
+	}
+
 	return server, nil
+}
+
+// Addr returns the network address the gRPC server is listening on.
+func (s *Server) Addr() string {
+	if s == nil || s.listener == nil {
+		return ""
+	}
+	return s.listener.Addr().String()
 }
 
 // Start starts the gRPC server

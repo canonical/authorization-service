@@ -80,6 +80,15 @@ func (r *ServiceRegistry) ResolveService(topic string) (string, bool) {
 	return slug, ok
 }
 
+// HasService reports whether slug is a registered federated service.
+func (r *ServiceRegistry) HasService(slug string) bool {
+	if r == nil || slug == "" {
+		return false
+	}
+	_, ok := r.topicToService[TopicPrefix+slug]
+	return ok
+}
+
 // NewServiceRegistryFromFS scans fsys under rootDir for subdirectories,
 // excluding any directory names in excludedDirs, and constructs a ServiceRegistry.
 // Non-directory entries, hidden directories (starting with '.'), and names in

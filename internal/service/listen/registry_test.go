@@ -43,6 +43,27 @@ func TestServiceRegistry_ResolveService(t *testing.T) {
 	}
 }
 
+func TestServiceRegistry_HasService(t *testing.T) {
+	r, err := NewServiceRegistry([]string{"payments"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !r.HasService("payments") {
+		t.Errorf("HasService(payments) = false; want true")
+	}
+	if r.HasService("unknown") {
+		t.Errorf("HasService(unknown) = true; want false")
+	}
+	if r.HasService("") {
+		t.Errorf("HasService(\"\") = true; want false")
+	}
+	var nilRegistry *ServiceRegistry
+	if nilRegistry.HasService("payments") {
+		t.Errorf("nilRegistry.HasService(payments) = true; want false")
+	}
+}
+
 func TestServiceRegistry_TrimsWhitespace(t *testing.T) {
 	r, err := NewServiceRegistry([]string{"  payments  "})
 	if err != nil {
