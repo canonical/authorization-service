@@ -41,6 +41,11 @@ type Ingestor interface {
 	Ingest(ctx context.Context, msg Message) error
 }
 
+// EnvelopeIngestor validates and durably persists a decoded PermissionUpdateEnvelope.
+type EnvelopeIngestor interface {
+	IngestEnvelope(ctx context.Context, env *messagesv1.PermissionUpdateEnvelope) error
+}
+
 // Metrics is the observability seam for ingestion outcomes. A no-op default is
 // used unless a real implementation is injected.
 type Metrics interface {
@@ -125,6 +130,48 @@ func (s *IngestionService) Ingest(ctx context.Context, msg Message) error {
 		return s.permanentFailure(slug, env.GetMessageId(), env.GetCorrelationId(), "validation_failed", err)
 	}
 
+	return s.persist(ctx, slug, env, msg.Value, msg.Partition, msg.Offset)
+}
+
+// IngestEnvelope validates a decoded envelope against the federated service
+// registry, marshals it for work-table storage, and durably persists it.
+func (s *IngestionService) IngestEnvelope(ctx context.Context, env *messagesv1.PermissionUpdateEnvelope) error {
+	start := time.Now()
+	var slug string
+	defer func() { s.metrics.ObserveIngestDuration(slug, time.Since(start)) }()
+
+	if env == nil {
+		return s.permanentFailure("", "", "", "validation_failed",
+			fmt.Errorf("envelope must not be nil"))
+	}
+
+	slug = env.GetService()
+	if !s.registry.HasService(slug) {
+		return s.permanentFailure(slug, env.GetMessageId(), env.GetCorrelationId(), "unknown_service",
+			fmt.Errorf("no federated service registered for %q", slug))
+	}
+
+	if err := s.validator.Validate(env, slug); err != nil {
+		return s.permanentFailure(slug, env.GetMessageId(), env.GetCorrelationId(), "validation_failed", err)
+	}
+
+	payload, err := proto.Marshal(env)
+	if err != nil {
+		return s.permanentFailure(slug, env.GetMessageId(), env.GetCorrelationId(), "encode_failed",
+			fmt.Errorf("proto marshal: %w", err))
+	}
+
+	return s.persist(ctx, slug, env, payload, 0, 0)
+}
+
+func (s *IngestionService) persist(
+	ctx context.Context,
+	slug string,
+	env *messagesv1.PermissionUpdateEnvelope,
+	payload []byte,
+	partition int,
+	offset int64,
+) error {
 	row := permissions.WorkRow{
 		Service:        env.GetService(),
 		MessageID:      env.GetMessageId(),
@@ -133,9 +180,9 @@ func (s *IngestionService) Ingest(ctx context.Context, msg Message) error {
 		EventTime:      optionalTime(env.GetEventTime()),
 		IngestionTime:  s.now().UTC(),
 		CorrelationID:  optionalString(env.GetCorrelationId()),
-		Payload:        msg.Value,
-		Partition:      msg.Partition,
-		Offset:         msg.Offset,
+		Payload:        payload,
+		Partition:      partition,
+		Offset:         offset,
 	}
 
 	switch err := s.repo.Insert(ctx, row); {
