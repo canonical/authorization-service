@@ -15,6 +15,9 @@
   },
   "tags": [
     {
+      "name": "PermissionIngestionService"
+    },
+    {
       "name": "PermissionsService"
     }
   ],
@@ -206,6 +209,10 @@
         }
       }
     },
+    "v1IngestPermissionUpdateResponse": {
+      "type": "object",
+      "description": "IngestPermissionUpdateResponse is returned when a permission-update envelope\nhas been durably persisted or recognized as a duplicate."
+    },
     "v1ListPermissionsResponse": {
       "type": "object",
       "properties": {
@@ -220,6 +227,39 @@
           "type": "string"
         }
       }
+    },
+    "v1PermissionOp": {
+      "type": "string",
+      "enum": [
+        "PERMISSION_OP_UNSPECIFIED",
+        "PERMISSION_OP_WRITE",
+        "PERMISSION_OP_DELETE"
+      ],
+      "default": "PERMISSION_OP_UNSPECIFIED",
+      "description": "- PERMISSION_OP_UNSPECIFIED: Zero value to notice when an operation wasn't explicitly set",
+      "title": "Enum for operation types; includes unspecified zero value"
+    },
+    "v1PermissionOperation": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "$ref": "#/definitions/v1PermissionOp",
+          "description": "write, delete, replace, ..."
+        },
+        "subject": {
+          "type": "string",
+          "title": "\"type:id\" e.g. \"user:u2\""
+        },
+        "relation": {
+          "type": "string",
+          "title": "relation name e.g. \"viewer\", \"owner\""
+        },
+        "object": {
+          "type": "string",
+          "title": "\"type:id\" e.g. \"invoice:inv-1\""
+        }
+      },
+      "title": "Single operation that maps to one or more OpenFGA tuple writes/deletes"
     },
     "v1RegisterPermissionsRequest": {
       "type": "object",

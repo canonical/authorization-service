@@ -54,11 +54,16 @@ func (f *fakeRepo) ReclaimStale(context.Context, time.Duration) (int64, error) {
 
 // countingMetrics records permanent-failure calls.
 type countingMetrics struct {
-	calls []struct{ service, messageID, code string }
+	ingested map[string]int
+	calls    []struct{ service, messageID, code string }
 }
 
-func (m *countingMetrics) IncIngested(string) {}
-
+func (m *countingMetrics) IncIngested(service string) {
+	if m.ingested == nil {
+		m.ingested = make(map[string]int)
+	}
+	m.ingested[service]++
+}
 func (m *countingMetrics) IncDuplicate(string) {}
 
 func (m *countingMetrics) IncPermanentFailure(service, messageID, code string) {
@@ -296,5 +301,83 @@ func TestIngest_LogsCorrelationID_OnValidationFailure(t *testing.T) {
 	entry := findLogLine(t, buf, "Permanent ingestion failure")
 	if got := entry["correlation_id"]; got != "corr-invalid" {
 		t.Errorf("expected correlation_id %q, got %v", "corr-invalid", got)
+	}
+}
+
+func TestIngestEnvelope_HappyPath(t *testing.T) {
+	repo := &fakeRepo{}
+	metrics := &countingMetrics{}
+	ing := newIngestor(t, repo, metrics)
+
+	env := validEnvelope()
+	if err := ing.IngestEnvelope(context.Background(), env); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(repo.inserted) != 1 {
+		t.Fatalf("inserted = %d, want 1", len(repo.inserted))
+	}
+	got := repo.inserted[0]
+	if got.Service != "payments" || got.MessageID != "msg-1" || got.IdempotencyKey != "idem-1" {
+		t.Errorf("unexpected row metadata: %+v", got)
+	}
+	if got.Partition != 0 || got.Offset != 0 {
+		t.Errorf("expected partition=0 offset=0 for gRPC envelope, got partition=%d offset=%d", got.Partition, got.Offset)
+	}
+	if len(got.Payload) == 0 {
+		t.Errorf("expected non-empty marshaled payload")
+	}
+	if metrics.ingested["payments"] != 1 {
+		t.Errorf("ingested metric = %d, want 1", metrics.ingested["payments"])
+	}
+}
+
+func TestIngestEnvelope_UnknownServiceIsPermanent(t *testing.T) {
+	repo := &fakeRepo{}
+	metrics := &countingMetrics{}
+	ing := newIngestor(t, repo, metrics)
+
+	env := validEnvelope()
+	env.Service = "unregistered"
+
+	err := ing.IngestEnvelope(context.Background(), env)
+	if err == nil || !permissions.IsPermanent(err) {
+		t.Fatalf("expected permanent error for unknown service, got %v", err)
+	}
+	if len(repo.inserted) != 0 {
+		t.Errorf("nothing should be persisted for unknown service")
+	}
+	if len(metrics.calls) != 1 || metrics.calls[0].code != "unknown_service" {
+		t.Errorf("expected unknown_service metric, got %+v", metrics.calls)
+	}
+}
+
+func TestIngestEnvelope_ValidationFailureIsPermanent(t *testing.T) {
+	repo := &fakeRepo{}
+	metrics := &countingMetrics{}
+	ing := newIngestor(t, repo, metrics)
+
+	env := validEnvelope()
+	env.IdempotencyKey = ""
+
+	err := ing.IngestEnvelope(context.Background(), env)
+	if err == nil || !permissions.IsPermanent(err) {
+		t.Fatalf("expected permanent error for invalid envelope, got %v", err)
+	}
+	if len(repo.inserted) != 0 {
+		t.Errorf("nothing should be persisted for invalid envelope")
+	}
+	if len(metrics.calls) != 1 || metrics.calls[0].code != "validation_failed" {
+		t.Errorf("expected validation_failed metric, got %+v", metrics.calls)
+	}
+}
+
+func TestIngestEnvelope_NilEnvelopeIsPermanent(t *testing.T) {
+	repo := &fakeRepo{}
+	ing := newIngestor(t, repo, nil)
+
+	err := ing.IngestEnvelope(context.Background(), nil)
+	if err == nil || !permissions.IsPermanent(err) {
+		t.Fatalf("expected permanent error for nil envelope, got %v", err)
 	}
 }

@@ -34,3 +34,43 @@ func TestRunListen_InvalidHTTPPortFailsValidation(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "server configuration validation failed")
 }
+
+func TestListenCmd_ModeFlag(t *testing.T) {
+	flag := listenCmd.Flags().Lookup("mode")
+	require.NotNil(t, flag, "expected --mode flag to be registered")
+	assert.Equal(t, "platform", flag.DefValue, "expected default value of --mode flag to be platform")
+
+	require.NoError(t, listenCmd.Flags().Set("mode", "standalone"))
+	assert.Equal(t, "standalone", listenMode)
+
+	_ = listenCmd.Flags().Set("mode", "platform")
+	listenCmd.Flags().Lookup("mode").Changed = false
+}
+
+func TestRunListen_ValidationByMode(t *testing.T) {
+	t.Run("standalone mode fails when EXTAUTHZ_JWK_SET_URL is invalid", func(t *testing.T) {
+		t.Setenv("LISTENER_MODE", "standalone")
+		t.Setenv("EXTAUTHZ_JWK_SET_URL", "not-a-valid-url")
+
+		err := runListen(listenCmd, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "ext_authz_service configuration validation failed")
+	})
+
+	t.Run("platform mode fails when KAFKA_BROKERS is empty", func(t *testing.T) {
+		t.Setenv("LISTENER_MODE", "platform")
+		t.Setenv("KAFKA_BROKERS", "   ")
+
+		err := runListen(listenCmd, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "brokers is required for platform mode")
+	})
+
+	t.Run("invalid mode fails listener validation", func(t *testing.T) {
+		t.Setenv("LISTENER_MODE", "unsupported")
+
+		err := runListen(listenCmd, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "listener configuration validation failed")
+	})
+}

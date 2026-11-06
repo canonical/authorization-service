@@ -27,6 +27,7 @@ Configuration is loaded from environment variables.`,
 func runEnsureTopics(cmd *cobra.Command, _ []string) error {
 	cfg, err := config.LoadConfigFor(cmd,
 		config.ComponentKafka,
+		config.ComponentListener,
 		config.ComponentLogging,
 		config.ComponentTelemetry,
 	)
@@ -41,7 +42,7 @@ func runEnsureTopics(cmd *cobra.Command, _ []string) error {
 
 // ensureTopics idempotently creates the permission-update topics for federated services.
 func ensureTopics(ctx context.Context, cfg *config.Config, logger *slog.Logger) error {
-	registry, err := config.BuildServiceRegistry(cfg.Kafka)
+	registry, err := config.BuildServiceRegistry(cfg.Listener)
 	if err != nil {
 		return fmt.Errorf("failed to build federated service registry: %w", err)
 	}

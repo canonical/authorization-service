@@ -17,6 +17,10 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/canonical/authorization-service/internal/logging"
+	messagesv1 "github.com/canonical/authorization-service/api/v1"
+	"github.com/canonical/authorization-service/config"
+	"github.com/canonical/authorization-service/internal/metrics"
+	"github.com/canonical/authorization-service/internal/service/listen"
 	"github.com/canonical/authorization-service/internal/testutil"
 )
 
@@ -135,4 +139,23 @@ func TestRecoveryInterceptor_NoPanicPassesThrough(t *testing.T) {
 	assert.Equal(t, "resp", resp)
 	assert.Equal(t, wantErr, err)
 	assert.Empty(t, buf.Bytes())
+}
+
+func TestNewServer_WithPermissionIngestionService(t *testing.T) {
+	logger, _ := testutil.CapturingLogger(t)
+	reg := metrics.NewRegistry()
+	ingestSrv := listen.NewGRPCIngestionServer(nil, nil, logger)
+
+	srv, err := NewServer(
+		&config.ServerConfig{Host: "127.0.0.1", GRPCPort: 0},
+		logger,
+		reg,
+		WithPermissionIngestionService(ingestSrv),
+	)
+	require.NoError(t, err)
+	defer srv.Stop()
+
+	info := srv.grpcServer.GetServiceInfo()
+	assert.Contains(t, info, messagesv1.PermissionIngestionService_ServiceDesc.ServiceName)
+	assert.NotEmpty(t, srv.Addr())
 }
