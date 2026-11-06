@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -42,6 +43,7 @@ const (
 	ComponentKafka               Component = "kafka"
 	ComponentWorker              Component = "worker"
 	ComponentMetrics             Component = "metrics"
+	ComponentListener            Component = "listener"
 )
 
 var AllComponents = []Component{
@@ -56,7 +58,14 @@ var AllComponents = []Component{
 	ComponentKafka,
 	ComponentWorker,
 	ComponentMetrics,
+	ComponentListener,
 }
+
+const (
+	ListenModePlatform   = "platform"
+	ListenModeStandalone = "standalone"
+	ListenModeHybrid     = "hybrid"
+)
 
 // Config represents the application configuration
 type Config struct {
@@ -70,8 +79,11 @@ type Config struct {
 	Logging             *LoggingConfig         `validate:"" mapstructure:"logging"`
 	Telemetry           *TelemetryConfig       `validate:"" mapstructure:"telemetry"`
 	Kafka               *KafkaConfig           `validate:"" mapstructure:"kafka"`
+	Listener            *ListenerConfig        `validate:"" mapstructure:"listener"`
 	Worker              *WorkerConfig          `validate:"" mapstructure:"worker"`
 	Metrics             *MetricsConfig         `validate:"" mapstructure:"metrics"`
+
+	activeComponents map[Component]bool
 }
 
 // ServerConfig contains server configuration
@@ -219,20 +231,32 @@ func (s *STSConfig) waitForConnectionReady(conn *grpc.ClientConn) error {
 	return nil
 }
 
-// KafkaConfig contains Kafka consumer configuration for the permission-update
-// ingestion listener.
+// KafkaConfig contains Kafka broker, consumer group, and topic configuration.
+type KafkaConfig struct {
+	Brokers                []string `validate:"required,min=1" envconfig:"KAFKA_BROKERS" mapstructure:"brokers" default:"localhost:9092"`
+	ConsumerGroup          string   `validate:"required" envconfig:"KAFKA_CONSUMER_GROUP" mapstructure:"consumer_group" default:"authz-listener"`
+	TopicPartitions        int      `validate:"min=1" envconfig:"KAFKA_TOPIC_PARTITIONS" mapstructure:"topic_partitions" default:"1"`
+	TopicReplicationFactor int      `validate:"min=1" envconfig:"KAFKA_TOPIC_REPLICATION_FACTOR" mapstructure:"topic_replication_factor" default:"1"`
+}
+
+// ListenerConfig contains configuration for the permission-update ingestion
+// listener component and its federated service registry.
 //
 // FederatedServices is the registry source: each entry is a service slug, and
-// the listener subscribes to the derived "permissions.<slug>" topic within a
-// single consumer group. Topics are never hardcoded.
-type KafkaConfig struct {
-	Enabled                   bool     `validate:"" envconfig:"KAFKA_ENABLED" mapstructure:"enabled" default:"false"`
-	Brokers                   []string `validate:"required_if=Enabled true" envconfig:"KAFKA_BROKERS" mapstructure:"brokers" default:"localhost:9092"`
-	FederatedServices         []string `validate:"" envconfig:"FEDERATED_SERVICES" mapstructure:"federated_services"`
-	FederatedServicesStrategy string   `validate:"omitempty,oneof=auto fs config" envconfig:"FEDERATED_SERVICES_STRATEGY" mapstructure:"federated_services_strategy" default:"auto"`
-	ConsumerGroup             string   `validate:"required_if=Enabled true" envconfig:"KAFKA_CONSUMER_GROUP" mapstructure:"consumer_group" default:"authz-listener"`
-	TopicPartitions           int      `validate:"min=1" envconfig:"KAFKA_TOPIC_PARTITIONS" mapstructure:"topic_partitions" default:"1"`
-	TopicReplicationFactor    int      `validate:"min=1" envconfig:"KAFKA_TOPIC_REPLICATION_FACTOR" mapstructure:"topic_replication_factor" default:"1"`
+// in Kafka-backed modes the listener subscribes to the derived
+// "permissions.<slug>" topic within a single consumer group.
+type ListenerConfig struct {
+	Mode                      string   `validate:"required,oneof=platform standalone hybrid" envconfig:"LISTENER_MODE" mapstructure:"mode" default:"platform"`
+	FederatedServices         []string `validate:"" envconfig:"LISTENER_FEDERATED_SERVICES" mapstructure:"federated_services"`
+	FederatedServicesStrategy string   `validate:"required,oneof=auto fs config" envconfig:"LISTENER_FEDERATED_SERVICES_STRATEGY" mapstructure:"federated_services_strategy" default:"auto"`
+}
+
+// GetMode returns the listener operating mode, defaulting to platform if unset.
+func (l *ListenerConfig) GetMode() string {
+	if l == nil || l.Mode == "" {
+		return ListenModePlatform
+	}
+	return l.Mode
 }
 
 // WorkerConfig contains configuration for the async permission-update worker
@@ -242,7 +266,6 @@ type KafkaConfig struct {
 // instances (FOR UPDATE SKIP LOCKED assigns disjoint rows), mirroring how the
 // listener scales.
 type WorkerConfig struct {
-	Enabled        bool          `validate:"" envconfig:"WORKER_ENABLED" mapstructure:"enabled" default:"false"`
 	BatchSize      int           `validate:"min=1" envconfig:"WORKER_BATCH_SIZE" mapstructure:"batch_size" default:"100"`
 	PollInterval   time.Duration `validate:"" envconfig:"WORKER_POLL_INTERVAL" mapstructure:"poll_interval" default:"1s"`
 	MaxAttempts    int           `validate:"min=1" envconfig:"WORKER_MAX_ATTEMPTS" mapstructure:"max_attempts" default:"5"`
@@ -338,6 +361,15 @@ func validateSection[T any](name string, ptr *T) error {
 	return nil
 }
 
+func hasNonEmptyBroker(brokers []string) bool {
+	for _, b := range brokers {
+		if strings.TrimSpace(b) != "" {
+			return true
+		}
+	}
+	return false
+}
+
 var componentValidators = map[Component]func(c *Config) error{
 	ComponentServer: func(c *Config) error {
 		return validateSection("server", c.Server)
@@ -376,8 +408,11 @@ var componentValidators = map[Component]func(c *Config) error{
 		if err := validateSection("kafka", c.Kafka); err != nil {
 			return err
 		}
-		if c.Kafka != nil && c.Kafka.Enabled && c.Kafka.FederatedServicesStrategy == "config" && len(c.Kafka.FederatedServices) == 0 {
-			return fmt.Errorf("kafka configuration validation failed: federated_services is required when strategy is 'config'")
+		if !hasNonEmptyBroker(c.Kafka.Brokers) {
+			return fmt.Errorf("kafka configuration validation failed: brokers is required")
+		}
+		if strings.TrimSpace(c.Kafka.ConsumerGroup) == "" {
+			return fmt.Errorf("kafka configuration validation failed: consumer_group is required")
 		}
 		return nil
 	},
@@ -387,9 +422,50 @@ var componentValidators = map[Component]func(c *Config) error{
 	ComponentMetrics: func(c *Config) error {
 		return validateSection("metrics", c.Metrics)
 	},
+	ComponentListener: func(c *Config) error {
+		if err := validateSection("listener", c.Listener); err != nil {
+			return err
+		}
+		if c.Listener.FederatedServicesStrategy == "config" && len(c.Listener.FederatedServices) == 0 {
+			return fmt.Errorf("listener configuration validation failed: federated_services is required when strategy is 'config'")
+		}
+
+		mode := c.Listener.GetMode()
+		if mode == ListenModePlatform || mode == ListenModeHybrid {
+			if err := validateSection("kafka", c.Kafka); err != nil {
+				return err
+			}
+			if !hasNonEmptyBroker(c.Kafka.Brokers) {
+				return fmt.Errorf("kafka configuration validation failed: brokers is required for %s mode", mode)
+			}
+			if strings.TrimSpace(c.Kafka.ConsumerGroup) == "" {
+				return fmt.Errorf("kafka configuration validation failed: consumer_group is required for %s mode", mode)
+			}
+		}
+
+		if mode == ListenModeStandalone || mode == ListenModeHybrid {
+			if err := validateSection("ext_authz_service", c.ExtAuthzService); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	},
+}
+
+// HasComponent reports whether comp is part of the validated component set for
+// this configuration. When ValidateComponents was not called (e.g. a manually
+// constructed Config struct in unit tests), it returns true so non-nil sections
+// are honored.
+func (c *Config) HasComponent(comp Component) bool {
+	if c == nil || len(c.activeComponents) == 0 {
+		return true
+	}
+	return c.activeComponents[comp]
 }
 
 func (c *Config) ValidateComponents(components ...Component) error {
+	active := make(map[Component]bool, len(components))
 	for _, comp := range components {
 		validatorFn, ok := componentValidators[comp]
 		if !ok {
@@ -398,7 +474,9 @@ func (c *Config) ValidateComponents(components ...Component) error {
 		if err := validatorFn(c); err != nil {
 			return err
 		}
+		active[comp] = true
 	}
+	c.activeComponents = active
 
 	return nil
 }

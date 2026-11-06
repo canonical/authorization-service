@@ -204,21 +204,23 @@ STS_TIMEOUT=10s
 STS_EAGER_CONNECTION_CHECK=false
 
 # Kafka Configuration (matches authz-kafka container)
-KAFKA_ENABLED=false
 KAFKA_BROKERS=localhost:9092
 KAFKA_CONSUMER_GROUP=authz-listener
 KAFKA_TOPIC_PARTITIONS=1
 KAFKA_TOPIC_REPLICATION_FACTOR=1
 
+# Listener Configuration
+LISTENER_MODE=platform
+LISTENER_FEDERATED_SERVICES_STRATEGY=auto
+LISTENER_FEDERATED_SERVICES=
+
 # Worker Configuration
-WORKER_ENABLED=false
 WORKER_BATCH_SIZE=100
 WORKER_POLL_INTERVAL=1s
 WORKER_MAX_ATTEMPTS=5
 WORKER_RETRY_BACKOFF=5m
 WORKER_STALE_TIMEOUT=15m
 WORKER_REAPER_INTERVAL=1m
-
 # Logging & Telemetry
 LOGGING_LEVEL=debug
 LOGGING_FORMAT=json
@@ -277,16 +279,17 @@ sts:
   eager_connection_check: false
 
 kafka:
-  enabled: false
   brokers:
     - "localhost:9092"
-  federated_services: []
   consumer_group: "authz-listener"
   topic_partitions: 1
   topic_replication_factor: 1
 
+listener:
+  mode: "platform"
+  federated_services_strategy: "auto"
+  federated_services: []
 worker:
-  enabled: false
   batch_size: 100
   poll_interval: 1s
   max_attempts: 5

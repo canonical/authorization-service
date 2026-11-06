@@ -198,3 +198,44 @@ func TestLoadConfigFor_MissingRequiredComponent(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "postgres configuration validation failed")
 }
+
+func TestLoadConfigFor_ListenModes(t *testing.T) {
+	t.Run("defaults to platform mode and validates without EXTAUTHZ_JWK_SET_URL", func(t *testing.T) {
+		t.Setenv("EXTAUTHZ_JWK_SET_URL", "")
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("config", "", "")
+
+		cfg, err := LoadConfigFor(cmd, ComponentServer, ComponentListener)
+		require.NoError(t, err)
+		assert.Equal(t, ListenModePlatform, cfg.Listener.GetMode())
+	})
+
+	t.Run("standalone mode via LISTENER_MODE succeeds without Kafka brokers", func(t *testing.T) {
+		t.Setenv("LISTENER_MODE", "standalone")
+		t.Setenv("KAFKA_BROKERS", "")
+		t.Setenv("KAFKA_CONSUMER_GROUP", "")
+		t.Setenv("EXTAUTHZ_JWK_SET_URL", "http://localhost:8080/.well-known/jwks.json")
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("config", "", "")
+
+		cfg, err := LoadConfigFor(cmd, ComponentServer, ComponentListener)
+		require.NoError(t, err)
+		assert.Equal(t, ListenModeStandalone, cfg.Listener.GetMode())
+	})
+
+	t.Run("--mode flag overrides LISTENER_MODE env var", func(t *testing.T) {
+		t.Setenv("LISTENER_MODE", "platform")
+		t.Setenv("EXTAUTHZ_JWK_SET_URL", "http://localhost:8080/.well-known/jwks.json")
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("config", "", "")
+		cmd.Flags().String("mode", ListenModePlatform, "")
+		require.NoError(t, cmd.Flags().Set("mode", ListenModeHybrid))
+
+		cfg, err := LoadConfigFor(cmd, ComponentServer, ComponentListener)
+		require.NoError(t, err)
+		assert.Equal(t, ListenModeHybrid, cfg.Listener.GetMode())
+	})
+}

@@ -132,15 +132,16 @@ func setViperDefaults(v *viper.Viper) {
 	v.SetDefault("sts.eager_connection_check", false)
 
 	// Kafka
-	v.SetDefault("kafka.enabled", false)
 	v.SetDefault("kafka.brokers", []string{"localhost:9092"})
-	v.SetDefault("kafka.federated_services_strategy", "auto")
 	v.SetDefault("kafka.consumer_group", "authz-listener")
 	v.SetDefault("kafka.topic_partitions", 1)
 	v.SetDefault("kafka.topic_replication_factor", 1)
 
+	// Listener
+	v.SetDefault("listener.mode", ListenModePlatform)
+	v.SetDefault("listener.federated_services_strategy", "auto")
+
 	// Worker
-	v.SetDefault("worker.enabled", false)
 	v.SetDefault("worker.batch_size", 100)
 	v.SetDefault("worker.poll_interval", 1*time.Second)
 	v.SetDefault("worker.max_attempts", 5)
@@ -176,6 +177,7 @@ func bindFlags(v *viper.Viper, cmd *cobra.Command) {
 	bindFlagIfChanged(v, flags, "db-name", "postgres.db_name")
 	bindFlagIfChanged(v, flags, "db-user", "postgres.user")
 	bindFlagIfChanged(v, flags, "dev", "server.development")
+	bindFlagIfChanged(v, flags, "mode", "listener.mode")
 	bindFlagIfChanged(v, flags, "log-level", "logging.level")
 	bindFlagIfChanged(v, flags, "log-format", "logging.format")
 	bindFlagIfChanged(v, flags, "fga-address", "openfga.address")
@@ -244,16 +246,17 @@ func bindEnvVars(v *viper.Viper) {
 	_ = v.BindEnv("sts.eager_connection_check", "STS_EAGER_CONNECTION_CHECK")
 
 	// Kafka
-	_ = v.BindEnv("kafka.enabled", "KAFKA_ENABLED")
 	_ = v.BindEnv("kafka.brokers", "KAFKA_BROKERS")
-	_ = v.BindEnv("kafka.federated_services", "FEDERATED_SERVICES", "KAFKA_FEDERATED_SERVICES")
-	_ = v.BindEnv("kafka.federated_services_strategy", "FEDERATED_SERVICES_STRATEGY", "KAFKA_FEDERATED_SERVICES_STRATEGY")
 	_ = v.BindEnv("kafka.consumer_group", "KAFKA_CONSUMER_GROUP")
 	_ = v.BindEnv("kafka.topic_partitions", "KAFKA_TOPIC_PARTITIONS")
 	_ = v.BindEnv("kafka.topic_replication_factor", "KAFKA_TOPIC_REPLICATION_FACTOR")
 
+	// Listener
+	_ = v.BindEnv("listener.mode", "LISTENER_MODE", "LISTEN_MODE")
+	_ = v.BindEnv("listener.federated_services", "LISTENER_FEDERATED_SERVICES", "FEDERATED_SERVICES", "KAFKA_FEDERATED_SERVICES")
+	_ = v.BindEnv("listener.federated_services_strategy", "LISTENER_FEDERATED_SERVICES_STRATEGY", "FEDERATED_SERVICES_STRATEGY", "KAFKA_FEDERATED_SERVICES_STRATEGY")
+
 	// Worker
-	_ = v.BindEnv("worker.enabled", "WORKER_ENABLED")
 	_ = v.BindEnv("worker.batch_size", "WORKER_BATCH_SIZE")
 	_ = v.BindEnv("worker.poll_interval", "WORKER_POLL_INTERVAL")
 	_ = v.BindEnv("worker.max_attempts", "WORKER_MAX_ATTEMPTS")
