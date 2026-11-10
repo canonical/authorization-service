@@ -136,14 +136,14 @@ func (s *IngestionService) Ingest(ctx context.Context, msg Message) error {
 // IngestEnvelope validates a decoded envelope against the federated service
 // registry, marshals it for work-table storage, and durably persists it.
 func (s *IngestionService) IngestEnvelope(ctx context.Context, env *messagesv1.PermissionUpdateEnvelope) error {
-	start := time.Now()
-	var slug string
-	defer func() { s.metrics.ObserveIngestDuration(slug, time.Since(start)) }()
-
 	if env == nil {
 		return s.permanentFailure("", "", "", "validation_failed",
 			fmt.Errorf("envelope must not be nil"))
 	}
+
+	start := time.Now()
+	var slug string
+	defer func() { s.metrics.ObserveIngestDuration(slug, time.Since(start)) }()
 
 	slug = env.GetService()
 	if !s.registry.HasService(slug) {

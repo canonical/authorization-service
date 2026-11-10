@@ -60,6 +60,17 @@ func TestGRPCIngestionServer_IngestPermissionUpdate(t *testing.T) {
 		require.NotNil(t, resp)
 	})
 
+	t.Run("nil verifier returns Unauthenticated", func(t *testing.T) {
+		repo := &fakeRepo{}
+		ing := newIngestor(t, repo, nil)
+		srv := NewGRPCIngestionServer(nil, ing, testLogger())
+
+		_, err := srv.IngestPermissionUpdate(ctxWithAuth("Bearer valid-jwt"), validEnvelope())
+		require.Error(t, err)
+		assert.Equal(t, codes.Unauthenticated, status.Code(err))
+		assert.Empty(t, repo.inserted)
+	})
+
 	t.Run("missing metadata returns Unauthenticated", func(t *testing.T) {
 		repo := &fakeRepo{}
 		ing := newIngestor(t, repo, nil)

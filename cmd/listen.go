@@ -248,12 +248,9 @@ func runListen(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-var (
-	noTopics   bool
-	listenMode string
-)
+var noTopics bool
 
 func init() {
 	listenCmd.Flags().BoolVar(&noTopics, "no-topics", false, "Disable automatic topic creation before listening")
-	listenCmd.Flags().StringVar(&listenMode, "mode", config.ListenModePlatform, "Listener operating mode (platform, standalone, hybrid)")
+	listenCmd.Flags().String("mode", config.ListenModePlatform, "Listener operating mode (platform, standalone, hybrid)")
 }

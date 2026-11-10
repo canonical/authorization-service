@@ -40,11 +40,13 @@ func TestListenCmd_ModeFlag(t *testing.T) {
 	require.NotNil(t, flag, "expected --mode flag to be registered")
 	assert.Equal(t, "platform", flag.DefValue, "expected default value of --mode flag to be platform")
 
-	require.NoError(t, listenCmd.Flags().Set("mode", "standalone"))
-	assert.Equal(t, "standalone", listenMode)
+	t.Cleanup(func() {
+		_ = listenCmd.Flags().Set("mode", "platform")
+		flag.Changed = false
+	})
 
-	_ = listenCmd.Flags().Set("mode", "platform")
-	listenCmd.Flags().Lookup("mode").Changed = false
+	require.NoError(t, listenCmd.Flags().Set("mode", "standalone"))
+	assert.Equal(t, "standalone", flag.Value.String())
 }
 
 func TestRunListen_ValidationByMode(t *testing.T) {

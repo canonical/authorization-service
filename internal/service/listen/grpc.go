@@ -55,15 +55,15 @@ func (s *GRPCIngestionServer) IngestPermissionUpdate(
 	ctx context.Context,
 	req *messagesv1.PermissionUpdateEnvelope,
 ) (*messagesv1.IngestPermissionUpdateResponse, error) {
+	if s.verifier == nil {
+		s.logger.ErrorContext(ctx, "OIDC verifier is not configured for gRPC ingestion")
+		return nil, status.Error(codes.Unauthenticated, "authentication verifier not configured")
+	}
+
 	token, err := extractBearerTokenFromContext(ctx)
 	if err != nil {
 		s.logger.DebugContext(ctx, "Missing or malformed authorization metadata on gRPC ingestion request", "error", err)
 		return nil, status.Error(codes.Unauthenticated, err.Error())
-	}
-
-	if s.verifier == nil {
-		s.logger.ErrorContext(ctx, "OIDC verifier is not configured for gRPC ingestion")
-		return nil, status.Error(codes.Unauthenticated, "authentication verifier not configured")
 	}
 
 	if _, err := s.verifier.Verify(ctx, token); err != nil {
