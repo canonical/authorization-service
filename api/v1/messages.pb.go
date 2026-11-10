@@ -75,6 +75,44 @@ func (PermissionOp) EnumDescriptor() ([]byte, []int) {
 	return file_v1_messages_proto_rawDescGZIP(), []int{0}
 }
 
+// IngestPermissionUpdateResponse is returned when a permission-update envelope
+// has been durably persisted or recognized as a duplicate.
+type IngestPermissionUpdateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IngestPermissionUpdateResponse) Reset() {
+	*x = IngestPermissionUpdateResponse{}
+	mi := &file_v1_messages_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IngestPermissionUpdateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IngestPermissionUpdateResponse) ProtoMessage() {}
+
+func (x *IngestPermissionUpdateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_messages_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IngestPermissionUpdateResponse.ProtoReflect.Descriptor instead.
+func (*IngestPermissionUpdateResponse) Descriptor() ([]byte, []int) {
+	return file_v1_messages_proto_rawDescGZIP(), []int{0}
+}
+
 // Permission update event published by federated services to permissions.<service>
 type PermissionUpdateEnvelope struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
@@ -92,7 +130,7 @@ type PermissionUpdateEnvelope struct {
 
 func (x *PermissionUpdateEnvelope) Reset() {
 	*x = PermissionUpdateEnvelope{}
-	mi := &file_v1_messages_proto_msgTypes[0]
+	mi := &file_v1_messages_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -104,7 +142,7 @@ func (x *PermissionUpdateEnvelope) String() string {
 func (*PermissionUpdateEnvelope) ProtoMessage() {}
 
 func (x *PermissionUpdateEnvelope) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_messages_proto_msgTypes[0]
+	mi := &file_v1_messages_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -117,7 +155,7 @@ func (x *PermissionUpdateEnvelope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PermissionUpdateEnvelope.ProtoReflect.Descriptor instead.
 func (*PermissionUpdateEnvelope) Descriptor() ([]byte, []int) {
-	return file_v1_messages_proto_rawDescGZIP(), []int{0}
+	return file_v1_messages_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *PermissionUpdateEnvelope) GetVersion() string {
@@ -189,7 +227,7 @@ type PermissionOperation struct {
 
 func (x *PermissionOperation) Reset() {
 	*x = PermissionOperation{}
-	mi := &file_v1_messages_proto_msgTypes[1]
+	mi := &file_v1_messages_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -201,7 +239,7 @@ func (x *PermissionOperation) String() string {
 func (*PermissionOperation) ProtoMessage() {}
 
 func (x *PermissionOperation) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_messages_proto_msgTypes[1]
+	mi := &file_v1_messages_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -214,7 +252,7 @@ func (x *PermissionOperation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PermissionOperation.ProtoReflect.Descriptor instead.
 func (*PermissionOperation) Descriptor() ([]byte, []int) {
-	return file_v1_messages_proto_rawDescGZIP(), []int{1}
+	return file_v1_messages_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *PermissionOperation) GetOp() PermissionOp {
@@ -249,7 +287,8 @@ var File_v1_messages_proto protoreflect.FileDescriptor
 
 const file_v1_messages_proto_rawDesc = "" +
 	"\n" +
-	"\x11v1/messages.proto\x12\x1cauthorization.service.api.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa6\x03\n" +
+	"\x11v1/messages.proto\x12\x1cauthorization.service.api.v1\x1a\x1fgoogle/protobuf/timestamp.proto\" \n" +
+	"\x1eIngestPermissionUpdateResponse\"\xa6\x03\n" +
 	"\x18PermissionUpdateEnvelope\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x18\n" +
 	"\aservice\x18\x02 \x01(\tR\aservice\x12\x1d\n" +
@@ -272,7 +311,9 @@ const file_v1_messages_proto_rawDesc = "" +
 	"\fPermissionOp\x12\x1d\n" +
 	"\x19PERMISSION_OP_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13PERMISSION_OP_WRITE\x10\x01\x12\x18\n" +
-	"\x14PERMISSION_OP_DELETE\x10\x02B\xfd\x01\n" +
+	"\x14PERMISSION_OP_DELETE\x10\x022\xad\x01\n" +
+	"\x1aPermissionIngestionService\x12\x8e\x01\n" +
+	"\x16IngestPermissionUpdate\x126.authorization.service.api.v1.PermissionUpdateEnvelope\x1a<.authorization.service.api.v1.IngestPermissionUpdateResponseB\xfd\x01\n" +
 	" com.authorization.service.api.v1B\rMessagesProtoP\x01Z7github.com/canonical/authorization-service/api/proto/v1\xa2\x02\x03ASA\xaa\x02\x1cAuthorization.Service.Api.V1\xca\x02\x1cAuthorization\\Service\\Api\\V1\xe2\x02(Authorization\\Service\\Api\\V1\\GPBMetadata\xea\x02\x1fAuthorization::Service::Api::V1b\x06proto3"
 
 var (
@@ -288,20 +329,23 @@ func file_v1_messages_proto_rawDescGZIP() []byte {
 }
 
 var file_v1_messages_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_v1_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_v1_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_v1_messages_proto_goTypes = []any{
-	(PermissionOp)(0),                // 0: authorization.service.api.v1.PermissionOp
-	(*PermissionUpdateEnvelope)(nil), // 1: authorization.service.api.v1.PermissionUpdateEnvelope
-	(*PermissionOperation)(nil),      // 2: authorization.service.api.v1.PermissionOperation
-	(*timestamppb.Timestamp)(nil),    // 3: google.protobuf.Timestamp
+	(PermissionOp)(0),                      // 0: authorization.service.api.v1.PermissionOp
+	(*IngestPermissionUpdateResponse)(nil), // 1: authorization.service.api.v1.IngestPermissionUpdateResponse
+	(*PermissionUpdateEnvelope)(nil),       // 2: authorization.service.api.v1.PermissionUpdateEnvelope
+	(*PermissionOperation)(nil),            // 3: authorization.service.api.v1.PermissionOperation
+	(*timestamppb.Timestamp)(nil),          // 4: google.protobuf.Timestamp
 }
 var file_v1_messages_proto_depIdxs = []int32{
-	3, // 0: authorization.service.api.v1.PermissionUpdateEnvelope.event_time:type_name -> google.protobuf.Timestamp
-	3, // 1: authorization.service.api.v1.PermissionUpdateEnvelope.ingestion_time:type_name -> google.protobuf.Timestamp
-	2, // 2: authorization.service.api.v1.PermissionUpdateEnvelope.operations:type_name -> authorization.service.api.v1.PermissionOperation
+	4, // 0: authorization.service.api.v1.PermissionUpdateEnvelope.event_time:type_name -> google.protobuf.Timestamp
+	4, // 1: authorization.service.api.v1.PermissionUpdateEnvelope.ingestion_time:type_name -> google.protobuf.Timestamp
+	3, // 2: authorization.service.api.v1.PermissionUpdateEnvelope.operations:type_name -> authorization.service.api.v1.PermissionOperation
 	0, // 3: authorization.service.api.v1.PermissionOperation.op:type_name -> authorization.service.api.v1.PermissionOp
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
+	2, // 4: authorization.service.api.v1.PermissionIngestionService.IngestPermissionUpdate:input_type -> authorization.service.api.v1.PermissionUpdateEnvelope
+	1, // 5: authorization.service.api.v1.PermissionIngestionService.IngestPermissionUpdate:output_type -> authorization.service.api.v1.IngestPermissionUpdateResponse
+	5, // [5:6] is the sub-list for method output_type
+	4, // [4:5] is the sub-list for method input_type
 	4, // [4:4] is the sub-list for extension type_name
 	4, // [4:4] is the sub-list for extension extendee
 	0, // [0:4] is the sub-list for field type_name
@@ -312,16 +356,16 @@ func file_v1_messages_proto_init() {
 	if File_v1_messages_proto != nil {
 		return
 	}
-	file_v1_messages_proto_msgTypes[0].OneofWrappers = []any{}
+	file_v1_messages_proto_msgTypes[1].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_v1_messages_proto_rawDesc), len(file_v1_messages_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   2,
+			NumMessages:   3,
 			NumExtensions: 0,
-			NumServices:   0,
+			NumServices:   1,
 		},
 		GoTypes:           file_v1_messages_proto_goTypes,
 		DependencyIndexes: file_v1_messages_proto_depIdxs,

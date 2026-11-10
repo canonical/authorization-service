@@ -22,13 +22,13 @@ discovered or configured according to the FEDERATED_SERVICES_STRATEGY.`,
 
 func runListTopics(cmd *cobra.Command, _ []string) error {
 	cfg, err := config.LoadConfigFor(cmd,
-		config.ComponentKafka,
+		config.ComponentListener,
 	)
 	if err != nil {
 		return err
 	}
 
-	registry, err := config.BuildServiceRegistry(cfg.Kafka)
+	registry, err := config.BuildServiceRegistry(cfg.Listener)
 	if err != nil {
 		return fmt.Errorf("failed to build federated service registry: %w", err)
 	}

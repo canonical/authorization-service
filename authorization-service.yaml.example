@@ -82,13 +82,9 @@ sts:
   eager_connection_check: false
 
 kafka:
-  # Set to true to enable the Kafka permission-update consumer.
-  enabled: false
   # Comma-separated list of bootstrap brokers.
   brokers:
     - "localhost:9092"
-  # Federated service slugs to subscribe to.
-  federated_services: []
   # Consumer group ID for the consumer.
   consumer_group: "authz-listener"
   # Partition count for automatically-created topics.
@@ -96,9 +92,14 @@ kafka:
   # Replication factor for automatically-created topics.
   topic_replication_factor: 1
 
+listener:
+  # Operating mode for permission-update ingestion (platform, standalone, hybrid).
+  mode: "platform"
+  # Discovery strategy for federated services (auto, fs, config).
+  federated_services_strategy: "auto"
+  # Federated service slugs (required when strategy is 'config').
+  federated_services: []
 worker:
-  # Set to true to enable the async permission-update worker.
-  enabled: false
   # Batch size for claims from the PostgreSQL queue.
   batch_size: 100
   # Interval between queue polls.

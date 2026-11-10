@@ -46,3 +46,12 @@ k8s/dev-setup/k8s-bridge.env
 .archify/**/*.finalize*.json
 .archify/**/visual-check/*.json
 .archify/**/visual-check/*1440x900*.png
+
+# Local OpenSpec agent skills
+.agents/skills/.openspec-target
+.agents/skills/openspec-apply-change/
+.agents/skills/openspec-archive-change/
+.agents/skills/openspec-explore/
+.agents/skills/openspec-propose/
+.agents/skills/openspec-sync-specs/
+.agents/skills/openspec-update-change/
