@@ -1,5 +1,42 @@
 # Changelog
 
+## [2.1.0](https://github.com/canonical/authorization-service/compare/v2.0.3...v2.1.0) (2026-11-11)
+
+
+### Features
+
+* **authz:** implement dual authentication with delegated STS token exchange ([4122e74](https://github.com/canonical/authorization-service/commit/4122e747d098232f5f09d45679440f1604ce1afb))
+* **build:** support amd64, arm64, and riscv64 Go binary compilation ([cf92787](https://github.com/canonical/authorization-service/commit/cf9278775a32e8e98fa092f0302573a67ee8f415))
+* **build:** support multi-arch binaries (amd64, arm64, riscv64) and rocks (amd64, arm64) ([#110](https://github.com/canonical/authorization-service/issues/110)) ([b325867](https://github.com/canonical/authorization-service/commit/b3258678781cd4a311cb08a2dbaa1e6385fa8de3))
+* **ci:** shift-left vulnerability check & release quarantine gate ([eda022f](https://github.com/canonical/authorization-service/commit/eda022f953e188a839ef238da4d324164d0cbf53))
+* **ci:** shift-left vulnerability check & release quarantine gate ([#92](https://github.com/canonical/authorization-service/issues/92)) ([270971a](https://github.com/canonical/authorization-service/commit/270971aedfbd9cc563129de869122f4d1420671e))
+* **cli:** add topics command group with list and ensure subcommands ([b2cf890](https://github.com/canonical/authorization-service/commit/b2cf890e65271885350a76aa2a5b110229b03193))
+* **cmd:** execute ensure-topics automatically on listen command ([c8ff1d9](https://github.com/canonical/authorization-service/commit/c8ff1d9695e5ea44c57a3b9b2aec80c644d2ddd6))
+* **config:** add listener config section and scope component validation and initialization ([8512c27](https://github.com/canonical/authorization-service/commit/8512c27fdcc002a30f6f1a682801f41af8dffe43))
+* expose `/healthz` health check endpoint for `worker` and `listen` components ([#114](https://github.com/canonical/authorization-service/issues/114)) ([732ca69](https://github.com/canonical/authorization-service/commit/732ca699112fef7c1a1fe2a6d3cb7ea6c6a6ce5b))
+* **kafka:** add embedded FS strategy for federated services discovery ([107602c](https://github.com/canonical/authorization-service/commit/107602c6de22e37722cd37cf048070f6b2efb860))
+* **listen:** support standalone, platform, and hybrid ingestion modes with gRPC endpoint ([d595002](https://github.com/canonical/authorization-service/commit/d595002e4f23de53e72b7aa073b0010975f855e6))
+* **listen:** support standalone, platform, and hybrid ingestion modes with gRPC endpoint ([#117](https://github.com/canonical/authorization-service/issues/117)) ([e761187](https://github.com/canonical/authorization-service/commit/e761187f9a619954136eabf3cfa3d23ad1e47aea))
+* make worker and listener expose a healthcheck endpoint ([0f2dfc8](https://github.com/canonical/authorization-service/commit/0f2dfc8033813ea5f99b2894485607df342230e3))
+* **metrics:** add auth_type and latency histograms for external authz ([35ac420](https://github.com/canonical/authorization-service/commit/35ac420f40991b3502510f227930006788a4a1b4))
+* **proto:** add PermissionIngestionService for gRPC permission updates ([66120b1](https://github.com/canonical/authorization-service/commit/66120b149d31aa7e06c6d360660a9a54663b7246))
+* **rock:** support amd64 and arm64 in rockcraft and container build configs ([4a21ad0](https://github.com/canonical/authorization-service/commit/4a21ad0d466a9e8c12aba8e8945884b19f806efa))
+* support M2M client credentials dual authentication ([#102](https://github.com/canonical/authorization-service/issues/102)) ([18021ab](https://github.com/canonical/authorization-service/commit/18021ab91a8dad421d404604ea4a662dfacb0084))
+
+
+### Bug Fixes
+
+* **build:** configure local Go toolchain for rockcraft build environment ([0ab1a31](https://github.com/canonical/authorization-service/commit/0ab1a31c9f7597fffd6a8ebb29a4e941503918be))
+* **ci:** bump canonical/identity-team workflows to v1.18.0 ([ee6d363](https://github.com/canonical/authorization-service/commit/ee6d36359face538e53cdb9c161aa8fac48720bb))
+* **deps:** bump github.com/klauspost/compress to v1.20.2 ([4b3b44a](https://github.com/canonical/authorization-service/commit/4b3b44aeb253a6e2827101d06ade5d8c5244ff85))
+* **deps:** bump go-jose/v4, golang.org/x/*, and Go toolchain to address CVEs ([5c0fcc3](https://github.com/canonical/authorization-service/commit/5c0fcc300356e86885f72855904a4b9f6d99037e))
+* **deps:** bump go-jose/v4, golang.org/x/*, and Go toolchain to address CVEs ([#123](https://github.com/canonical/authorization-service/issues/123)) ([5980e2f](https://github.com/canonical/authorization-service/commit/5980e2f993fb8a96dc962ced9101071fc565be80))
+* **deps:** update Go toolchain version and dependencies to resolve security vulnerabilities ([e886e66](https://github.com/canonical/authorization-service/commit/e886e667654155e9ae5cbd6a57ae407a01ac0cce))
+* **deps:** update module github.com/getkin/kin-openapi to v0.149.0 [security] ([d77f91d](https://github.com/canonical/authorization-service/commit/d77f91d3b3233cad9eac99657cc57f5cc8b30036))
+* federate hook service ([0925aa9](https://github.com/canonical/authorization-service/commit/0925aa92f17d6b692471a166acd8a4baf0db6d60))
+* invert kafka topic naming convention from suffix to prefix ([ca4b8b4](https://github.com/canonical/authorization-service/commit/ca4b8b4f74ad59a27a1e2181bea1b115fb35febc))
+* invert kafka topic naming convention from suffix to prefix ([#96](https://github.com/canonical/authorization-service/issues/96)) ([2e746ad](https://github.com/canonical/authorization-service/commit/2e746ad1d65349d5e4ce9d83b1d27f968468e9c0))
+
 ## [2.0.3](https://github.com/canonical/authorization-service/compare/v2.0.2...v2.0.3) (2026-09-24)
 
 
