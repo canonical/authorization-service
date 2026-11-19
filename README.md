@@ -398,7 +398,7 @@ The Authorization Service implements Envoy's External Authorization API (`envoy.
 The service supports two distinct credential mechanisms:
 
 1. **User Session Authentication**:
-   - **Credential**: `Cookie: session_id=<cookie_value>`.
+   - **Credential**: `Cookie: __Host-session_id=<cookie_value>`.
    - **Flow**: The session cookie is exchanged with the Secure Token Service (STS) via `ExchangeSession`. The returned STS JWT is verified against `ext_authz_service.jwk_set_url`.
    - **Identity Mapping**: The user subject (`sub`) is extracted from the internal STS JWT and mapped to OpenFGA tuple subject `user:<user_id>`.
    - **Downstream Header**: On successful evaluation, Envoy's `OkHttpResponse` injects `Authorization: Bearer <sts_jwt>`.
@@ -414,7 +414,7 @@ The service supports two distinct credential mechanisms:
 
 To prevent credential confusion, ambiguous caller identity, or security bypass vulnerabilities, External AuthZ enforces strict mutual exclusivity between credentials:
 
-- **Conflicting Credentials**: If a request supplies **both** a session cookie (`Cookie: session_id=...`) and a Bearer token (`Authorization: Bearer <token>`), the service immediately denies the request with **HTTP 400 Bad Request** (`codes.InvalidArgument`, response body `"conflicting credentials provided"`). The decision is recorded with metric outcome `conflicting_credentials` and `auth_type: "none"`.
+- **Conflicting Credentials**: If a request supplies **both** a session cookie (`Cookie: __Host-session_id=...`) and a Bearer token (`Authorization: Bearer <token>`), the service immediately denies the request with **HTTP 400 Bad Request** (`codes.InvalidArgument`, response body `"conflicting credentials provided"`). The decision is recorded with metric outcome `conflicting_credentials` and `auth_type: "none"`.
 - **Missing Credentials**: If a request supplies **neither** a session cookie nor a Bearer token, the request is denied with **HTTP 401 Unauthorized** (`codes.Unauthenticated`, response body `"no credentials provided"`). The decision is recorded with metric outcome `no_credentials` and `auth_type: "none"`.
 
 ---

@@ -310,7 +310,7 @@ static_resources:
 
 	// --- Case A: Multitenancy Enabled - Matching tenant (Canonical) ---
 	reqA, _ := http.NewRequest("GET", envoyAddr+"/ready", nil)
-	reqA.Header.Set("Cookie", "session_id=valid-session-alice")
+	reqA.Header.Set("Cookie", "__Host-session_id=valid-session-alice")
 	respA, err := http.DefaultClient.Do(reqA)
 	if err != nil {
 		t.Fatalf("Case A failed: %v", err)
@@ -328,7 +328,7 @@ static_resources:
 
 	// --- Case B: Multitenancy Enabled - Mismatched tenant (Ubuntu) ---
 	reqB, _ := http.NewRequest("GET", envoyAddr+"/ready", nil)
-	reqB.Header.Set("Cookie", "session_id=valid-session-bob")
+	reqB.Header.Set("Cookie", "__Host-session_id=valid-session-bob")
 	respB, err := http.DefaultClient.Do(reqB)
 	if err != nil {
 		t.Fatalf("Case B failed: %v", err)
@@ -415,7 +415,7 @@ static_resources:
 
 	// --- Case C: Multitenancy Disabled - Bob's token (Ubuntu) bypasses match constraint ---
 	reqC, _ := http.NewRequest("GET", envoyAddr2+"/ready", nil)
-	reqC.Header.Set("Cookie", "session_id=valid-session-bob")
+	reqC.Header.Set("Cookie", "__Host-session_id=valid-session-bob")
 	respC, err := http.DefaultClient.Do(reqC)
 	if err != nil {
 		t.Fatalf("Case C failed: %v", err)
