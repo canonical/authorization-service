@@ -17,6 +17,12 @@ type generic-asset
     define viewer: [user, role#assignee] or editor
     define editor: [user, role#assignee]
 
+# Shared check for routes available to all or selected signed-in users. The
+# user:* can_access service:portal tuple is written by the platform, never by services.
+type service
+  relations
+    define can_access: [user:*, user, role#assignee]
+
 condition tenant_match(tenant_enabled: bool, tenant: string, user_tenant: string) {
   !tenant_enabled || tenant == "" || tenant == user_tenant
 }

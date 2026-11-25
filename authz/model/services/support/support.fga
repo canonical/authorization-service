@@ -1,0 +1,11 @@
+module support
+
+# Objects: knowledgeBase, firefighting, managedSolutions, admin.
+type support/feature
+  relations
+    define can_administer: [user, role#assignee, support/group#member]
+    define can_access: [user, support/group#member] or can_administer
+
+type support/group
+  relations
+    define member: [user]

@@ -1,0 +1,358 @@
+version: "1"
+service: support
+revision: "2026.11.25.4"
+description: |
+  Route protection rules for the support app (/support), mirroring the Zeus gateway
+  resources. Priorities: 2000 page shell, 1000 API GET catch-all, 500 area
+  catch-alls, 100 exact rules.
+
+rules:
+  # ─── Pages (SPA shell) ──────────────────────────────────────────────────────
+  - method: GET
+    match: '/support'
+    priority: 2000
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: service
+        object_resource_id: portal
+
+  - method: GET
+    match: '/support/**'
+    priority: 2000
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: service
+        object_resource_id: portal
+
+  # ─── API catch-all: GET only, writes are listed per area ────────────────────
+  - method: GET
+    match: '/support/api'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: support/feature
+        object_resource_id: knowledgeBase
+
+  - method: GET
+    match: '/support/api/**'
+    priority: 1000
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: support/feature
+        object_resource_id: knowledgeBase
+
+  # ─── Access administration ──────────────────────────────────────────────────
+  - method: GET
+    match: '/support/api/knowledge-base-access'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_administer
+        object_resource_type: support/feature
+        object_resource_id: admin
+
+  - method: POST
+    match: '/support/api/knowledge-base-access'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_administer
+        object_resource_type: support/feature
+        object_resource_id: admin
+
+  - method: DELETE
+    match: '/support/api/knowledge-base-access'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_administer
+        object_resource_type: support/feature
+        object_resource_id: admin
+
+  - method: GET
+    match: '/support/api/knowledge-base-access/**'
+    priority: 500
+    tuples:
+      - user_resource_type: user
+        permission: can_administer
+        object_resource_type: support/feature
+        object_resource_id: admin
+
+  - method: GET
+    match: '/support/api/firefighting-access'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_administer
+        object_resource_type: support/feature
+        object_resource_id: admin
+
+  - method: POST
+    match: '/support/api/firefighting-access'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_administer
+        object_resource_type: support/feature
+        object_resource_id: admin
+
+  - method: DELETE
+    match: '/support/api/firefighting-access'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_administer
+        object_resource_type: support/feature
+        object_resource_id: admin
+
+  - method: GET
+    match: '/support/api/firefighting-access/**'
+    priority: 500
+    tuples:
+      - user_resource_type: user
+        permission: can_administer
+        object_resource_type: support/feature
+        object_resource_id: admin
+
+  - method: GET
+    match: '/support/api/support-admin'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_administer
+        object_resource_type: support/feature
+        object_resource_id: admin
+
+  - method: POST
+    match: '/support/api/support-admin'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_administer
+        object_resource_type: support/feature
+        object_resource_id: admin
+
+  - method: DELETE
+    match: '/support/api/support-admin'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_administer
+        object_resource_type: support/feature
+        object_resource_id: admin
+
+  - method: GET
+    match: '/support/api/support-admin/**'
+    priority: 500
+    tuples:
+      - user_resource_type: user
+        permission: can_administer
+        object_resource_type: support/feature
+        object_resource_id: admin
+
+  # ─── Firefighting ───────────────────────────────────────────────────────────
+  - method: GET
+    match: '/support/api/firefighting'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: support/feature
+        object_resource_id: firefighting
+
+  - method: GET
+    match: '/support/api/firefighting/**'
+    priority: 500
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: support/feature
+        object_resource_id: firefighting
+
+  - method: POST
+    match: '/support/api/firefighting/**'
+    priority: 500
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: support/feature
+        object_resource_id: firefighting
+
+  - method: PATCH
+    match: '/support/api/firefighting/**'
+    priority: 500
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: support/feature
+        object_resource_id: firefighting
+
+  # ─── Storage (firefighting coverage files) ──────────────────────────────────
+  - method: GET
+    match: '/support/api/storage'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: support/feature
+        object_resource_id: firefighting
+
+  - method: GET
+    match: '/support/api/storage/**'
+    priority: 500
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: support/feature
+        object_resource_id: firefighting
+
+  - method: POST
+    match: '/support/api/storage/**'
+    priority: 500
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: support/feature
+        object_resource_id: firefighting
+
+  - method: PUT
+    match: '/support/api/storage/**'
+    priority: 500
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: support/feature
+        object_resource_id: firefighting
+
+  # ─── Staff (Managed Solutions) ──────────────────────────────────────────────
+  - method: GET
+    match: '/support/api/staff'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: support/feature
+        object_resource_id: managedSolutions
+
+  - method: GET
+    match: '/support/api/staff/**'
+    priority: 500
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: support/feature
+        object_resource_id: managedSolutions
+
+  - method: POST
+    match: '/support/api/staff/**'
+    priority: 500
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: support/feature
+        object_resource_id: managedSolutions
+
+  - method: PATCH
+    match: '/support/api/staff/**'
+    priority: 500
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: support/feature
+        object_resource_id: managedSolutions
+
+  - method: PATCH
+    match: '/support/api/staff/coverage-request/{id}/assignee'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_administer
+        object_resource_type: support/feature
+        object_resource_id: managedSolutions
+
+  - method: PATCH
+    match: '/support/api/staff/coverage-request/{id}/co-owners'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_administer
+        object_resource_type: support/feature
+        object_resource_id: managedSolutions
+
+  # ─── Knowbot ────────────────────────────────────────────────────────────────
+  - method: POST
+    match: '/support/api/knowbot/**'
+    priority: 500
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: support/feature
+        object_resource_id: knowledgeBase
+
+  # ─── Tickets, account and profile writes ────────────────────────────────────
+  - method: POST
+    match: '/support/api/ticket'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: support/feature
+        object_resource_id: knowledgeBase
+
+  - method: POST
+    match: '/support/api/ticket/**'
+    priority: 500
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: support/feature
+        object_resource_id: knowledgeBase
+
+  - method: PATCH
+    match: '/support/api/ticket/**'
+    priority: 500
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: support/feature
+        object_resource_id: knowledgeBase
+
+  - method: DELETE
+    match: '/support/api/ticket/**'
+    priority: 500
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: support/feature
+        object_resource_id: knowledgeBase
+
+  - method: POST
+    match: '/support/api/account/**'
+    priority: 500
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: support/feature
+        object_resource_id: knowledgeBase
+
+  - method: PATCH
+    match: '/support/api/account/**'
+    priority: 500
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: support/feature
+        object_resource_id: knowledgeBase
+
+  - method: PATCH
+    match: '/support/api/profile'
+    priority: 100
+    tuples:
+      - user_resource_type: user
+        permission: can_access
+        object_resource_type: support/feature
+        object_resource_id: knowledgeBase
