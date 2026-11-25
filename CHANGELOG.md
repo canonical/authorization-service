@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.2.0](https://github.com/canonical/authorization-service/compare/v2.1.0...v2.2.0) (2026-11-25)
+
+
+### Features
+
+* **federate:** federate support service and add platform core type ([c899bc1](https://github.com/canonical/authorization-service/commit/c899bc17b35ec2fd9ae57b76a5c9847730963e25))
+* **federate:** federate support service and add platform core type ([#125](https://github.com/canonical/authorization-service/issues/125)) ([1174dd3](https://github.com/canonical/authorization-service/commit/1174dd3c3a3f0c8c1403ab9dad988d82984b2ca3))
+
+
+### Bug Fixes
+
+* **authz:** rename platform, add user/role#assignee ([c2d99e4](https://github.com/canonical/authorization-service/commit/c2d99e4b90dbb985cc2961b548a82ee88357deb7))
+* **federate:** remove support redundant rules ([76783de](https://github.com/canonical/authorization-service/commit/76783de46627968a42d5173c6c0b417903b9bc5c))
+* **federate:** underscore in types, rules hardened ([e7a700d](https://github.com/canonical/authorization-service/commit/e7a700da03a64605b581e101b5e820030b512196))
+
 ## [2.1.0](https://github.com/canonical/authorization-service/compare/v2.0.3...v2.1.0) (2026-11-16)
 
 
