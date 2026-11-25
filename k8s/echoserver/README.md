@@ -11,7 +11,7 @@ User / Machine Request → Istio Ingress Gateway → ztunnel → Waypoint Proxy 
                                                                  ↓
                                                          Authorization Service
                                                        ↙                      ↘
-                                        Cookie: session_id                Authorization: Bearer
+                                        Cookie: __Host-session_id                Authorization: Bearer
                                                 ↓                                   ↓
                                         STS ExchangeSession                 STS ExchangeToken
                                                        ↘                      ↙

@@ -232,7 +232,7 @@ func TestExternalAuthzService_Check_NoSubjectEarlyReturn(t *testing.T) {
 	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
-		map[string]string{"cookie": "session_id=abc123xyz"}, "GET", "/api/resource",
+		map[string]string{"cookie": "__Host-session_id=abc123xyz"}, "GET", "/api/resource",
 	))
 
 	if err != nil {
@@ -344,7 +344,7 @@ func TestExternalAuthzService_Check_ExchangeSessionError(t *testing.T) {
 	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
-		map[string]string{"cookie": "session_id=invalid-session"}, "GET", "/api",
+		map[string]string{"cookie": "__Host-session_id=invalid-session"}, "GET", "/api",
 	))
 	if err != nil {
 		t.Fatalf("Check failed: %v", err)
@@ -400,7 +400,7 @@ func TestExternalAuthzService_Check_ResourceMapperError(t *testing.T) {
 	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
-		map[string]string{"cookie": "session_id=mysession"}, "GET", "/api/resource",
+		map[string]string{"cookie": "__Host-session_id=mysession"}, "GET", "/api/resource",
 	))
 	if err != nil {
 		t.Fatalf("Check failed: %v", err)
@@ -452,7 +452,7 @@ func TestExternalAuthzService_Check_NoMatchingRules(t *testing.T) {
 	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
-		map[string]string{"cookie": "session_id=mysession"}, "DELETE", "/api/resource",
+		map[string]string{"cookie": "__Host-session_id=mysession"}, "DELETE", "/api/resource",
 	))
 	if err != nil {
 		t.Fatalf("Check failed: %v", err)
@@ -507,7 +507,7 @@ func TestExternalAuthzService_Check_QueryStringStripped(t *testing.T) {
 
 	// Path contains a query string that should be stripped.
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
-		map[string]string{"cookie": "session_id=s"}, "GET", "/api/resource?foo=bar&baz=qux",
+		map[string]string{"cookie": "__Host-session_id=s"}, "GET", "/api/resource?foo=bar&baz=qux",
 	))
 	if err != nil {
 		t.Fatalf("Check failed: %v", err)
@@ -567,7 +567,7 @@ func TestExternalAuthzService_Check_FGABatchCheckError(t *testing.T) {
 	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
-		map[string]string{"cookie": "session_id=s"}, "GET", "/api/resource",
+		map[string]string{"cookie": "__Host-session_id=s"}, "GET", "/api/resource",
 	))
 	if err != nil {
 		t.Fatalf("Check failed: %v", err)
@@ -631,7 +631,7 @@ func TestExternalAuthzService_Check_FGAResultNotOK(t *testing.T) {
 	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
-		map[string]string{"cookie": "session_id=s"}, "GET", "/api/resource",
+		map[string]string{"cookie": "__Host-session_id=s"}, "GET", "/api/resource",
 	))
 	if err != nil {
 		t.Fatalf("Check failed: %v", err)
@@ -698,7 +698,7 @@ func TestExternalAuthzService_Check_FGAResultHasError(t *testing.T) {
 	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
-		map[string]string{"cookie": "session_id=s"}, "GET", "/api/resource",
+		map[string]string{"cookie": "__Host-session_id=s"}, "GET", "/api/resource",
 	))
 	if err != nil {
 		t.Fatalf("Check failed: %v", err)
@@ -765,7 +765,7 @@ func TestExternalAuthzService_Check_FGAAccessDenied(t *testing.T) {
 	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
-		map[string]string{"cookie": "session_id=s"}, "GET", "/api/resource",
+		map[string]string{"cookie": "__Host-session_id=s"}, "GET", "/api/resource",
 	))
 	if err != nil {
 		t.Fatalf("Check failed: %v", err)
@@ -837,7 +837,7 @@ func TestExternalAuthzService_Check_FullSuccess(t *testing.T) {
 	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
-		map[string]string{"cookie": "session_id=valid-session"}, "GET", "/api/resource",
+		map[string]string{"cookie": "__Host-session_id=valid-session"}, "GET", "/api/resource",
 	))
 	if err != nil {
 		t.Fatalf("Check failed: %v", err)
@@ -917,7 +917,7 @@ func TestExternalAuthzService_Check_LogsAuthorizationDecision_Allow(t *testing.T
 
 	ctx := logging.ContextWithRequestID(context.Background(), "req-allow-1")
 	_, err := svc.Check(ctx, buildCheckRequest(
-		map[string]string{"cookie": "session_id=valid-session"}, "GET", "/api/resource?foo=bar",
+		map[string]string{"cookie": "__Host-session_id=valid-session"}, "GET", "/api/resource?foo=bar",
 	))
 	if err != nil {
 		t.Fatalf("Check failed: %v", err)
@@ -998,7 +998,7 @@ func TestExternalAuthzService_Check_LogsAuthorizationDecision_Deny(t *testing.T)
 
 	ctx := logging.ContextWithRequestID(context.Background(), "req-deny-1")
 	_, err := svc.Check(ctx, buildCheckRequest(
-		map[string]string{"cookie": "session_id=s"}, "GET", "/api/resource",
+		map[string]string{"cookie": "__Host-session_id=s"}, "GET", "/api/resource",
 	))
 	if err != nil {
 		t.Fatalf("Check failed: %v", err)
@@ -1067,7 +1067,7 @@ func TestExternalAuthzService_Check_LogsAuthorizationDecision_Error(t *testing.T
 
 	ctx := logging.ContextWithRequestID(context.Background(), "req-error-1")
 	_, err := svc.Check(ctx, buildCheckRequest(
-		map[string]string{"cookie": "session_id=valid-session"}, "GET", "/api/resource",
+		map[string]string{"cookie": "__Host-session_id=valid-session"}, "GET", "/api/resource",
 	))
 	if err == nil {
 		t.Fatal("expected error, got nil")
@@ -1117,7 +1117,7 @@ func TestExternalAuthzService_Check_NoDuplicateDebugLogOnExchangeSessionError(t 
 	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, logger, noop.NewTracerProvider().Tracer("test"))
 
 	_, err := svc.Check(context.Background(), buildCheckRequest(
-		map[string]string{"cookie": "session_id=invalid-session"}, "GET", "/api",
+		map[string]string{"cookie": "__Host-session_id=invalid-session"}, "GET", "/api",
 	))
 	if err != nil {
 		t.Fatalf("Check failed: %v", err)
@@ -1158,7 +1158,7 @@ func TestExternalAuthzService_Check_MultipleCookies(t *testing.T) {
 	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
-		map[string]string{"cookie": "foo=bar; session_id=mysessionvalue; baz=qux"}, "GET", "/api",
+		map[string]string{"cookie": "foo=bar; __Host-session_id=mysessionvalue; baz=qux"}, "GET", "/api",
 	))
 	if err != nil {
 		t.Fatalf("Check failed: %v", err)
@@ -1201,7 +1201,7 @@ func TestExternalAuthzService_Check_CookieWithSpaces(t *testing.T) {
 	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
-		map[string]string{"cookie": "  foo=bar  ;  session_id=spaced-value  ;  baz=qux  "}, "GET", "/api",
+		map[string]string{"cookie": "  foo=bar  ;  __Host-session_id=spaced-value  ;  baz=qux  "}, "GET", "/api",
 	))
 	if err != nil {
 		t.Fatalf("Check failed: %v", err)
@@ -1242,22 +1242,22 @@ func TestExtractSessionCookie(t *testing.T) {
 	}{
 		{
 			name:          "single session cookie",
-			cookieHeader:  "session_id=abc123",
+			cookieHeader:  "__Host-session_id=abc123",
 			expectedValue: "abc123",
 		},
 		{
 			name:          "session cookie with multiple cookies",
-			cookieHeader:  "foo=bar; session_id=xyz789; baz=qux",
+			cookieHeader:  "foo=bar; __Host-session_id=xyz789; baz=qux",
 			expectedValue: "xyz789",
 		},
 		{
 			name:          "session cookie at start",
-			cookieHeader:  "session_id=first; other=value",
+			cookieHeader:  "__Host-session_id=first; other=value",
 			expectedValue: "first",
 		},
 		{
 			name:          "session cookie at end",
-			cookieHeader:  "other=value; session_id=last",
+			cookieHeader:  "other=value; __Host-session_id=last",
 			expectedValue: "last",
 		},
 		{
@@ -1272,17 +1272,17 @@ func TestExtractSessionCookie(t *testing.T) {
 		},
 		{
 			name:          "session cookie with spaces",
-			cookieHeader:  "  session_id=spaced  ",
+			cookieHeader:  "  __Host-session_id=spaced  ",
 			expectedValue: "spaced",
 		},
 		{
 			name:          "session cookie with complex value",
-			cookieHeader:  "session_id=value-with-dashes_and_underscores.and.dots",
+			cookieHeader:  "__Host-session_id=value-with-dashes_and_underscores.and.dots",
 			expectedValue: "value-with-dashes_and_underscores.and.dots",
 		},
 		{
 			name:          "similar cookie name",
-			cookieHeader:  "session-id=wrong; session_id=correct",
+			cookieHeader:  "session-id=wrong; __Host-session_id=correct",
 			expectedValue: "correct",
 		},
 	}
@@ -1306,13 +1306,13 @@ func TestSplitCookies(t *testing.T) {
 	}{
 		{
 			name:          "single cookie",
-			cookieHeader:  "session_id=abc123",
+			cookieHeader:  "__Host-session_id=abc123",
 			expectedCount: 1,
-			expectedFirst: "session_id=abc123",
+			expectedFirst: "__Host-session_id=abc123",
 		},
 		{
 			name:          "multiple cookies",
-			cookieHeader:  "foo=bar; baz=qux; session_id=xyz",
+			cookieHeader:  "foo=bar; baz=qux; __Host-session_id=xyz",
 			expectedCount: 3,
 			expectedFirst: "foo=bar",
 		},
@@ -1410,7 +1410,7 @@ func TestExtractBearerToken(t *testing.T) {
 func TestGetHeader(t *testing.T) {
 	headers := map[string]string{
 		"Authorization": "Bearer token123",
-		"cookie":        "session_id=abc",
+		"cookie":        "__Host-session_id=abc",
 		"X-Custom":      "value",
 	}
 
@@ -1430,7 +1430,7 @@ func TestGetHeader(t *testing.T) {
 			name:     "lowercase lookup matching lowercase",
 			headers:  headers,
 			key:      "cookie",
-			expected: "session_id=abc",
+			expected: "__Host-session_id=abc",
 		},
 		{
 			name:     "lowercase lookup matching title case",
@@ -1442,7 +1442,7 @@ func TestGetHeader(t *testing.T) {
 			name:     "uppercase lookup",
 			headers:  headers,
 			key:      "COOKIE",
-			expected: "session_id=abc",
+			expected: "__Host-session_id=abc",
 		},
 		{
 			name:     "missing header",
@@ -1706,7 +1706,7 @@ func TestExternalAuthzService_Check_Multitenancy(t *testing.T) {
 			svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, tc.multitenancyEnabled, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 			resp, err := svc.Check(context.Background(), buildCheckRequest(
-				map[string]string{"cookie": "session_id=valid-session"}, "GET", "/api/resource",
+				map[string]string{"cookie": "__Host-session_id=valid-session"}, "GET", "/api/resource",
 			))
 			if err != nil {
 				t.Fatalf("Check failed: %v", err)
@@ -1756,7 +1756,7 @@ func TestExternalAuthzService_Check_Multitenancy_MissingTenant(t *testing.T) {
 	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, true, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
-		map[string]string{"cookie": "session_id=valid-session"}, "GET", "/api/resource",
+		map[string]string{"cookie": "__Host-session_id=valid-session"}, "GET", "/api/resource",
 	))
 
 	if err == nil {
@@ -1805,7 +1805,7 @@ func TestExternalAuthzService_Check_MissingMatchedRule(t *testing.T) {
 	svc := NewExternalAuthzService(mockVerifier, mockSTS, mockResourceMapper, mockOpenFGA, false, metrics, testLoggerExternal(t), noop.NewTracerProvider().Tracer("test"))
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
-		map[string]string{"cookie": "session_id=valid-session"}, "GET", "/api/resource",
+		map[string]string{"cookie": "__Host-session_id=valid-session"}, "GET", "/api/resource",
 	))
 
 	if err == nil {
@@ -1842,7 +1842,7 @@ func TestExternalAuthzService_Check_ConflictingCredentials(t *testing.T) {
 
 	resp, err := svc.Check(context.Background(), buildCheckRequest(
 		map[string]string{
-			"cookie":        "session_id=user-session-123",
+			"cookie":        "__Host-session_id=user-session-123",
 			"authorization": "Bearer hydra-machine-token-456",
 		},
 		"GET",

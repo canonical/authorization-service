@@ -4,11 +4,18 @@ metadata:
   name: fake-server-config
 data:
   default.conf: |
+    # nginx's $cookie_* variables do not translate "_" to "-" (unlike $http_*),
+    # and variable names are lowercased before cookie-name lookup, so
+    # "$cookie___Host_session_id" would never match "__Host-session_id".
+    # Extract the session cookie from $http_cookie instead.
+    map $http_cookie $session_cookie {
+        "~(?:^|;\s*)__Host-session_id=(?<v>[^;]+)" $v;
+    }
     server {
         listen 80;
         location / {
             default_type application/json;
-            return 200 '{"authorization_header": "$http_authorization", "session_cookie": "$cookie_session_id", "status": "success", "message": "Authz Test", "random_id": "$request_id"}';
+            return 200 '{"authorization_header": "$http_authorization", "session_cookie": "$session_cookie", "status": "success", "message": "Authz Test", "random_id": "$request_id"}';
         }
     }
 ---
